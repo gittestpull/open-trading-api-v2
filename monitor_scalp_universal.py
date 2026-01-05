@@ -468,12 +468,20 @@ class UniversalScalper:
             balance_str = f"주문가능: {cash:,} | 총자산: {asset:,}"
             holding_str = f"평단가: {real_avg:.2f} ({real_qty}주)" if real_qty > 0 else "보유없음"
             
-            # Inventory Mismatch Alert
-            mismatch_alert = ""
-            if self.state == "HOLDING" and self.total_qty > 0 and real_qty == 0:
-                mismatch_alert = " [⚠️수량불일치: 계좌에 주식 없음!]"
+            # Auto-Synchronization with Actual Account Balance
+            if real_qty != self.total_qty:
+                logger.warning(f" [⚠️Sync] Status mismatch detected. Local: {self.total_qty}주, Account: {real_qty}주. Synchronizing...")
+                if real_qty == 0:
+                    self.clear_state()
+                else:
+                    self.state = "HOLDING"
+                    self.total_qty = real_qty
+                    self.avg_buy_price = real_avg
+                    self.current_step = 1  # Reset to step 1 based on current balance
+                    self.buy_history = [(real_avg, real_qty)]
+                    self.save_state()
             
-            logger.info(f"{session_tag} Price: {curr_price:.2f}{bounce_str} | RSI: {rsi:.1f} | BB: [{lower_bb:.2f}, {upper_bb:.2f}]{supply_part} | {balance_str} | {holding_str}{mismatch_alert}{step_info} | Target: {self.target_profit:.2%}{target_price_info} | Next Buy: {next_buy_tag} | EXCG: {self.current_exchange} | State: {self.state}")
+            logger.info(f"{session_tag} Price: {curr_price:.2f}{bounce_str} | RSI: {rsi:.1f} | BB: [{lower_bb:.2f}, {upper_bb:.2f}]{supply_part} | {balance_str} | {holding_str}{step_info} | Target: {self.target_profit:.2%}{target_price_info} | Next Buy: {next_buy_tag} | EXCG: {self.current_exchange} | State: {self.state}")
             
             if self.state == "SEARCHING":
                 # Triple-Threat Entry Condition: Any of (RSI hit, BB hit, or Manual Price hit)
