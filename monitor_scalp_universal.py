@@ -81,6 +81,14 @@ class UniversalScalper:
         # Initial balance fetch (once at startup)
         self.cached_balance = self.get_balance()
         
+        # Supply info caching (Foreign/Institutional trends)
+        self.last_supply_check = 0
+        self.cached_supply = "Fetching..."
+        self.supply_check_interval = 600  # 10 minutes
+        if self.is_domestic:
+            self.cached_supply = self.get_supply_info()
+            self.last_supply_check = time.time()
+        
     def get_minute_chart(self):
         """Unified minute chart fetcher."""
         if self.is_domestic:
@@ -420,9 +428,14 @@ class UniversalScalper:
             else:
                 next_buy_tag = "MAX STEPS"
 
-            # 2. Fetch Supply (Investor) Info
-            supply_str = self.get_supply_info()
-            supply_part = f" | {supply_str}" if supply_str else ""
+            # Throttled Supply Info (update every 10 mins)
+            if self.is_domestic and (current_time - self.last_supply_check >= self.supply_check_interval):
+                new_supply = self.get_supply_info()
+                if new_supply: 
+                    self.cached_supply = new_supply
+                    self.last_supply_check = current_time
+            
+            supply_part = f" | {self.cached_supply}" if self.is_domestic else ""
 
             # Bounce info
             bounce_rate = (curr_price - candle_low) / candle_low if candle_low > 0 else 0
@@ -431,7 +444,13 @@ class UniversalScalper:
             # Balance and Holdings info
             balance_str = f"주문가능: {cash:,} | 총자산: {asset:,}"
             holding_str = f"평단가: {real_avg:.2f} ({real_qty}주)" if real_qty > 0 else "보유없음"
-            logger.info(f"Price: {curr_price:.2f}{bounce_str} | RSI: {rsi:.1f} | BB: [{lower_bb:.2f}, {upper_bb:.2f}]{supply_part} | {balance_str} | {holding_str}{step_info} | Target: {self.target_profit:.2%}{target_price_info} | Next Buy: {next_buy_tag} | Step: {self.current_step} | State: {self.state}")
+            
+            # Inventory Mismatch Alert
+            mismatch_alert = ""
+            if self.state == "HOLDING" and self.total_qty > 0 and real_qty == 0:
+                mismatch_alert = " [⚠️수량불일치: 계좌에 주식 없음!]"
+            
+            logger.info(f"Price: {curr_price:.2f}{bounce_str} | RSI: {rsi:.1f} | BB: [{lower_bb:.2f}, {upper_bb:.2f}]{supply_part} | {balance_str} | {holding_str}{mismatch_alert}{step_info} | Target: {self.target_profit:.2%}{target_price_info} | Next Buy: {next_buy_tag} | Step: {self.current_step} | State: {self.state}")
             
             if self.state == "SEARCHING":
                 # Triple-Threat Entry Condition: Any of (RSI hit, BB hit, or Manual Price hit)
