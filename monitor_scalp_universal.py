@@ -54,6 +54,7 @@ class UniversalScalper:
         self.live_mode = live_mode
         self.manual_buy_price = manual_buy_price
         self.market = "Domestic" if self.is_domestic else "Overseas"
+        self.current_exchange = "KRX"  # Will be updated dynamically for NXT sessions
         
         # State management
         self.state = "SEARCHING"
@@ -180,22 +181,34 @@ class UniversalScalper:
         self.current_step = 0
         self.buy_history = []
 
-    def check_market_hours(self):
-        """Returns True if within trading hours, False otherwise."""
+    def get_market_session(self):
+        """Returns current market session: KRX, NXT_PRE, NXT_POST, or CLOSED."""
         now = datetime.now()
+        hour, minute = now.hour, now.minute
+        time_val = hour * 100 + minute  # HHMM format
+        
         if self.is_domestic:
-            # Domestic market ends at 15:30, but allow 15:40 for clearing
-            close_time = now.replace(hour=15, minute=40, second=0, microsecond=0)
-            return now < close_time
+            if 800 <= time_val < 850:
+                return "NXT_PRE"  # NXT Pre-market
+            elif 900 <= time_val < 1530:
+                return "KRX"  # Regular session
+            elif 1540 <= time_val < 1800:
+                return "NXT_POST"  # NXT After-hours
+            else:
+                return "CLOSED"
         else:
-            # Overseas market (US) ends around 06:00 KST next day
-            # This is a simplification; for production, more robust logic is needed
-            close_time = now.replace(hour=6, minute=10, second=0, microsecond=0)
-            # If it's already past 6:10 AM, we consider it the current day's close
+            # Overseas market (US)
             if now.hour < 6 or (now.hour == 6 and now.minute < 10):
-                return True # We are in the extended/early morning session
-            # If it's daytime, it's before the US market opens
-            return now.hour >= 22 # Assuming it opens after 22:30 KST
+                return "US_OPEN"
+            elif now.hour >= 22:
+                return "US_OPEN"
+            else:
+                return "CLOSED"
+    
+    def check_market_hours(self):
+        """Returns True if within any trading session (KRX or NXT), False otherwise."""
+        session = self.get_market_session()
+        return session != "CLOSED"
             
     def get_balance(self):
         """Fetches total evaluation amount and available cash."""
@@ -358,8 +371,8 @@ class UniversalScalper:
                 "PDNO": self.ticker,
                 "ORD_DVSN": "00",
                 "ORD_QTY": str(int(qty)),
-                "ORD_UNPR": str(int(price)), # Domestic is int
-                "EXCG_ID_DVSN_CD": "KRX"
+                "ORD_UNPR": str(int(price)),
+                "EXCG_ID_DVSN_CD": self.current_exchange  # Dynamic: KRX or NXT
             }
         else:
             url = "/uapi/overseas-stock/v1/trading/order"
@@ -390,10 +403,20 @@ class UniversalScalper:
         sum_weights = sum(WEIGHTS)
         
         while True:
-            # 0. Check Market Hours
-            if not self.check_market_hours():
+            # 0. Get current market session and update exchange
+            current_time = time.time()
+            session = self.get_market_session()
+            if session == "CLOSED":
                 logger.info(f"Market Closed. Current Time: {datetime.now().strftime('%H:%M:%S')}. Stopping Bot...")
                 break
+            
+            # Update current exchange based on session
+            if session in ["NXT_PRE", "NXT_POST"]:
+                self.current_exchange = "NXT"
+            else:
+                self.current_exchange = "KRX"
+            
+            session_tag = f"[{session}]"
                 
             df = self.get_minute_chart()
             rsi, bb = self.calculate_indicators(df)
@@ -450,7 +473,7 @@ class UniversalScalper:
             if self.state == "HOLDING" and self.total_qty > 0 and real_qty == 0:
                 mismatch_alert = " [⚠️수량불일치: 계좌에 주식 없음!]"
             
-            logger.info(f"Price: {curr_price:.2f}{bounce_str} | RSI: {rsi:.1f} | BB: [{lower_bb:.2f}, {upper_bb:.2f}]{supply_part} | {balance_str} | {holding_str}{mismatch_alert}{step_info} | Target: {self.target_profit:.2%}{target_price_info} | Next Buy: {next_buy_tag} | Step: {self.current_step} | State: {self.state}")
+            logger.info(f"{session_tag} Price: {curr_price:.2f}{bounce_str} | RSI: {rsi:.1f} | BB: [{lower_bb:.2f}, {upper_bb:.2f}]{supply_part} | {balance_str} | {holding_str}{mismatch_alert}{step_info} | Target: {self.target_profit:.2%}{target_price_info} | Next Buy: {next_buy_tag} | EXCG: {self.current_exchange} | State: {self.state}")
             
             if self.state == "SEARCHING":
                 # Triple-Threat Entry Condition: Any of (RSI hit, BB hit, or Manual Price hit)
