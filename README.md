@@ -34,40 +34,24 @@
 # 프로젝트 구조
 .
 ├── README.md                    # 프로젝트 설명서
-├── docs/
-│   └── convention.md            # 코딩 컨벤션 가이드
-├── examples_llm/                  # LLM용 샘플 코드
-│   ├── kis_auth.py              # 인증 공통 함수
-│   ├── domestic_bond            # 국내채권
-│   │   └── inquire_price        # API 단일 기능별 폴더
-│   │       ├── inquire_price.py         # 한줄 호출 파일 (예: 채권 가격 조회)
-│   │       └── chk_inquire_price.py     # 테스트 파일 (예: 채권 가격 조회 결과 검증)
-│   ├── domestic_futureoption    # 국내선물옵션
-│   ├── domestic_stock           # 국내주식
-│   ├── elw                      # ELW
-│   ├── etfetn                   # ETF/ETN
-│   ├── overseas_futureoption    # 해외선물옵션
-│   ├── overseas_price           # 해외시세
-│   └── overseas_stock           # 해외주식
-├── examples_user/                 # user용 실제 사용 예제
-│   ├── kis_auth.py              # 인증 공통 함수
-│   ├── domestic_bond            # 국내채권
-│   │   ├── domestic_bond_functions.py        # (REST) 통합 함수 파일 (모든 API 함수 모음)
-│   │   ├── domestic_bond_examples.py         # (REST) 실행 예제 파일 (함수 사용법)
-│   │   ├── domestic_bond_functions_ws.py     # (Websocket) 통합 함수 파일
-│   │   └── domestic_bond_examples_ws.py      # (Websocket) 실행 예제 파일
-│   ├── domestic_futureoption    # 국내선물옵션
-│   ├── domestic_stock           # 국내주식
-│   ├── elw                      # ELW
-│   ├── etfetn                   # ETF/ETN
-│   ├── overseas_futureoption    # 해외선물옵션
-│   ├── overseas_price           # 해외시세
-│   └── overseas_stock           # 해외주식
-├── legacy/                      # 구 샘플코드 보관
-├── stock_info/                  # 종목정보파일 참고 데이터
 ├── kis_devlp.yaml               # API 설정 파일 (개인정보 입력 필요)
 ├── pyproject.toml               # (uv)프로젝트 의존성 관리
-└── uv.lock                      # (uv)의존성 락 파일
+├── uv.lock                      # (uv)의존성 락 파일
+│
+├── monitor_scalp_universal.py   # [Core] 범용 스캘핑 봇 (국내/해외 통합)
+├── monitor_scalp_llm.py         # [Core] AI 지능형 스캘퍼 (GPT-5.2 기반)
+├── visualize_investor_trends.py # [Analysis] 심층 차트 제너레이터 (이미지 생성)
+├── analyze_chart_data.py        # [Analysis] 데이터 해석기 (리포트 출력)
+│
+├── custom_scripts/
+│   └── leading_stock_finder.py  # [Tool] 실시간 주도주 검색기
+│
+├── stock_code_lookup.py         # [Module] 종목명 <-> 종목코드 변환 모듈
+├── examples_llm/                # [Sample] LLM용 기능 단위 샘플 코드
+├── examples_user/               # [Sample] 사용자용 통합 예제 코드
+├── legacy/                      # 구 샘플코드 보관
+├── scalp_data/                   # 봇 거래 상태 데이터 (JSON)
+└── stock_info/                  # 종목정보파일 참고 데이터
 ```
 
 ### 2.2. 지원되는 주요 API 카테고리
@@ -282,6 +266,132 @@ kws = ka.KISWebSocket(api_url="/tryitout")
 # 삼성전자, sk하이닉스 실시간 호가 구독
 kws.subscribe(request=asking_price_krx, data=["005930", "000660"])
 ```
+
+## 6. 고급 자동매매 봇 (Advanced Trading Bots)
+
+이 저장소는 단순 API 예제를 넘어, 실제 매매에 활용 가능한 고성능 자동매매 스크립트를 포함하고 있습니다.
+
+### 6.1. `monitor_scalp_universal.py` (범용 스캘핑 봇)
+국내(KOSPI/KOSDAQ) 및 해외(NASDAQ/NYSE) 주식을 단일 로직으로 매매할 수 있는 스캘퍼입니다.
+
+#### 전략 개요
+- **매수 조건 (Triple-Threat Entry)**: 아래 3가지 조건 중 하나라도 충족 시 매수 진입
+  - **RSI 과매도**: 1분봉 RSI(9)가 30 이하
+  - **볼린저 밴드 하단**: 현재가 또는 분봉 저가가 BB(20, 2) 하단 터치
+  - **수동 지정가**: `--buy_price` 옵션으로 지정한 가격까지 하락
+- **매도 조건**:
+  - 목표 수익률 달성 (기본 0.5%)
+  - 볼린저 밴드 상단 터치 + 수익률 0.5% 이상
+- **자금 관리**: 물타기(Pyramiding) 전략 (1:2:4:8 비중 배분, 최대 4단계)
+
+#### CLI 옵션
+| 옵션 | 설명 | 기본값 | 예시 |
+|------|------|--------|------|
+| `--ticker` | 종목코드 또는 종목명 (필수) | - | `014940`, `TSLA`, `"삼성중공업"` |
+| `--budget` | 총 매매 예산 (원/달러) | 1,000,000 | `100000`, `5000` |
+| `--target` | 목표 수익률 (소수) | 0.005 (0.5%) | `0.01` (1%), `0.02` (2%) |
+| `--buy_price` | 수동 매수 진입가 | 0 (비활성) | `2450` |
+| `--live` | 실전 매매 모드 활성화 | False (모의) | 플래그만 추가 |
+
+#### 사용 예시
+```bash
+# 기본 사용 (종목코드 사용, 모의매매)
+uv run python monitor_scalp_universal.py --ticker 014940 --budget 1000000
+
+# 종목명으로 검색 (국내주식)
+uv run python monitor_scalp_universal.py --ticker "삼성중공업" --budget 500000
+
+# 목표 수익률 1%로 설정
+uv run python monitor_scalp_universal.py --ticker 014940 --budget 100000 --target 0.01
+
+# 특정 가격(2,400원)까지 하락 시 매수 진입
+uv run python monitor_scalp_universal.py --ticker 014940 --budget 300000 --buy_price 2400
+
+# 해외주식 (테슬라) - 5,000달러 예산
+uv run python monitor_scalp_universal.py --ticker TSLA --budget 5000 --target 0.005
+
+# 실전 매매 모드
+uv run python monitor_scalp_universal.py --ticker "삼성중공업" --budget 100000 --target 0.01 --live
+```
+
+#### 상태 관리
+봇은 `scalp_data/` 폴더에 거래 상태를 JSON 파일로 저장하여, 봇 재시작 시에도 이전 포지션을 유지합니다.
+- **상태 파일 경로**: `scalp_data/state_{종목코드}.json`
+- **저장 정보**: 현재 상태(SEARCHING/HOLDING), 평균 매수가, 총 보유 수량, 물타기 단계, 매수 이력
+
+```bash
+# 상태 파일 확인
+cat scalp_data/state_014940.json
+
+# 상태 초기화 (수동으로 정리 시)
+rm scalp_data/state_014940.json
+```
+
+#### 로그 출력 예시
+```
+2025-01-05 09:15:30 [INFO] Starting Universal Scalper | Ticker: 014940 (Domestic) | Budget: 1,000,000 | Target: 0.50%
+2025-01-05 09:15:31 [INFO] Price: 2,480.00 | Bounce: 0.12% | RSI: 35.2 | BB: [2,420.50, 2,580.30] | Supply: F:+125.3k, I:-45.8k | 주문가능: 5,000,000 | 총자산: 12,500,000 | 보유없음 | Target: 0.50% | Next Buy: B1 @ BB:2420.50 / RSI30:2415.20 | Step: 0 | State: SEARCHING
+```
+
+#### 알림 기능
+- **macOS**: 매매 체결 시 시스템 사운드 (Ping.aiff) 재생
+- **Windows/Linux**: 사운드 미지원 (afplay 명령어가 macOS 전용)
+
+### 6.2. `monitor_scalp_llm.py` (AI 지능형 스캘퍼)
+Universal 봇의 기술적 지표에 **OpenAI GPT-5.2**의 판단력을 결합한 최신형 봇입니다.
+- **AI 감정 분석**: 실시간 관련 뉴스를 수집하여 GPT-5.2가 -5 ~ +5 점수로 매매 적합성 판별.
+- **거시 지표 반영 (Macro Context)**: 국내 지수(KOSPI/KOSDAQ) 및 해외 지수(SPY/QQQ)와 실시간 수급(외인/기관 순매수)을 GPT가 종합 분석.
+- **비상 탈출**: 기술적 지표가 좋아도 뉴스가 심각하게 부정적(점수 -3 이하)일 경우 즉시 전량 매도.
+- **알림 기능**: 매매 체결 시 'Submarine' 사운드 알림.
+
+### 6.3. 실행 방법 (권장)
+`uv`를 사용하는 경우, **`uv run`** 명령어를 통해 모든 의존성 패키지가 포함된 격리된 환경에서 안전하게 실행할 수 있습니다. 또한, 티커 코드 대신 **"삼성중공업"**과 같은 종목명을 직접 입력할 수 있습니다.
+
+```bash
+# 범용 봇 실행 (종목명 "삼성중공업" 사용, 10만원 예산, 목표 수익 1% 설정, 실전매매)
+uv run python monitor_scalp_universal.py --ticker "삼성중공업" --budget 100000 --target 0.01 --live
+
+# AI 봇 실행 (테슬라, 5000달러 예산, 목표 수익 0.5% 설정, 실전매매)
+uv run python monitor_scalp_llm.py --ticker TSLA --budget 5000 --target 0.005 --live
+```
+
+## 7. 데이터 분석 및 시각화 (Analysis & Visualization)
+
+트레이딩 의사결정을 돕기 위한 강력한 데이터 시각화 및 분석 도구를 제공합니다.
+
+### 7.1. `visualize_investor_trends.py` (심층 차트 제너레이터)
+단순한 가격 차트를 넘어, 투자에 필요한 모든 핵심 데이터를 하나의 이미지로 결합합니다.
+- **포함 데이터**: 주가, 이동평균선, 외국인/기관/개인 수급, 신용융자 잔고, 대차잔고(공매도 추이), 밸류에이션(PBR/PER), 주요 뉴스/공시(수주 등), 애널리스트 목표가, 배당 정보.
+- **자동 종목 검색**: 종목코드 대신 종목명(예: "삼성전자")만 입력해도 자동으로 코드를 찾아 분석합니다.
+- **한글 지원**: macOS, Windows, Linux 환경에 맞는 한글 폰트를 자동으로 설정합니다.
+
+### 7.2. `analyze_chart_data.py` (데이터 해석기)
+시각화된 데이터를 수치적으로 분석하여 리포트 형태로 출력합니다.
+- **밸류에이션 진단**: 현재 PBR/PER 수치와 과거 최고점 대비 위치를 분석하여 저평가 여부를 판별합니다.
+- **상관관계 분석**: 주가와 수급, 주가와 밸류에이션 간의 상관계수를 계산하여 주가 상승의 동인을 파악합니다.
+- **피크 분석**: 주가 고점과 신용/대차 잔고 고점 사이의 시차(Lag)를 분석하여 변곡점을 추적합니다.
+
+### 7.3. `custom_scripts/leading_stock_finder.py` (주도주 검색기)
+당일 시장을 주도하고 있는 상위 20개 종목을 실시간으로 발굴합니다.
+- **데이터 통합**: 가격 급등락, 거래대금 상위, 체결강도(VolPower) 데이터를 종합 분석.
+- **Leader Score**: 거래대금 가중치와 상승률, 체결강도를 결합한 독자적인 점수 체계 적용.
+- **실시간 순위**: 현재 시간 기준 가장 강력한 수급이 쏠리는 종목을 표 형태로 출력.
+
+### 7.4. 실행 방법
+```bash
+# 삼성전자 종합 분석 차트 생성 (자동으로 폰트 및 코드 검색)
+python visualize_investor_trends.py "삼성전자"
+
+# 오리엔탈정공(014940) 데이터 심층 분석 리포트 출력
+python analyze_chart_data.py 014940
+
+# 주도주 검색기 실행
+uv run python custom_scripts/leading_stock_finder.py
+```
+
+---
+
+---
 
 ## 5. 문제 해결 가이드
 
