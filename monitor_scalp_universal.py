@@ -629,8 +629,15 @@ class UniversalScalper:
             elif self.state == "HOLDING":
                 profit_rate = (curr_price - self.avg_buy_price) / self.avg_buy_price
                 
-                # Pyramiding (Averaging Down)
-                if profit_rate <= -PYRAMIDING_THRESHOLD and self.current_step < MAX_STEPS:
+                # Pyramiding (Averaging Down): -1% drop OR RSI <= 25
+                pyramiding_drop = profit_rate <= -PYRAMIDING_THRESHOLD
+                pyramiding_rsi = rsi <= 25
+                
+                if (pyramiding_drop or pyramiding_rsi) and self.current_step < MAX_STEPS:
+                    pyramid_reason = []
+                    if pyramiding_drop: pyramid_reason.append(f"Drop({profit_rate:.1%})")
+                    if pyramiding_rsi: pyramid_reason.append(f"RSI({rsi:.1f})")
+                    
                     step_budget = self.budget * (WEIGHTS[self.current_step] / sum_weights)
                     qty = int(step_budget / curr_price)
                     
@@ -648,7 +655,7 @@ class UniversalScalper:
                         self.buy_history.append((curr_price, qty))
                         self.save_state()
                         self.cached_balance = self.get_balance()  # Update balance after pyramiding
-                        logger.info(f"Averaged Down. New Avg Price: {self.avg_buy_price:.2f}")
+                        logger.info(f"Pyramiding B{self.current_step}: {' | '.join(pyramid_reason)} | New Avg: {self.avg_buy_price:.2f}")
 
                 # Exit Conditions: BB Upper only if in profit >= 0.5%, or Target Profit reached
                 bb_exit = curr_price >= upper_bb and profit_rate >= 0.005
