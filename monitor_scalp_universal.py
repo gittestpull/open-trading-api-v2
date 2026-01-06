@@ -142,7 +142,7 @@ class UniversalScalper:
         # Runtime Safety
         self.consecutive_errors = 0
         self.max_allowed_errors = 3
-            self.last_supply_check = time.time()
+        self.last_supply_check = time.time()
         
         # Price info caching (Prev Close, Prev High, Daily High)
         self.prev_close = 0
