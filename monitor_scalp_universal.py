@@ -35,7 +35,7 @@ MAX_STEPS = 4
 WEIGHTS = [1, 2, 4, 8]
 
 class UniversalScalper:
-    def __init__(self, ticker, budget, target_profit=0.005, live_mode=False, manual_buy_price=0):
+    def __init__(self, ticker, budget, target_profit=0.005, live_mode=False, manual_buy_price=0, use_orderbook=False):
         # 0. Initial guess
         self.is_domestic = ticker.isdigit() and len(ticker) == 6
         
@@ -55,6 +55,7 @@ class UniversalScalper:
         self.manual_buy_price = manual_buy_price
         self.market = "Domestic" if self.is_domestic else "Overseas"
         self.current_exchange = "KRX"  # Will be updated dynamically for NXT sessions
+        self.use_orderbook = use_orderbook  # Orderbook filter option
         
         # State management
         self.state = "SEARCHING"
@@ -168,6 +169,29 @@ class UniversalScalper:
                 logger.debug(f"Price Info Updated: Prev Close={self.prev_close:,.0f}, Daily High={self.daily_high:,.0f}")
         except Exception as e:
             logger.error(f"Failed to update price info: {e}")
+    
+    def get_orderbook(self):
+        """Fetch orderbook data (bid/ask totals)."""
+        if not self.is_domestic:
+            return 0, 0, ""
+        try:
+            url = "/uapi/domestic-stock/v1/quotations/inquire-asking-price-exp-ccn"
+            tr_id = "FHKST01010200"
+            params = {
+                "FID_COND_MRKT_DIV_CODE": "J",
+                "FID_INPUT_ISCD": self.ticker
+            }
+            res = kis_auth._url_fetch(url, tr_id, "", params)
+            if res.isOK():
+                out = res.getBody().output1
+                bid_total = int(out.get('total_bidp_rsqn', 0))  # 총매수잔량
+                ask_total = int(out.get('total_askp_rsqn', 0))  # 총매도잔량
+                ratio = bid_total / ask_total if ask_total > 0 else 0
+                info_str = f"B{bid_total:,}:A{ask_total:,}({ratio:.1f})"
+                return bid_total, ask_total, info_str
+        except Exception as e:
+            logger.error(f"Failed to fetch orderbook: {e}")
+        return 0, 0, ""
 
     def save_state(self):
         """Save current trading state to JSON."""
@@ -521,7 +545,14 @@ class UniversalScalper:
                     drop_target = self.daily_high * 0.98
                     drop_info = f" | Drop@{drop_target:,.0f}(고가{self.daily_high:,.0f})"
             
-            logger.info(f"{session_tag} Price: {curr_price:.2f}{bounce_str} | RSI: {rsi:.1f} | BB: [{lower_bb:.2f}, {upper_bb:.2f}]{supply_part} | {balance_str} | {holding_str}{step_info} | Target: {self.target_profit:.2%}{target_price_info} | Next Buy: {next_buy_tag}{drop_info} | EXCG: {self.current_exchange} | State: {self.state}")
+            # Orderbook info (if enabled)
+            ob_info = ""
+            bid_total, ask_total = 0, 0
+            if self.use_orderbook and self.is_domestic:
+                bid_total, ask_total, ob_info = self.get_orderbook()
+                ob_info = f" | OB:{ob_info}" if ob_info else ""
+            
+            logger.info(f"{session_tag} Price: {curr_price:.2f}{bounce_str} | RSI: {rsi:.1f} | BB: [{lower_bb:.2f}, {upper_bb:.2f}]{supply_part}{ob_info} | {balance_str} | {holding_str}{step_info} | Target: {self.target_profit:.2%}{target_price_info} | Next Buy: {next_buy_tag}{drop_info} | EXCG: {self.current_exchange} | State: {self.state}")
             
             if self.state == "SEARCHING":
                 # Time-based Priority Entry Condition (Highest Priority)
@@ -553,30 +584,35 @@ class UniversalScalper:
                 price_hit = (self.manual_buy_price > 0 and (curr_price <= self.manual_buy_price or candle_low <= self.manual_buy_price))
                 
                 if drop_hit or rsi_hit or bb_hit or price_hit:
-                    reason = []
-                    if drop_hit: reason.append(drop_reason)  # Priority first
-                    if rsi_hit: reason.append(f"RSI({rsi:.1f})")
-                    if bb_hit: reason.append(f"BB({lower_bb:.2f})")
-                    if price_hit: reason.append(f"Price({self.manual_buy_price:,})")
-                    
-                    logger.info(f"ENTRY Triggered: {' | '.join(reason)}")
-                    
-                    step_budget = self.budget * (WEIGHTS[0] / sum_weights)
-                    qty = int(step_budget / curr_price)
-                    
-                    # 3. Small Budget Fix: Ensure at least 1 share if budget allows
-                    if qty == 0 and self.budget >= curr_price:
-                        qty = 1
-                        logger.info(f"Small Budget Override: buying {qty} share(s)")
+                    # Orderbook filter check (if enabled)
+                    if self.use_orderbook and bid_total <= ask_total:
+                        logger.info(f"Orderbook Filter Blocked: Bid({bid_total:,}) <= Ask({ask_total:,}). Skipping entry.")
+                    else:
+                        reason = []
+                        if drop_hit: reason.append(drop_reason)  # Priority first
+                        if rsi_hit: reason.append(f"RSI({rsi:.1f})")
+                        if bb_hit: reason.append(f"BB({lower_bb:.2f})")
+                        if price_hit: reason.append(f"Price({self.manual_buy_price:,})")
+                        if self.use_orderbook: reason.append(f"OB({bid_total:,}>{ask_total:,})")
+                        
+                        logger.info(f"ENTRY Triggered: {' | '.join(reason)}")
+                        
+                        step_budget = self.budget * (WEIGHTS[0] / sum_weights)
+                        qty = int(step_budget / curr_price)
+                        
+                        # 3. Small Budget Fix: Ensure at least 1 share if budget allows
+                        if qty == 0 and self.budget >= curr_price:
+                            qty = 1
+                            logger.info(f"Small Budget Override: buying {qty} share(s)")
 
-                    if qty > 0 and self.place_order("buy", qty, curr_price):
-                        self.avg_buy_price = curr_price
-                        self.total_qty = qty
-                        self.current_step = 1
-                        self.buy_history = [(curr_price, qty)]
-                        self.state = "HOLDING"
-                        self.save_state()
-                        self.cached_balance = self.get_balance()  # Update balance after buy
+                        if qty > 0 and self.place_order("buy", qty, curr_price):
+                            self.avg_buy_price = curr_price
+                            self.total_qty = qty
+                            self.current_step = 1
+                            self.buy_history = [(curr_price, qty)]
+                            self.state = "HOLDING"
+                            self.save_state()
+                            self.cached_balance = self.get_balance()  # Update balance after buy
             
             elif self.state == "HOLDING":
                 profit_rate = (curr_price - self.avg_buy_price) / self.avg_buy_price
@@ -619,12 +655,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--ticker", required=True, help="Ticker symbol (e.g., 014940, TSLA)")
     parser.add_argument("--budget", type=int, default=1000000, help="Total budget in KRW (default: 1M)")
-    parser.add_argument("--target", type=float, default=0.005, help="Target profit rate (default: 0.005 for 0.5%)")
+    parser.add_argument("--target", type=float, default=0.005, help="Target profit rate (default: 0.005 for 0.5%%)")
     parser.add_argument("--buy_price", type=float, default=0, help="Manual buy price (triggers B1)")
+    parser.add_argument("--orderbook", action="store_true", help="Only buy when bid_total > ask_total")
     parser.add_argument("--live", action="store_true", help="Execute real orders")
     args = parser.parse_args()
     
-    scalper = UniversalScalper(args.ticker, args.budget, args.target, args.live, args.buy_price)
+    scalper = UniversalScalper(args.ticker, args.budget, args.target, args.live, args.buy_price, args.orderbook)
     try:
         scalper.run()
     except KeyboardInterrupt:
