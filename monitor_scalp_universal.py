@@ -458,6 +458,25 @@ class UniversalScalper:
         logger.info(f"Starting Universal Scalper | Ticker: {self.ticker} ({self.market}) | Budget: {self.budget:,} | Target: {self.target_profit:.2%}{buy_price_str}")
         sum_weights = sum(WEIGHTS)
         
+        # Warmup: Validate RSI data before allowing trades
+        warmup_count = 0
+        warmup_required = 3
+        logger.info(f"[Warmup] Validating data... (need {warmup_required} valid RSI readings)")
+        while warmup_count < warmup_required:
+            df = self.get_minute_chart()
+            rsi, _ = self.calculate_indicators(df)
+            if rsi is None or np.isnan(rsi):
+                logger.warning(f"[Warmup] RSI is None/NaN, waiting...")
+            elif rsi <= 10 or rsi >= 90:
+                logger.warning(f"[Warmup] RSI {rsi:.1f} looks abnormal, resetting count...")
+                warmup_count = 0
+            else:
+                warmup_count += 1
+                logger.info(f"[Warmup] RSI {rsi:.1f} valid ({warmup_count}/{warmup_required})")
+            if warmup_count < warmup_required:
+                time.sleep(10)
+        logger.info(f"[Warmup] Data validation passed! Starting trading loop...")
+        
         while True:
             # 0. Get current market session and update exchange
             current_time = time.time()
