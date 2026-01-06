@@ -792,6 +792,13 @@ class UniversalScalper:
                     logger.info(f"EXIT Triggered: {reason} | Qty: {self.total_qty} | Avg: {self.avg_buy_price:.2f} | Sell: {curr_price:.2f} | Gross: {profit_rate:.2%} | Net: {net_profit_rate:.2%} | Net Profit: {net_profit_amt:,.0f}")
                     if self.place_order("sell", self.total_qty, curr_price):
                         self.daily_realized_profit += net_profit_amt
+                        
+                        # Add to persistent summary file
+                        summary_path = "trade_summary.txt"
+                        with open(summary_path, "a", encoding="utf-8") as f:
+                            dt_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            f.write(f"[{dt_str}] {self.ticker} | Net: {net_profit_rate:+.2%} | Profit: {net_profit_amt:+,.0f} | Qty: {self.total_qty} | {reason}\n")
+                        
                         self.cached_balance = self.get_balance()  # Update balance after sell
                         self.clear_state()
             
