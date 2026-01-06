@@ -19,7 +19,8 @@ def analyze_logs(log_dir='logs'):
     
     # regex patterns
     entry_pat = re.compile(r"ENTRY Triggered: (.*)")
-    exit_pat = re.compile(r"EXIT Triggered: (.*) \| Gross: ([\d.-]+)% \| Net: ([\d.-]+)%")
+    # New pattern includes Qty, Avg, Sell, Net Profit
+    exit_pat = re.compile(r"EXIT Triggered: (.*?) \| (?:Qty: (\d+) \| Avg: ([\d.-]+) \| Sell: ([\d.-]+) \| )?Gross: ([\d.-]+)% \| Net: ([\d.-]+)%(?: \| Net Profit: ([\d,.-]+))?")
     pyramid_pat = re.compile(r"Pyramiding (B\d): (.*) \| New Avg: ([\d.]+)")
     
     for log_file in log_files:
@@ -39,7 +40,8 @@ def analyze_logs(log_dir='logs'):
                         'entry_reason': m_entry.group(1),
                         'steps': 1,
                         'pyramid_reasons': [],
-                        'avg_price': None # Will be updated by exit or pyramid
+                        'qty': 0,
+                        'net_profit_amt': 0
                     }
                 
                 # Find Pyramiding
@@ -53,13 +55,26 @@ def analyze_logs(log_dir='logs'):
                 if m_exit and active_trade:
                     active_trade['exit_time'] = line.split(' ')[1]
                     active_trade['exit_reason'] = m_exit.group(1)
-                    active_trade['gross_profit'] = float(m_exit.group(2))
-                    active_trade['net_profit'] = float(m_exit.group(3))
+                    
+                    # Capture optional fields
+                    qty = m_exit.group(2)
+                    avg_p = m_exit.group(3)
+                    sell_p = m_exit.group(4)
+                    gross_pct = m_exit.group(5)
+                    net_pct = m_exit.group(6)
+                    net_amt = m_exit.group(7)
+                    
+                    active_trade['qty'] = int(qty) if qty else 0
+                    active_trade['gross_profit'] = float(gross_pct)
+                    active_trade['net_profit'] = float(net_pct)
+                    active_trade['net_profit_amt'] = float(net_amt.replace(',', '')) if net_amt else 0
+                    
                     all_trades.append(active_trade)
                     active_trade = None
 
     if not all_trades:
         print("No completed trades found in logs.")
+        print("Tip: Trade analysis requires an 'EXIT Triggered' line in the log.")
         return
 
     df = pd.DataFrame(all_trades)
@@ -67,20 +82,21 @@ def analyze_logs(log_dir='logs'):
     print("\n--- 📈 Overall Statistics ---")
     print(f"Total Trades: {len(df)}")
     print(f"Win Rate: {(df['net_profit'] > 0).mean():.1%}")
-    print(f"Avg Gross Profit: {df['gross_profit'].mean():.2f}%")
     print(f"Avg Net Profit: {df['net_profit'].mean():.2f}%")
-    print(f"Max Profit: {df['net_profit'].max():.2f}%")
-    print(f"Min Profit: {df['net_profit'].min():.2f}%")
+    print(f"Total Net Profit Amt: {df['net_profit_amt'].sum():,.0f}")
+    print(f"Max Profit Amt: {df['net_profit_amt'].max():,.0f}")
+    print(f"Min Profit Amt: {df['net_profit_amt'].min():,.0f}")
 
     print("\n--- 🏁 Performance by Entry Reason ---")
-    reason_stats = df.groupby('entry_reason')['net_profit'].agg(['count', 'mean', 'std']).sort_values(by='mean', ascending=False)
+    reason_stats = df.groupby('entry_reason')['net_profit_amt'].agg(['count', 'sum', 'mean']).sort_values(by='mean', ascending=False)
     print(reason_stats)
 
     print("\n--- 🪜 Pyramiding Stats ---")
     print(df['steps'].value_counts().sort_index().rename(lambda x: f"Step {x} Target").to_string())
 
     print("\n--- 📝 Recent Trades ---")
-    print(df[['date', 'entry_reason', 'steps', 'net_profit', 'exit_reason']].tail(10).to_string(index=False))
+    cols = ['date', 'entry_reason', 'steps', 'net_profit', 'net_profit_amt', 'exit_reason']
+    print(df[cols].tail(10).to_string(index=False))
 
 if __name__ == "__main__":
     analyze_logs()

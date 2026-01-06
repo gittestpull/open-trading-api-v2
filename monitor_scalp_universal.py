@@ -775,7 +775,12 @@ class UniversalScalper:
                 
                 if bb_exit or target_exit:
                     reason = "BB Upper (>=0.5% 익절)" if bb_exit else "Target Profit"
-                    logger.info(f"EXIT Triggered: {reason} | Gross: {profit_rate:.2%} | Net: {net_profit_rate:.2%}")
+                    # Precise Net Profit Calculation
+                    net_investment = self.avg_buy_price * self.total_qty * (1 + self.buy_fee)
+                    net_return = curr_price * self.total_qty * (1 - self.sell_fee - self.sell_tax)
+                    net_profit_amt = net_return - net_investment
+                    
+                    logger.info(f"EXIT Triggered: {reason} | Qty: {self.total_qty} | Avg: {self.avg_buy_price:.2f} | Sell: {curr_price:.2f} | Gross: {profit_rate:.2%} | Net: {net_profit_rate:.2%} | Net Profit: {net_profit_amt:,.0f}")
                     if self.place_order("sell", self.total_qty, curr_price):
                         self.cached_balance = self.get_balance()  # Update balance after sell
                         self.clear_state()
