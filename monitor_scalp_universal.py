@@ -138,6 +138,10 @@ class UniversalScalper:
         self.supply_check_interval = 600  # 10 minutes
         if self.is_domestic:
             self.cached_supply = self.get_supply_info()
+        
+        # Runtime Safety
+        self.consecutive_errors = 0
+        self.max_allowed_errors = 3
             self.last_supply_check = time.time()
         
         # Price info caching (Prev Close, Prev High, Daily High)
@@ -500,9 +504,11 @@ class UniversalScalper:
             logger.info(f"Order Success! No: {res.getBody().output.get('ODNO')}")
             if dv == "buy":
                 self.last_buy_time = time.time()
+            self.consecutive_errors = 0 # Reset on success
             return True
         else:
             logger.error(f"Order Failed: {res.getErrorMessage()}")
+            self.consecutive_errors += 1
             return False
 
     def run(self):
@@ -530,6 +536,11 @@ class UniversalScalper:
         logger.info(f"[Warmup] Data validation passed! Starting trading loop...")
         
         while True:
+            # Check Runtime Safety
+            if self.consecutive_errors >= self.max_allowed_errors:
+                logger.error(f"🛑 TERMINATING BOT: {self.consecutive_errors} consecutive errors detected. Check logs/ for details.")
+                break
+
             # 0. Get current market session and update exchange
             current_time = time.time()
             session = self.get_market_session()
