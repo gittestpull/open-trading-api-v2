@@ -14,15 +14,51 @@ import kis_auth
 from stock_code_lookup import StockMaster
 
 # Configure Logging
+LOG_DIR = os.path.join(os.getcwd(), 'logs')
+if not os.path.exists(LOG_DIR):
+    os.makedirs(LOG_DIR)
+
+log_filename = os.path.join(LOG_DIR, f"trading_{datetime.now().strftime('%Y%m%d')}.log")
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler("universal_scalp.log", encoding='utf-8')
+        logging.FileHandler(log_filename, encoding='utf-8')
     ]
 )
 logger = logging.getLogger(__name__)
+
+def check_log_health(filename, limit_minutes=5, max_errors=3):
+    """Analyze recent log entries for failures and block startup if necessary."""
+    if not os.path.exists(filename):
+        return True
+    
+    recent_errors = 0
+    now = datetime.now()
+    try:
+        with open(filename, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+            for line in reversed(lines[-50:]): # Check last 50 lines
+                if "[ERROR]" in line or "Failed" in line:
+                    # Simple timestamp extraction: 2026-01-06 10:55:01,357
+                    try:
+                        log_time_str = line.split(',')[0]
+                        log_time = datetime.strptime(log_time_str, '%Y-%m-%d %H:%M:%S')
+                        if (now - log_time).total_seconds() / 60 < limit_minutes:
+                            recent_errors += 1
+                    except:
+                        continue
+        
+        if recent_errors >= max_errors:
+            logger.error(f"⚠️ LOG HEALTH CHECK FAILED: {recent_errors} errors found in last {limit_minutes} min.")
+            logger.error("Please check the log file and resolve issues before restarting.")
+            return False
+    except Exception as e:
+        logger.warning(f"Log health check skipped due to error: {e}")
+    
+    return True
 
 # Strategy Parameters
 RSI_PERIOD = 9
@@ -724,6 +760,10 @@ if __name__ == "__main__":
     parser.add_argument("--momentum", action="store_true", help="Enable momentum mode (buy on prev high breakout)")
     parser.add_argument("--live", action="store_true", help="Execute real orders")
     args = parser.parse_args()
+    
+    # 0. Log Health Check before starting
+    if not check_log_health(log_filename):
+        sys.exit(1)
     
     scalper = UniversalScalper(args.ticker, args.budget, args.target, args.live, args.buy_price, args.orderbook, args.momentum)
     try:
