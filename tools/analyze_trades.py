@@ -7,7 +7,7 @@ def analyze_logs(log_dir='logs'):
     print(f"📊 Analyzing trading logs in '{log_dir}'...")
     
     if not os.path.exists(log_dir):
-        print("Error: logs directory not found.")
+        print(f"Error: {log_dir} directory not found.")
         return
 
     log_files = sorted([f for f in os.listdir(log_dir) if f.endswith('.log')])
@@ -17,30 +17,44 @@ def analyze_logs(log_dir='logs'):
 
     all_trades = []
     active_trade = None
+    last_asset_val = None
+    first_asset_val = None
     
     # regex patterns
     entry_pat = re.compile(r"ENTRY Triggered: (.*)")
+    # Pattern to catch entry from state load
+    load_state_pat = re.compile(r"Loaded existing state for \w+: HOLDING \| (\d+) shares @ ([\d.]+)")
+    
     exit_pat = re.compile(r"EXIT Triggered: (.*?) \| (?:Qty: (\d+) \| Avg: ([\d.-]+) \| Sell: ([\d.-]+) \| )?Gross: ([\d.-]+)% \| Net: ([\d.-]+)%(?: \| Net Profit: ([\d,.-]+))?")
     pyramid_pat = re.compile(r"Pyramiding (B\d): (.*) \| New Avg: ([\d.]+)")
-    # Real-time status to catch current HOLDING state
     status_pat = re.compile(r"Price: ([\d.]+) \| .* \| Profit: ([\d.-]+)% \(Net: ([\d.-]+)%\) \| PNL: ([\d,.-]+)")
-    
+    asset_pat = re.compile(r"총자산: ([\d,]+)")
+
     for log_file in log_files:
         path = os.path.join(log_dir, log_file)
         with open(path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-            
-            for line in lines:
-                # Find Entry
+            for line in f:
+                # Track Asset Value
+                m_asset = asset_pat.search(line)
+                if m_asset:
+                    val = int(m_asset.group(1).replace(',', ''))
+                    if first_asset_val is None: first_asset_val = val
+                    last_asset_val = val
+
+                # Find Entry (Normal or Load)
                 m_entry = entry_pat.search(line)
-                if m_entry:
+                m_load = load_state_pat.search(line)
+                
+                if (m_entry or m_load) and not active_trade:
+                    reason = m_entry.group(1) if m_entry else "Manual/Loaded"
                     active_trade = {
                         'date': line.split(' ')[0],
                         'entry_time': line.split(' ')[1],
-                        'entry_reason': m_entry.group(1),
+                        'entry_reason': reason,
                         'steps': 1,
                         'pyramid_reasons': [],
-                        'qty': 0,
+                        'qty': int(m_load.group(1)) if m_load else 0,
+                        'entry_price': float(m_load.group(2)) if m_load else 0,
                         'net_profit_amt': 0,
                         'status': 'OPEN'
                     }
@@ -78,7 +92,6 @@ def analyze_logs(log_dir='logs'):
                     all_trades.append(active_trade)
                     active_trade = None
 
-    # Add currently active trade if exists
     if active_trade:
         all_trades.append(active_trade)
 
@@ -90,27 +103,33 @@ def analyze_logs(log_dir='logs'):
     closed_df = df[df['status'] == 'CLOSED']
     open_df = df[df['status'] == 'OPEN']
     
-    print("\n--- 📈 Overall Statistics (Closed Trades) ---")
+    print("\n--- 💰 Financial Summary ---")
+    if first_asset_val and last_asset_val:
+        diff = last_asset_val - first_asset_val
+        print(f"Start Asset: {first_asset_val:,.0f}")
+        print(f"End Asset:   {last_asset_val:,.0f}")
+        print(f"Total Change: {diff:+,.0f} ({diff/first_asset_val:.2%})")
+    
+    print("\n--- 📈 Trading Performance (Closed) ---")
     if not closed_df.empty:
         print(f"Total Trades: {len(closed_df)}")
         print(f"Win Rate: {(closed_df['net_profit'] > 0).mean():.1%}")
+        # Only show mean if count > 0 to avoid error
         print(f"Avg Net Profit: {closed_df['net_profit'].mean():.2f}%")
-        print(f"Total Realized Profit: {closed_df['net_profit_amt'].sum():,.0f}")
+        print(f"Total Realized: {closed_df['net_profit_amt'].sum():,.0f}")
     else:
         print("No closed trades yet.")
 
     if not open_df.empty:
-        print("\n--- ⏳ Currently Active Trades ---")
-        print(open_df[['date', 'entry_reason', 'steps', 'net_profit', 'net_profit_amt']].to_string(index=False))
+        print("\n--- ⏳ Active Positions ---")
+        # Ensure columns exist
+        for col in ['net_profit', 'net_profit_amt']:
+            if col not in open_df.columns: open_df[col] = 0
+        print(open_df[['date', 'entry_time', 'entry_reason', 'steps', 'net_profit', 'net_profit_amt']].to_string(index=False))
 
-    if not closed_df.empty:
-        print("\n--- 🏁 Performance by Entry Reason (Closed) ---")
-        reason_stats = closed_df.groupby('entry_reason')['net_profit_amt'].agg(['count', 'sum', 'mean']).sort_values(by='mean', ascending=False)
-        print(reason_stats)
-
-    print("\n--- 📝 All Recent Activity ---")
-    cols = ['date', 'entry_reason', 'steps', 'net_profit', 'net_profit_amt', 'status']
-    print(df[cols].tail(10).to_string(index=False))
+    print("\n--- 📝 Recent Activity Log ---")
+    relevant_cols = ['date', 'entry_time', 'entry_reason', 'steps', 'net_profit', 'net_profit_amt', 'status']
+    print(df[relevant_cols].tail(15).to_string(index=False))
 
 if __name__ == "__main__":
     analyze_logs()
