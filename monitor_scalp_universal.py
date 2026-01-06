@@ -510,7 +510,18 @@ class UniversalScalper:
                     self.buy_history = [(real_avg, real_qty)]
                     self.save_state()
             
-            logger.info(f"{session_tag} Price: {curr_price:.2f}{bounce_str} | RSI: {rsi:.1f} | BB: [{lower_bb:.2f}, {upper_bb:.2f}]{supply_part} | {balance_str} | {holding_str}{step_info} | Target: {self.target_profit:.2%}{target_price_info} | Next Buy: {next_buy_tag} | EXCG: {self.current_exchange} | State: {self.state}")
+            # Build drop target info string
+            drop_info = ""
+            if self.is_domestic and self.state == "SEARCHING":
+                hour = datetime.now().hour
+                if 8 <= hour < 10 and self.prev_close > 0:
+                    drop_target = self.prev_close * 0.98
+                    drop_info = f" | Drop@{drop_target:,.0f}(종가{self.prev_close:,.0f})"
+                elif hour >= 10 and self.daily_high > 0:
+                    drop_target = self.daily_high * 0.98
+                    drop_info = f" | Drop@{drop_target:,.0f}(고가{self.daily_high:,.0f})"
+            
+            logger.info(f"{session_tag} Price: {curr_price:.2f}{bounce_str} | RSI: {rsi:.1f} | BB: [{lower_bb:.2f}, {upper_bb:.2f}]{supply_part} | {balance_str} | {holding_str}{step_info} | Target: {self.target_profit:.2%}{target_price_info} | Next Buy: {next_buy_tag}{drop_info} | EXCG: {self.current_exchange} | State: {self.state}")
             
             if self.state == "SEARCHING":
                 # Time-based Priority Entry Condition (Highest Priority)
