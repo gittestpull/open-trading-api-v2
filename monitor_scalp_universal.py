@@ -101,6 +101,8 @@ class UniversalScalper:
         if self.is_domestic:
             self.update_price_info()
         
+        self.last_buy_time = 0  # To prevent rapid pyramiding
+        
     def get_minute_chart(self):
         """Unified minute chart fetcher."""
         if self.is_domestic:
@@ -448,6 +450,8 @@ class UniversalScalper:
         if res.isOK():
             os.system("afplay /System/Library/Sounds/Ping.aiff")
             logger.info(f"Order Success! No: {res.getBody().output.get('ODNO')}")
+            if dv == "buy":
+                self.last_buy_time = time.time()
             return True
         else:
             logger.error(f"Order Failed: {res.getErrorMessage()}")
@@ -648,33 +652,48 @@ class UniversalScalper:
             elif self.state == "HOLDING":
                 profit_rate = (curr_price - self.avg_buy_price) / self.avg_buy_price
                 
-                # Pyramiding (Averaging Down): -1% drop OR RSI <= 25 (valid RSI only)
+                # Pyramiding (Averaging Down) Logic
                 pyramiding_drop = profit_rate <= -PYRAMIDING_THRESHOLD
-                pyramiding_rsi = rsi <= 25 and rsi > 10  # RSI < 10 is likely invalid data
+                pyramiding_rsi = rsi <= 25 and rsi > 10
                 
-                if (pyramiding_drop or pyramiding_rsi) and self.current_step < MAX_STEPS:
-                    pyramid_reason = []
-                    if pyramiding_drop: pyramid_reason.append(f"Drop({profit_rate:.1%})")
-                    if pyramiding_rsi: pyramid_reason.append(f"RSI({rsi:.1f})")
-                    
-                    step_budget = self.budget * (WEIGHTS[self.current_step] / sum_weights)
-                    qty = int(step_budget / curr_price)
-                    
-                    # Small Budget Fix for Pyramiding
-                    remaining_budget = self.budget - (self.avg_buy_price * self.total_qty)
-                    if qty == 0 and remaining_budget >= curr_price:
-                        qty = 1
-                        logger.info(f"Small Budget Pyramiding Override: buying {qty} share(s)")
+                # Proactive Safety: 3-minute cooldown between buys
+                time_since_buy = (time.time() - self.last_buy_time) / 60
+                cooldown_ok = time_since_buy >= 3
+                
+                # Condition selection: B1->B2 (OR), B3+ (AND) for safety
+                if self.current_step < 2:
+                    is_pyramid_triggered = (pyramiding_drop or pyramiding_rsi)
+                    trigger_type = "OR (Drop|RSI)"
+                else:
+                    is_pyramid_triggered = (pyramiding_drop and pyramiding_rsi)
+                    trigger_type = "AND (Drop&RSI)"
+                
+                if is_pyramid_triggered and self.current_step < MAX_STEPS:
+                    if not cooldown_ok:
+                        logger.info(f"Pyramiding Blocked: Cooldown ({time_since_buy:.1f}/3.0 min)")
+                    else:
+                        pyramid_reason = []
+                        if pyramiding_drop: pyramid_reason.append(f"Drop({profit_rate:.1%})")
+                        if pyramiding_rsi: pyramid_reason.append(f"RSI({rsi:.1f})")
+                        
+                        step_budget = self.budget * (WEIGHTS[self.current_step] / sum_weights)
+                        qty = int(step_budget / curr_price)
+                        
+                        # Small Budget Fix for Pyramiding
+                        remaining_budget = self.budget - (self.avg_buy_price * self.total_qty)
+                        if qty == 0 and remaining_budget >= curr_price:
+                            qty = 1
+                            logger.info(f"Small Budget Pyramiding Override: buying {qty} share(s)")
 
-                    if qty > 0 and self.place_order("buy", qty, curr_price):
-                        new_total_qty = self.total_qty + qty
-                        self.avg_buy_price = ((self.avg_buy_price * self.total_qty) + (curr_price * qty)) / new_total_qty
-                        self.total_qty = new_total_qty
-                        self.current_step += 1
-                        self.buy_history.append((curr_price, qty))
-                        self.save_state()
-                        self.cached_balance = self.get_balance()  # Update balance after pyramiding
-                        logger.info(f"Pyramiding B{self.current_step}: {' | '.join(pyramid_reason)} | New Avg: {self.avg_buy_price:.2f}")
+                        if qty > 0 and self.place_order("buy", qty, curr_price):
+                            new_total_qty = self.total_qty + qty
+                            self.avg_buy_price = ((self.avg_buy_price * self.total_qty) + (curr_price * qty)) / new_total_qty
+                            self.total_qty = new_total_qty
+                            self.current_step += 1
+                            self.buy_history.append((curr_price, qty))
+                            self.save_state()
+                            self.cached_balance = self.get_balance()  # Update balance after pyramiding
+                            logger.info(f"Pyramiding B{self.current_step}: {trigger_type} [{', '.join(pyramid_reason)}] | New Avg: {self.avg_buy_price:.2f}")
 
                 # Exit Conditions: BB Upper only if in profit >= 0.5%, or Target Profit reached
                 bb_exit = curr_price >= upper_bb and profit_rate >= 0.005
