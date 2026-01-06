@@ -378,6 +378,61 @@ class UniversalScalper:
             pass
         return 0, 0, 0, 0
 
+    def has_uncleared_sell_order(self):
+        """Checks if there's an existing uncleared sell order for the current ticker."""
+        if not self.live_mode: return False
+        
+        try:
+            if self.is_domestic:
+                url = "/uapi/domestic-stock/v1/trading/inquire-nccs"
+                tr_id = "TTTC8012R" if self.live_mode else "VTTC8012R"
+                params = {
+                    "CANO": self.trenv.my_acct,
+                    "ACNT_PRDT_CD": self.trenv.my_prod,
+                    "INQR_DVSN": "00",
+                    "CB_OT_DVSN": "00",
+                    "PRCS_DVSN": "00",
+                    "CTX_AREA_FK100": "",
+                    "CTX_AREA_NK100": ""
+                }
+            else:
+                url = "/uapi/overseas-stock/v1/trading/inquire-ccnl"
+                tr_id = "TTTS3035R" if self.live_mode else "VTTS3035R"
+                today = datetime.now().strftime("%Y%m%d")
+                params = {
+                    "CANO": self.trenv.my_acct,
+                    "ACNT_PRDT_CD": self.trenv.my_prod,
+                    "PDNO": self.ticker,
+                    "ORD_STRT_DT": today,
+                    "ORD_END_DT": today,
+                    "SLL_BUY_DVSN": "01", # Sell only
+                    "CCLD_NCCS_DVSN": "02", # Uncleared only
+                    "OVRS_EXCG_CD": "NASD",
+                    "SORT_SQN": "DS",
+                    "ORD_DT": "",
+                    "ORD_GNO_BRNO": "",
+                    "ODNO": "",
+                    "CTX_AREA_NK200": "",
+                    "CTX_AREA_FK200": ""
+                }
+
+            res = kis_auth._url_fetch(url, tr_id, "", params)
+            if res.isOK():
+                if self.is_domestic:
+                    output = res.getBody().output
+                    for item in output:
+                        # sll_buy_dvsn_cd: 01 (매도), pdno: 종목코드
+                        if item.get('pdno') == self.ticker and item.get('sll_buy_dvsn_cd') == '01':
+                            return True
+                else:
+                    output = res.getBody().output
+                    if output and len(output) > 0:
+                        return True # We already filtered by ticker and sell in params
+        except Exception as e:
+            logger.warning(f"Error checking uncleared orders: {e}")
+        
+        return False
+
     def calculate_indicators(self, df):
         if df is None or len(df) < BB_PERIOD:
             return None, None
@@ -784,6 +839,12 @@ class UniversalScalper:
                 
                 if bb_exit or target_exit:
                     reason = "BB Upper (>=0.5% 익절)" if bb_exit else "Target Profit"
+                    
+                    # Check for existing sell order before placing a new one
+                    if self.has_uncleared_sell_order():
+                        logger.info(f"Existing sell order found for {self.ticker}. Skipping duplicate EXIT.")
+                        continue
+
                     # Precise Net Profit Calculation
                     net_investment = self.avg_buy_price * self.total_qty * (1 + self.buy_fee)
                     net_return = curr_price * self.total_qty * (1 - self.sell_fee - self.sell_tax)
