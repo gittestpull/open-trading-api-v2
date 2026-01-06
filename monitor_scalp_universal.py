@@ -35,7 +35,7 @@ MAX_STEPS = 4
 WEIGHTS = [1, 2, 4, 8]
 
 class UniversalScalper:
-    def __init__(self, ticker, budget, target_profit=0.005, live_mode=False, manual_buy_price=0, use_orderbook=False):
+    def __init__(self, ticker, budget, target_profit=0.005, live_mode=False, manual_buy_price=0, use_orderbook=False, use_momentum=False):
         # 0. Initial guess
         self.is_domestic = ticker.isdigit() and len(ticker) == 6
         
@@ -56,6 +56,7 @@ class UniversalScalper:
         self.market = "Domestic" if self.is_domestic else "Overseas"
         self.current_exchange = "KRX"  # Will be updated dynamically for NXT sessions
         self.use_orderbook = use_orderbook  # Orderbook filter option
+        self.use_momentum = use_momentum  # Momentum (breakout) mode
         
         # State management
         self.state = "SEARCHING"
@@ -91,8 +92,9 @@ class UniversalScalper:
             self.cached_supply = self.get_supply_info()
             self.last_supply_check = time.time()
         
-        # Price info caching (Prev Close, Daily High)
+        # Price info caching (Prev Close, Prev High, Daily High)
         self.prev_close = 0
+        self.prev_high = 0
         self.daily_high = 0
         self.last_price_info_check = 0
         self.price_info_interval = 60  # Update every 1 minute
@@ -163,10 +165,11 @@ class UniversalScalper:
             res = kis_auth._url_fetch(url, tr_id, "", params)
             if res.isOK():
                 out = res.getBody().output
-                self.prev_close = float(out.get('stck_sdpr', 0))  # 전일 종가 (stck_sdpr = 기준가)
+                self.prev_close = float(out.get('stck_sdpr', 0))  # 전일 종가 (기준가)
+                self.prev_high = float(out.get('stck_mxpr', 0))   # 전일 고가 (stck_mxpr = 전일최고가)
                 self.daily_high = float(out.get('stck_hgpr', 0))  # 당일 최고가
                 self.last_price_info_check = time.time()
-                logger.debug(f"Price Info Updated: Prev Close={self.prev_close:,.0f}, Daily High={self.daily_high:,.0f}")
+                logger.debug(f"Price Info Updated: Prev Close={self.prev_close:,.0f}, Prev High={self.prev_high:,.0f}, Daily High={self.daily_high:,.0f}")
         except Exception as e:
             logger.error(f"Failed to update price info: {e}")
     
@@ -583,13 +586,22 @@ class UniversalScalper:
                 bb_hit = (curr_price <= lower_bb or candle_low <= lower_bb)
                 price_hit = (self.manual_buy_price > 0 and (curr_price <= self.manual_buy_price or candle_low <= self.manual_buy_price))
                 
-                if drop_hit or rsi_hit or bb_hit or price_hit:
+                # Momentum Entry Condition (Breakout: curr > prev_high)
+                momentum_hit = False
+                momentum_reason = ""
+                if self.use_momentum and self.prev_high > 0:
+                    if curr_price > self.prev_high:
+                        momentum_hit = True
+                        momentum_reason = f"Breakout({curr_price:,.0f}>{self.prev_high:,.0f})"
+                
+                if momentum_hit or drop_hit or rsi_hit or bb_hit or price_hit:
                     # Orderbook filter check (if enabled)
                     if self.use_orderbook and bid_total <= ask_total:
                         logger.info(f"Orderbook Filter Blocked: Bid({bid_total:,}) <= Ask({ask_total:,}). Skipping entry.")
                     else:
                         reason = []
-                        if drop_hit: reason.append(drop_reason)  # Priority first
+                        if momentum_hit: reason.append(momentum_reason)  # Momentum first
+                        if drop_hit: reason.append(drop_reason)
                         if rsi_hit: reason.append(f"RSI({rsi:.1f})")
                         if bb_hit: reason.append(f"BB({lower_bb:.2f})")
                         if price_hit: reason.append(f"Price({self.manual_buy_price:,})")
@@ -658,10 +670,11 @@ if __name__ == "__main__":
     parser.add_argument("--target", type=float, default=0.005, help="Target profit rate (default: 0.005 for 0.5%%)")
     parser.add_argument("--buy_price", type=float, default=0, help="Manual buy price (triggers B1)")
     parser.add_argument("--orderbook", action="store_true", help="Only buy when bid_total > ask_total")
+    parser.add_argument("--momentum", action="store_true", help="Enable momentum mode (buy on prev high breakout)")
     parser.add_argument("--live", action="store_true", help="Execute real orders")
     args = parser.parse_args()
     
-    scalper = UniversalScalper(args.ticker, args.budget, args.target, args.live, args.buy_price, args.orderbook)
+    scalper = UniversalScalper(args.ticker, args.budget, args.target, args.live, args.buy_price, args.orderbook, args.momentum)
     try:
         scalper.run()
     except KeyboardInterrupt:

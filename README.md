@@ -294,6 +294,10 @@ kws.subscribe(request=asking_price_krx, data=["005930", "000660"])
 - **시간대별 우선 매수 조건**: 시간대에 따라 다른 하락 기준을 적용하여 최우선 매수 트리거.
   - **08:00~10:00**: 전일 종가 대비 -2% 하락 시 매수 (개장 초반 변동성 활용)
   - **10:00 이후**: 당일 최고가 대비 -2% 하락 시 매수 (추세 되돌림 포착)
+- **호가창 필터 (`--orderbook`)**: 매수잔량 > 매도잔량일 때만 진입 (수급 확인)
+- **모멘텀 모드 (`--momentum`)**: 전일 고가 돌파 시 매수하는 브레이크아웃 전략
+  - 역추세(하락 시 매수) 대신 순추세(상승 시 매수) 전략 사용
+  - 기존 조건(RSI, BB 등)과 OR 조건으로 함께 사용 가능
 
 #### CLI 옵션
 | 옵션 | 설명 | 기본값 | 예시 |
@@ -302,6 +306,8 @@ kws.subscribe(request=asking_price_krx, data=["005930", "000660"])
 | `--budget` | 총 매매 예산 (원/달러) | 1,000,000 | `100000`, `5000` |
 | `--target` | 목표 수익률 (소수) | 0.005 (0.5%) | `0.01` (1%), `0.02` (2%) |
 | `--buy_price` | 수동 매수 진입가 | 0 (비활성) | `2450` |
+| `--orderbook` | 호가창 필터 (매수>매도 시만 진입) | False | 플래그만 추가 |
+| `--momentum` | 모멘텀 모드 (전일 고가 돌파 시 매수) | False | 플래그만 추가 |
 | `--live` | 실전 매매 모드 활성화 | False (모의) | 플래그만 추가 |
 
 #### 사용 예시
@@ -318,6 +324,14 @@ uv run python monitor_scalp_universal.py --ticker 014940 --budget 100000 --targe
 # 특정 가격(2,400원)까지 하락 시 매수 진입
 uv run python monitor_scalp_universal.py --ticker 014940 --budget 300000 --buy_price 2400
 
+# 호가창 필터 활성화 (매수잔량 > 매도잔량 시만 진입)
+uv run python monitor_scalp_universal.py --ticker 014940 --budget 200000 --orderbook --live
+
+# 모멘텀 모드 (전일 고가 돌파 시 매수, 달리는 말에 올라타기)
+uv run python monitor_scalp_universal.py --ticker 014940 --budget 200000 --momentum --live
+
+# 모멘텀 + 호가창 필터 조합 (상승세 + 수급 우위 확인)
+uv run python monitor_scalp_universal.py --ticker 014940 --budget 200000 --momentum --orderbook --live
 # 해외주식 (테슬라) - 5,000달러 예산
 uv run python monitor_scalp_universal.py --ticker TSLA --budget 5000 --target 0.005
 
