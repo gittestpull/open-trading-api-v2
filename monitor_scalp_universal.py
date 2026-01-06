@@ -90,6 +90,14 @@ class UniversalScalper:
             self.cached_supply = self.get_supply_info()
             self.last_supply_check = time.time()
         
+        # Price info caching (Prev Close, Daily High)
+        self.prev_close = 0
+        self.daily_high = 0
+        self.last_price_info_check = 0
+        self.price_info_interval = 60  # Update every 1 minute
+        if self.is_domestic:
+            self.update_price_info()
+        
     def get_minute_chart(self):
         """Unified minute chart fetcher."""
         if self.is_domestic:
@@ -138,7 +146,28 @@ class UniversalScalper:
             return df.iloc[::-1].reset_index(drop=True)
         else:
             logger.error(f"Failed to fetch chart: {res.getErrorMessage()}")
-            return None
+            return pd.DataFrame()
+    
+    def update_price_info(self):
+        """Fetch and cache prev close and daily high from inquire-price API."""
+        if not self.is_domestic:
+            return
+        try:
+            url = "/uapi/domestic-stock/v1/quotations/inquire-price"
+            tr_id = "FHKST01010100"
+            params = {
+                "FID_COND_MRKT_DIV_CODE": "J",
+                "FID_INPUT_ISCD": self.ticker
+            }
+            res = kis_auth._url_fetch(url, tr_id, "", params)
+            if res.isOK():
+                out = res.getBody().output
+                self.prev_close = float(out.get('stck_sdpr', 0))  # 전일 종가 (stck_sdpr = 기준가)
+                self.daily_high = float(out.get('stck_hgpr', 0))  # 당일 최고가
+                self.last_price_info_check = time.time()
+                logger.debug(f"Price Info Updated: Prev Close={self.prev_close:,.0f}, Daily High={self.daily_high:,.0f}")
+        except Exception as e:
+            logger.error(f"Failed to update price info: {e}")
 
     def save_state(self):
         """Save current trading state to JSON."""
@@ -484,13 +513,37 @@ class UniversalScalper:
             logger.info(f"{session_tag} Price: {curr_price:.2f}{bounce_str} | RSI: {rsi:.1f} | BB: [{lower_bb:.2f}, {upper_bb:.2f}]{supply_part} | {balance_str} | {holding_str}{step_info} | Target: {self.target_profit:.2%}{target_price_info} | Next Buy: {next_buy_tag} | EXCG: {self.current_exchange} | State: {self.state}")
             
             if self.state == "SEARCHING":
+                # Time-based Priority Entry Condition (Highest Priority)
+                drop_hit = False
+                drop_reason = ""
+                hour = datetime.now().hour
+                
+                # Update price info periodically
+                if self.is_domestic and (current_time - self.last_price_info_check >= self.price_info_interval):
+                    self.update_price_info()
+                
+                if self.is_domestic:
+                    if 8 <= hour < 10 and self.prev_close > 0:
+                        # 08:00~10:00: 전일 종가 대비 -2% 
+                        drop_target = self.prev_close * 0.98
+                        if curr_price <= drop_target or candle_low <= drop_target:
+                            drop_hit = True
+                            drop_reason = f"PrevClose-2%({self.prev_close:,.0f}→{drop_target:,.0f})"
+                    elif hour >= 10 and self.daily_high > 0:
+                        # 10:00 이후: 당일 최고가 대비 -2%
+                        drop_target = self.daily_high * 0.98
+                        if curr_price <= drop_target or candle_low <= drop_target:
+                            drop_hit = True
+                            drop_reason = f"DailyHigh-2%({self.daily_high:,.0f}→{drop_target:,.0f})"
+                
                 # Triple-Threat Entry Condition: Any of (RSI hit, BB hit, or Manual Price hit)
                 rsi_hit = rsi <= RSI_BUY_LEVEL
                 bb_hit = (curr_price <= lower_bb or candle_low <= lower_bb)
                 price_hit = (self.manual_buy_price > 0 and (curr_price <= self.manual_buy_price or candle_low <= self.manual_buy_price))
                 
-                if rsi_hit or bb_hit or price_hit:
+                if drop_hit or rsi_hit or bb_hit or price_hit:
                     reason = []
+                    if drop_hit: reason.append(drop_reason)  # Priority first
                     if rsi_hit: reason.append(f"RSI({rsi:.1f})")
                     if bb_hit: reason.append(f"BB({lower_bb:.2f})")
                     if price_hit: reason.append(f"Price({self.manual_buy_price:,})")
