@@ -629,9 +629,9 @@ class UniversalScalper:
             elif self.state == "HOLDING":
                 profit_rate = (curr_price - self.avg_buy_price) / self.avg_buy_price
                 
-                # Pyramiding (Averaging Down): -1% drop OR RSI <= 25
+                # Pyramiding (Averaging Down): -1% drop OR RSI <= 25 (valid RSI only)
                 pyramiding_drop = profit_rate <= -PYRAMIDING_THRESHOLD
-                pyramiding_rsi = rsi <= 25
+                pyramiding_rsi = rsi <= 25 and rsi > 10  # RSI < 10 is likely invalid data
                 
                 if (pyramiding_drop or pyramiding_rsi) and self.current_step < MAX_STEPS:
                     pyramid_reason = []
