@@ -578,7 +578,13 @@ class UniversalScalper:
                 bid_total, ask_total, ob_info = self.get_orderbook()
                 ob_info = f" | OB:{ob_info}" if ob_info else ""
             
-            logger.info(f"{session_tag} Price: {curr_price:.2f}{bounce_str} | RSI: {rsi:.1f} | BB: [{lower_bb:.2f}, {upper_bb:.2f}]{supply_part}{ob_info} | {balance_str} | {holding_str}{step_info} | Target: {self.target_profit:.2%}{target_price_info} | Next Buy: {next_buy_tag}{drop_info} | EXCG: {self.current_exchange} | State: {self.state}")
+            # Calculate Effective Budget (Cap user budget by actual available assets for this cycle)
+            holding_value = self.avg_buy_price * self.total_qty if self.state == "HOLDING" else 0
+            effective_budget = min(self.budget, cash + holding_value)
+            budget_tag = f"Budget:{effective_budget:,.0f}" if effective_budget < self.budget else ""
+            budget_part = f" | {budget_tag}" if budget_tag else ""
+            
+            logger.info(f"{session_tag} Price: {curr_price:.2f}{bounce_str} | RSI: {rsi:.1f} | BB: [{lower_bb:.2f}, {upper_bb:.2f}]{supply_part}{ob_info}{budget_part} | {balance_str} | {holding_str}{step_info} | Target: {self.target_profit:.2%}{target_price_info} | Next Buy: {next_buy_tag}{drop_info} | EXCG: {self.current_exchange} | State: {self.state}")
             
             if self.state == "SEARCHING":
                 # Time-based Priority Entry Condition (Highest Priority)
@@ -632,11 +638,11 @@ class UniversalScalper:
                         
                         logger.info(f"ENTRY Triggered: {' | '.join(reason)}")
                         
-                        step_budget = self.budget * (WEIGHTS[0] / sum_weights)
+                        step_budget = effective_budget * (WEIGHTS[0] / sum_weights)
                         qty = int(step_budget / curr_price)
                         
                         # 3. Small Budget Fix: Ensure at least 1 share if budget allows
-                        if qty == 0 and self.budget >= curr_price:
+                        if qty == 0 and effective_budget >= curr_price:
                             qty = 1
                             logger.info(f"Small Budget Override: buying {qty} share(s)")
 
@@ -676,11 +682,11 @@ class UniversalScalper:
                         if pyramiding_drop: pyramid_reason.append(f"Drop({profit_rate:.1%})")
                         if pyramiding_rsi: pyramid_reason.append(f"RSI({rsi:.1f})")
                         
-                        step_budget = self.budget * (WEIGHTS[self.current_step] / sum_weights)
+                        step_budget = effective_budget * (WEIGHTS[self.current_step] / sum_weights)
                         qty = int(step_budget / curr_price)
                         
                         # Small Budget Fix for Pyramiding
-                        remaining_budget = self.budget - (self.avg_buy_price * self.total_qty)
+                        remaining_budget = effective_budget - (self.avg_buy_price * self.total_qty)
                         if qty == 0 and remaining_budget >= curr_price:
                             qty = 1
                             logger.info(f"Small Budget Pyramiding Override: buying {qty} share(s)")
