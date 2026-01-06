@@ -649,7 +649,13 @@ class UniversalScalper:
             if self.state == "HOLDING":
                 profit_rate = (curr_price - self.avg_buy_price) / self.avg_buy_price
                 net_profit_rate = profit_rate - self.friction
-                profit_info = f" | Profit: {profit_rate:.2%} (Net: {net_profit_rate:.2%})"
+                
+                # Unrealized Net Profit Amount
+                net_investment = self.avg_buy_price * self.total_qty * (1 + self.buy_fee)
+                net_return = curr_price * self.total_qty * (1 - self.sell_fee - self.sell_tax)
+                unrealized_net_amt = net_return - net_investment
+                
+                profit_info = f" | Profit: {profit_rate:.2%} (Net: {net_profit_rate:.2%}) | PNL: {unrealized_net_amt:,.0f}"
 
             logger.info(f"{session_tag} Price: {curr_price:.2f}{bounce_str} | RSI: {rsi:.1f} | BB: [{lower_bb:.2f}, {upper_bb:.2f}]{supply_part}{ob_info}{budget_part}{profit_info} | {balance_str} | {holding_str}{step_info} | Target: {self.target_profit:.2%}{target_price_info} | Next Buy: {next_buy_tag}{drop_info} | EXCG: {self.current_exchange} | State: {self.state}")
             
