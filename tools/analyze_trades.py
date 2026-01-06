@@ -16,19 +16,19 @@ def analyze_logs(log_dir='logs'):
         return
 
     all_trades = []
+    active_trade = None
     
     # regex patterns
     entry_pat = re.compile(r"ENTRY Triggered: (.*)")
-    # New pattern includes Qty, Avg, Sell, Net Profit
     exit_pat = re.compile(r"EXIT Triggered: (.*?) \| (?:Qty: (\d+) \| Avg: ([\d.-]+) \| Sell: ([\d.-]+) \| )?Gross: ([\d.-]+)% \| Net: ([\d.-]+)%(?: \| Net Profit: ([\d,.-]+))?")
     pyramid_pat = re.compile(r"Pyramiding (B\d): (.*) \| New Avg: ([\d.]+)")
+    # Real-time status to catch current HOLDING state
+    status_pat = re.compile(r"Price: ([\d.]+) \| .* \| Profit: ([\d.-]+)% \(Net: ([\d.-]+)%\) \| PNL: ([\d,.-]+)")
     
     for log_file in log_files:
         path = os.path.join(log_dir, log_file)
         with open(path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
-            
-            active_trade = None
             
             for line in lines:
                 # Find Entry
@@ -41,7 +41,8 @@ def analyze_logs(log_dir='logs'):
                         'steps': 1,
                         'pyramid_reasons': [],
                         'qty': 0,
-                        'net_profit_amt': 0
+                        'net_profit_amt': 0,
+                        'status': 'OPEN'
                     }
                 
                 # Find Pyramiding
@@ -50,52 +51,65 @@ def analyze_logs(log_dir='logs'):
                     active_trade['steps'] += 1
                     active_trade['pyramid_reasons'].append(m_pyr.group(2))
                 
+                # Update Active Trade PNL from status logs
+                m_status = status_pat.search(line)
+                if m_status and active_trade and active_trade['status'] == 'OPEN':
+                    active_trade['current_price'] = float(m_status.group(1))
+                    active_trade['gross_profit'] = float(m_status.group(2))
+                    active_trade['net_profit'] = float(m_status.group(3))
+                    active_trade['net_profit_amt'] = float(m_status.group(4).replace(',', ''))
+
                 # Find Exit
                 m_exit = exit_pat.search(line)
                 if m_exit and active_trade:
                     active_trade['exit_time'] = line.split(' ')[1]
                     active_trade['exit_reason'] = m_exit.group(1)
+                    active_trade['status'] = 'CLOSED'
                     
-                    # Capture optional fields
                     qty = m_exit.group(2)
-                    avg_p = m_exit.group(3)
-                    sell_p = m_exit.group(4)
+                    if qty: active_trade['qty'] = int(qty)
                     gross_pct = m_exit.group(5)
+                    if gross_pct: active_trade['gross_profit'] = float(gross_pct)
                     net_pct = m_exit.group(6)
+                    if net_pct: active_trade['net_profit'] = float(net_pct)
                     net_amt = m_exit.group(7)
-                    
-                    active_trade['qty'] = int(qty) if qty else 0
-                    active_trade['gross_profit'] = float(gross_pct)
-                    active_trade['net_profit'] = float(net_pct)
-                    active_trade['net_profit_amt'] = float(net_amt.replace(',', '')) if net_amt else 0
+                    if net_amt: active_trade['net_profit_amt'] = float(net_amt.replace(',', ''))
                     
                     all_trades.append(active_trade)
                     active_trade = None
 
+    # Add currently active trade if exists
+    if active_trade:
+        all_trades.append(active_trade)
+
     if not all_trades:
-        print("No completed trades found in logs.")
-        print("Tip: Trade analysis requires an 'EXIT Triggered' line in the log.")
+        print("No trading activity found in logs.")
         return
 
     df = pd.DataFrame(all_trades)
+    closed_df = df[df['status'] == 'CLOSED']
+    open_df = df[df['status'] == 'OPEN']
     
-    print("\n--- 📈 Overall Statistics ---")
-    print(f"Total Trades: {len(df)}")
-    print(f"Win Rate: {(df['net_profit'] > 0).mean():.1%}")
-    print(f"Avg Net Profit: {df['net_profit'].mean():.2f}%")
-    print(f"Total Net Profit Amt: {df['net_profit_amt'].sum():,.0f}")
-    print(f"Max Profit Amt: {df['net_profit_amt'].max():,.0f}")
-    print(f"Min Profit Amt: {df['net_profit_amt'].min():,.0f}")
+    print("\n--- 📈 Overall Statistics (Closed Trades) ---")
+    if not closed_df.empty:
+        print(f"Total Trades: {len(closed_df)}")
+        print(f"Win Rate: {(closed_df['net_profit'] > 0).mean():.1%}")
+        print(f"Avg Net Profit: {closed_df['net_profit'].mean():.2f}%")
+        print(f"Total Realized Profit: {closed_df['net_profit_amt'].sum():,.0f}")
+    else:
+        print("No closed trades yet.")
 
-    print("\n--- 🏁 Performance by Entry Reason ---")
-    reason_stats = df.groupby('entry_reason')['net_profit_amt'].agg(['count', 'sum', 'mean']).sort_values(by='mean', ascending=False)
-    print(reason_stats)
+    if not open_df.empty:
+        print("\n--- ⏳ Currently Active Trades ---")
+        print(open_df[['date', 'entry_reason', 'steps', 'net_profit', 'net_profit_amt']].to_string(index=False))
 
-    print("\n--- 🪜 Pyramiding Stats ---")
-    print(df['steps'].value_counts().sort_index().rename(lambda x: f"Step {x} Target").to_string())
+    if not closed_df.empty:
+        print("\n--- 🏁 Performance by Entry Reason (Closed) ---")
+        reason_stats = closed_df.groupby('entry_reason')['net_profit_amt'].agg(['count', 'sum', 'mean']).sort_values(by='mean', ascending=False)
+        print(reason_stats)
 
-    print("\n--- 📝 Recent Trades ---")
-    cols = ['date', 'entry_reason', 'steps', 'net_profit', 'net_profit_amt', 'exit_reason']
+    print("\n--- 📝 All Recent Activity ---")
+    cols = ['date', 'entry_reason', 'steps', 'net_profit', 'net_profit_amt', 'status']
     print(df[cols].tail(10).to_string(index=False))
 
 if __name__ == "__main__":
