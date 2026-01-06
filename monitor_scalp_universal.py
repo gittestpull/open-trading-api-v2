@@ -512,7 +512,7 @@ class UniversalScalper:
             
             # Build drop target info string
             drop_info = ""
-            if self.is_domestic and self.state == "SEARCHING":
+            if self.is_domestic:
                 hour = datetime.now().hour
                 if 8 <= hour < 10 and self.prev_close > 0:
                     drop_target = self.prev_close * 0.98
