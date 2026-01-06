@@ -94,6 +94,18 @@ class UniversalScalper:
         self.use_orderbook = use_orderbook  # Orderbook filter option
         self.use_momentum = use_momentum  # Momentum (breakout) mode
         
+        # Taxes and Fees (Friction)
+        if self.is_domestic:
+            self.buy_fee = 0.00015  # 0.015%
+            self.sell_fee = 0.00015 # 0.015%
+            self.sell_tax = 0.0018  # 0.18% (Domestic Tax)
+        else:
+            self.buy_fee = 0.0004   # 0.04% (Standard Overseas)
+            self.sell_fee = 0.0004  # 0.04%
+            self.sell_tax = 0.0     # Tax handled separately or minimal SEC fee
+        
+        self.friction = self.buy_fee + self.sell_fee + self.sell_tax
+        
         # State management
         self.state = "SEARCHING"
         self.avg_buy_price = 0
@@ -620,7 +632,15 @@ class UniversalScalper:
             budget_tag = f"Budget:{effective_budget:,.0f}" if effective_budget < self.budget else ""
             budget_part = f" | {budget_tag}" if budget_tag else ""
             
-            logger.info(f"{session_tag} Price: {curr_price:.2f}{bounce_str} | RSI: {rsi:.1f} | BB: [{lower_bb:.2f}, {upper_bb:.2f}]{supply_part}{ob_info}{budget_part} | {balance_str} | {holding_str}{step_info} | Target: {self.target_profit:.2%}{target_price_info} | Next Buy: {next_buy_tag}{drop_info} | EXCG: {self.current_exchange} | State: {self.state}")
+            holding_str = f"평단가: {self.avg_buy_price:.2f} ({self.total_qty}주)" if self.state == "HOLDING" else "보유없음"
+            
+            profit_info = ""
+            if self.state == "HOLDING":
+                profit_rate = (curr_price - self.avg_buy_price) / self.avg_buy_price
+                net_profit_rate = profit_rate - self.friction
+                profit_info = f" | Profit: {profit_rate:.2%} (Net: {net_profit_rate:.2%})"
+
+            logger.info(f"{session_tag} Price: {curr_price:.2f}{bounce_str} | RSI: {rsi:.1f} | BB: [{lower_bb:.2f}, {upper_bb:.2f}]{supply_part}{ob_info}{budget_part}{profit_info} | {balance_str} | {holding_str}{step_info} | Target: {self.target_profit:.2%}{target_price_info} | Next Buy: {next_buy_tag}{drop_info} | EXCG: {self.current_exchange} | State: {self.state}")
             
             if self.state == "SEARCHING":
                 # Time-based Priority Entry Condition (Highest Priority)
@@ -693,6 +713,7 @@ class UniversalScalper:
             
             elif self.state == "HOLDING":
                 profit_rate = (curr_price - self.avg_buy_price) / self.avg_buy_price
+                net_profit_rate = profit_rate - self.friction
                 
                 # Pyramiding (Averaging Down) Logic
                 pyramiding_drop = profit_rate <= -PYRAMIDING_THRESHOLD
@@ -743,7 +764,7 @@ class UniversalScalper:
                 
                 if bb_exit or target_exit:
                     reason = "BB Upper (>=0.5% 익절)" if bb_exit else "Target Profit"
-                    logger.info(f"EXIT Triggered: {reason} | Profit: {profit_rate:.2%}")
+                    logger.info(f"EXIT Triggered: {reason} | Gross: {profit_rate:.2%} | Net: {net_profit_rate:.2%}")
                     if self.place_order("sell", self.total_qty, curr_price):
                         self.cached_balance = self.get_balance()  # Update balance after sell
                         self.clear_state()
