@@ -367,8 +367,8 @@ rm scalp_data/state_014940.json
 
 #### 로그 출력 예시
 ```
-2025-01-05 09:15:30 [INFO] Starting Universal Scalper | Ticker: 014940 (Domestic) | Budget: 1,000,000 | Target: 0.50%
-2025-01-05 09:15:31 [INFO] Price: 2,480.00 | Bounce: 0.12% | RSI: 35.2 | BB: [2,420.50, 2,580.30] | Supply: F:+125.3k, I:-45.8k | 주문가능: 5,000,000 | 총자산: 12,500,000 | 보유없음 | Target: 0.50% | Next Buy: B1 @ BB:2420.50 / RSI30:2415.20 | Step: 0 | State: SEARCHING
+2026-01-06 11:11:02 [INFO] Starting Universal Scalper | Ticker: 014940 (Domestic) | Budget: 200,000 | Target: 1.00%
+2026-01-06 11:11:02 [INFO] [KRX] Price: 7860.00 | RSI: 60.0 | BB: [7827.52, 7872.48] | Profit: 0.43% (Net: 0.22%) | PNL: 437 | Today: 0 | 주문가능: 4,832 | 총자산: 229,612 | 평단가: 7826.00 (25주) | B1:7824(16), B2:7830(3), B3:7830(6) | Next Buy: B4 @ 7747.74 | State: HOLDING
 ```
 
 #### 알림 기능
