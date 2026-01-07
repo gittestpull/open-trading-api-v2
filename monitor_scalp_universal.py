@@ -234,10 +234,14 @@ class UniversalScalper:
     def get_minute_chart(self):
         """Unified minute chart fetcher."""
         if self.is_domestic:
+            # Determine Market Code based on current exchange session
+            # J: KRX (Regular), NX: NXT (Nextrade)
+            mrkt_code = "NX" if getattr(self, 'current_exchange', 'KRX') == "NXT" else "J"
+            
             url = "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice"
             tr_id = "FHKST03010200"
             params = {
-                "FID_COND_MRKT_DIV_CODE": "J",
+                "FID_COND_MRKT_DIV_CODE": mrkt_code,
                 "FID_INPUT_ISCD": self.ticker,
                 "FID_INPUT_HOUR_1": datetime.now().strftime("%H%M%S"),
                 "FID_PW_DATA_INCU_YN": "Y",
@@ -990,37 +994,43 @@ class UniversalScalper:
                     ord_unpr = "0"
                 
                 if dv == "buy":
-                    # Check cash first
-                    est_total = qty * price * (1 + self.buy_fee)
-                    if self.cash_balance < est_total and self.credit_cash > est_total:
-                        logger.info(f"[LIVE] Cash low ({self.cash_balance:,.0f}). Using CREDIT ({self.credit_type_code}) to BUY {qty} of {self.ticker}")
-                        today = datetime.now().strftime("%Y%m%d")
-                        df = d_func.order_credit("buy", self.trenv.my_acct, self.trenv.my_prod, self.ticker, self.credit_type_code, today, ord_dvsn, str(int(qty)), ord_unpr)
-                    else:
-                        logger.info(f"[LIVE] BUY {qty} of {self.ticker} (Cash)")
+                    # Hybrid Buy: Cash first, then Credit for remainder
+                    unit_cost = price * (1 + self.buy_fee)
+                    cash_affordable_qty = int(self.cash_balance / unit_cost) if unit_cost > 0 else 0
+                    
+                    df = None
+                    remaining_qty = qty
+                    
+                    # Step 1: Buy with Cash (as much as possible)
+                    if cash_affordable_qty > 0:
+                        cash_buy_qty = min(cash_affordable_qty, remaining_qty)
+                        logger.info(f"[LIVE] BUY {cash_buy_qty} of {self.ticker} (Cash)")
                         env_type = "demo" if kis_auth.isPaperTrading() else "real"
                         current_exch = getattr(self, 'current_exchange', 'KRX')
-                        df = d_func.order_cash(env_type, "buy", self.trenv.my_acct, self.trenv.my_prod, self.ticker, ord_dvsn, str(int(qty)), ord_unpr, current_exch)
+                        df = d_func.order_cash(env_type, "buy", self.trenv.my_acct, self.trenv.my_prod, self.ticker, ord_dvsn, str(int(cash_buy_qty)), ord_unpr, current_exch)
+                        
+                        # Check if cash order succeeded
+                        if df is not None and not df.empty:
+                            remaining_qty -= cash_buy_qty
+                        else:
+                            logger.warning(f"[LIVE] Cash order failed, will attempt full qty with Credit")
+                            # Cash order failed, try full qty with credit below
+                    
+                    # Step 2: Buy remaining with Credit
+                    if remaining_qty > 0 and self.credit_cash > 0:
+                        logger.info(f"[LIVE] BUY {remaining_qty} of {self.ticker} (Credit {self.credit_type_code})")
+                        today = datetime.now().strftime("%Y%m%d")
+                        df_credit = d_func.order_credit("buy", self.trenv.my_acct, self.trenv.my_prod, self.ticker, self.credit_type_code, today, ord_dvsn, str(int(remaining_qty)), ord_unpr)
+                        
+                        # Use credit result as primary if no cash order was made
+                        if df is None or df.empty:
+                            df = df_credit
                 else:
                     # Sell logic
                     rem_qty = qty
                     last_odno = None
                     
-                    # 1. Sell Cash Holdings first
-                    total_credit_qty = sum(item['qty'] for item in self.credit_holdings)
-                    cash_qty = max(0, self.total_qty - total_credit_qty)
-                    
-                    if cash_qty > 0:
-                        sell_cash_qty = min(rem_qty, cash_qty)
-                        logger.info(f"[LIVE] SELL {sell_cash_qty} (Cash) of {self.ticker}")
-                        env_type = "demo" if kis_auth.isPaperTrading() else "real"
-                        current_exch = getattr(self, 'current_exchange', 'KRX')
-                        df = d_func.order_cash(env_type, "sell", self.trenv.my_acct, self.trenv.my_prod, self.ticker, ord_dvsn, str(int(sell_cash_qty)), ord_unpr, current_exch)
-                        if df is not None and not df.empty:
-                            last_odno = str(df.iloc[0].get('ODNO', ''))
-                        rem_qty -= sell_cash_qty
-                        
-                    # 2. Sell Credit Holdings (Repayment)
+                    # 1. Sell Credit Holdings FIRST (Repayment - 이자 비용 절감)
                     for item in self.credit_holdings:
                         if rem_qty <= 0: break
                         sell_qty_part = min(rem_qty, item['qty'])
@@ -1029,6 +1039,20 @@ class UniversalScalper:
                         if df is not None and not df.empty:
                             last_odno = str(df.iloc[0].get('ODNO', ''))
                         rem_qty -= sell_qty_part
+                    
+                    # 2. Sell Cash Holdings (remaining)
+                    total_credit_qty = sum(item['qty'] for item in self.credit_holdings)
+                    cash_qty = max(0, self.total_qty - total_credit_qty)
+                    
+                    if rem_qty > 0 and cash_qty > 0:
+                        sell_cash_qty = min(rem_qty, cash_qty)
+                        logger.info(f"[LIVE] SELL {sell_cash_qty} (Cash) of {self.ticker}")
+                        env_type = "demo" if kis_auth.isPaperTrading() else "real"
+                        current_exch = getattr(self, 'current_exchange', 'KRX')
+                        df = d_func.order_cash(env_type, "sell", self.trenv.my_acct, self.trenv.my_prod, self.ticker, ord_dvsn, str(int(sell_cash_qty)), ord_unpr, current_exch)
+                        if df is not None and not df.empty:
+                            last_odno = str(df.iloc[0].get('ODNO', ''))
+                        rem_qty -= sell_cash_qty
                     
                     if last_odno:
                         self.last_buy_time = time.time() if dv == "buy" else self.last_buy_time
@@ -1143,10 +1167,31 @@ class UniversalScalper:
             candle_low = df['low'].iloc[-1] if not df.empty else 0
             lower_bb, upper_bb = bb
             
-            # Capture KRX close when first entering NXT_POST
-            if session == "NXT_POST" and self.krx_close_today == 0 and curr_price > 0:
-                self.krx_close_today = curr_price
-                logger.info(f"📌 Captured KRX close for NXT reference: {self.krx_close_today:,.0f}")
+            # Capture KRX close when first entering NXT_POST (using KRX API, not NXT price)
+            if session == "NXT_POST" and self.krx_close_today == 0:
+                try:
+                    # Fetch actual KRX closing price using KRX API (not NXT)
+                    krx_res = kis_auth._url_fetch(
+                        "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice",
+                        "FHKST03010200", "",
+                        {
+                            "FID_COND_MRKT_DIV_CODE": "J",  # KRX only
+                            "FID_INPUT_ISCD": self.ticker,
+                            "FID_INPUT_HOUR_1": "153000",  # KRX close time
+                            "FID_PW_DATA_INCU_YN": "Y",
+                            "FID_ETC_CLS_CODE": ""
+                        }
+                    )
+                    if krx_res.isOK():
+                        krx_out = krx_res.getBody().output2
+                        if krx_out and len(krx_out) > 0:
+                            self.krx_close_today = int(krx_out[0].get('stck_prpr', 0))
+                except Exception as e:
+                    logger.warning(f"Failed to fetch KRX close: {e}")
+                    self.krx_close_today = self.prev_close  # Fallback
+                
+                if self.krx_close_today > 0:
+                    logger.info(f"📌 Captured KRX close for NXT reference: {self.krx_close_today:,.0f}")
             
             # Use cached balance (updated only after trade execution)
             cash, asset, real_avg, real_qty = self.cached_balance
@@ -1268,28 +1313,27 @@ class UniversalScalper:
             h_str = step_info # Reusing step_info for buy history
             target_price = self.avg_buy_price * (1 + self.target_profit) if self.state == "HOLDING" else 0
             
-            # Calculate Change Rate
+            # Determine reference close price based on session for Change Rate calculation
+            ref_close_price = self.prev_close
+            ref_label = "전일대비"
+
+            if session == "NXT_PRE":
+                ref_close_price = self.prev_close
+                ref_label = "전일종가"
+            elif session == "NXT_POST" and self.krx_close_today > 0:
+                ref_close_price = self.krx_close_today
+                ref_label = "KRX종가"
+            
+            # Calculate Change Rate based on the correct reference price
             change_rate = 0
-            if self.prev_close > 0:
-                change_rate = (curr_price - self.prev_close) / self.prev_close
+            if ref_close_price > 0:
+                change_rate = (curr_price - ref_close_price) / ref_close_price
 
             # Simplified log construction to avoid extra pipes
             price_str = f"{session_tag} Price: {curr_price:,.0f} ({change_rate:+.2%})"
             
-            # Determine reference close price based on session
-            ref_close = 0
-            if session == "NXT_PRE":
-                ref_close = self.prev_close
-                ref_label = "전일종가"
-            elif session == "NXT_POST" and self.krx_close_today > 0:
-                ref_close = self.krx_close_today
-                ref_label = "KRX종가"
-            elif session == "NXT_POST" and self.prev_close > 0: # Fallback if krx_close not captured yet
-                ref_close = self.prev_close
-                ref_label = "전일종가"
-                
-            if ref_close > 0 and session in ["NXT_PRE", "NXT_POST"]:
-                 price_str += f" [{ref_label}:{ref_close:,.0f}]"
+            if ref_close_price > 0 and session in ["NXT_PRE", "NXT_POST"]:
+                 price_str += f" [{ref_label}:{ref_close_price:,.0f}]"
             
             log_parts = [
                 f"{price_str}{bounce_str}",
@@ -1534,9 +1578,29 @@ class UniversalScalper:
                         # Real summary is written upon fill confirmed by WebSocket
             
             elif self.state == "PENDING_SELL":
-                # Just wait for WS or manual intervention
-                # We can check balance occasionally to sync if WS misses
-                pass
+                # Active Fill Detection: Check if sell was executed
+                # 1. Unfilled sell qty is 0 = order was filled or cancelled
+                # 2. Actual balance shows 0 shares for this ticker
+                
+                if self.unfilled_sell_qty == 0:
+                    # Re-fetch balance to confirm actual holdings
+                    _, _, _, actual_qty = self.get_balance()
+                    
+                    if actual_qty == 0:
+                        # Sell was successfully filled!
+                        pending = getattr(self, 'pending_sell', {})
+                        sell_price = pending.get('price', 0)
+                        sell_qty = pending.get('qty', self.total_qty)
+                        
+                        logger.info(f"✅ SELL FILL CONFIRMED (detected via balance sync) | Qty: {sell_qty} @ {sell_price}")
+                        self.finalize_sell(sell_price, sell_qty)
+                    else:
+                        # Still holding shares - order may have been partially filled or cancelled
+                        logger.warning(f"⚠️ PENDING_SELL but still holding {actual_qty} shares. Syncing state...")
+                        self.total_qty = actual_qty
+                        self.state = "HOLDING"
+                        self.pending_sell = None
+                        self.save_state()
             
             time.sleep(30)
 
