@@ -2,61 +2,103 @@ import sys
 import os
 import time
 import logging
-import pandas as pd
-import numpy as np
 from datetime import datetime
-import argparse
-import json
 
-# Add examples_user to path for kis_auth
-sys.path.append(os.path.join(os.getcwd(), 'examples_user'))
-import kis_auth
-from stock_code_lookup import StockMaster
-
-# Configure Logging
+# 1. Absolute First: Setup Logging before ANY other imports
 LOG_DIR = os.path.join(os.getcwd(), 'logs')
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR)
 
 log_filename = os.path.join(LOG_DIR, f"trading_{datetime.now().strftime('%Y%m%d')}.log")
 
+# Setup Handlers
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)  # Terminal: INFO+
+
+file_handler = logging.FileHandler(log_filename, encoding='utf-8')
+file_handler.setLevel(logging.DEBUG)  # File: ALL (DEBUG+)
+
+# Configure Root Logger
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG, 
     format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(log_filename, encoding='utf-8')
-    ]
+    handlers=[console_handler, file_handler],
+    force=True  # Clear any existing configuration from early imports
 )
 logger = logging.getLogger(__name__)
 
+# 2. Other Imports
+import pandas as pd
+import numpy as np
+import argparse
+import json
+import threading
+import asyncio
+
+# Add examples_user and subdirectories to path first
+sys.path.append(os.path.join(os.getcwd(), 'examples_user'))
+sys.path.append(os.path.join(os.getcwd(), 'examples_user', 'domestic_stock'))
+sys.path.append(os.path.join(os.getcwd(), 'examples_user', 'overseas_stock'))
+
+import kis_auth
+from stock_code_lookup import StockMaster
+import domestic_stock_functions as d_func
+
+def notify_user(msg, ticker=None):
+    """Utility to provide audio and desktop notifications."""
+    try:
+        title = f"Trading Bot ({ticker})" if ticker else "Trading Bot"
+        os.system(f"osascript -e 'display notification \"{msg}\" with title \"{title}\"'")
+        os.system("afplay /System/Library/Sounds/Glass.aiff")
+    except:
+        pass
+
 def check_log_health(filename, limit_minutes=5, max_errors=3):
-    """Analyze recent log entries for failures and block startup if necessary."""
+    """Analyze recent log entries for CRITICAL failures and block startup if necessary."""
     if not os.path.exists(filename):
         return True
     
-    recent_errors = 0
+    recent_critical_errors = 0
     now = datetime.now()
+    
+    # Critical keywords that directly affect trading (only these will block startup)
+    CRITICAL_KEYWORDS = ["Order Failed", "Insufficient balance", "Auth Failed", "Connection timeout", "Insufficient cash"]
+    # Keywords to absolutely ignore (notification, websocket, etc.)
+    IGNORE_KEYWORDS = ["execution notice", "WS Monitor", "WebSocket", "HEALTH CHECK"]
+
     try:
         with open(filename, 'r', encoding='utf-8') as f:
             lines = f.readlines()
-            for line in reversed(lines[-50:]): # Check last 50 lines
-                if "[ERROR]" in line or "Failed" in line:
-                    # Simple timestamp extraction: 2026-01-06 10:55:01,357
+            for line in reversed(lines[-100:]): # Check last 100 lines
+                if "[ERROR]" in line:
+                    # 1. Ignore soft errors first
+                    if any(ig.lower() in line.lower() for ig in IGNORE_KEYWORDS):
+                        continue
+                    
+                    # 2. Check time
                     try:
                         log_time_str = line.split(',')[0]
                         log_time = datetime.strptime(log_time_str, '%Y-%m-%d %H:%M:%S')
-                        if (now - log_time).total_seconds() / 60 < limit_minutes:
-                            recent_errors += 1
+                        if (now - log_time).total_seconds() / 60 > limit_minutes:
+                            continue # Too old
+                            
+                        # 3. Block only if it's a critical keyword OR a generic error (not ignored)
+                        # User: "매수를 잘못 할수 있는 에러만 체크해야지"
+                        if any(kw.lower() in line.lower() for kw in CRITICAL_KEYWORDS):
+                            recent_critical_errors += 1
+                        else:
+                            # If we have too many generic [ERROR]s in a short time, maybe something is wrong, 
+                            # but let's be lenient as per user request.
+                            pass
                     except:
                         continue
         
-        if recent_errors >= max_errors:
-            logger.error(f"⚠️ LOG HEALTH CHECK FAILED: {recent_errors} errors found in last {limit_minutes} min.")
-            logger.error("Please check the log file and resolve issues before restarting.")
+        if recent_critical_errors >= max_errors:
+            logger.error(f"⚠️ LOG HEALTH CHECK FAILED: {recent_critical_errors} CRITICAL trading errors found in last {limit_minutes} min.")
+            logger.error(f"Critical triggers: {CRITICAL_KEYWORDS}")
             return False
     except Exception as e:
-        logger.warning(f"Log health check skipped due to error: {e}")
+        logger.warning(f"Log health check skipped: {e}")
     
     return True
 
@@ -145,14 +187,46 @@ class UniversalScalper:
         self.max_allowed_errors = 3
         self.last_supply_check = time.time()
         
-        # Price info caching (Prev Close, Prev High, Daily High)
+        # Prices
         self.prev_close = 0
         self.prev_high = 0
+        
+        # Websocket Monitor (Execution Notification)
+        self.ws_active = False
+        if self.live_mode:
+            self.ws_thread = threading.Thread(target=self.start_ws_monitor, daemon=True)
+            self.ws_thread.start()
+            self.ws_active = True
         self.daily_high = 0
+        self.krx_close_today = 0  # Today's KRX closing price for NXT reference
         self.last_price_info_check = 0
-        self.price_info_interval = 60  # Update every 1 minute
+        self.last_price_info_check = 0
+        self.price_info_interval = 300 # 5 mins
+        
+        # Market Data (Investor, Credit, Short)
+        self.investor_info_str = "Inv: -" 
+        self.credit_trend_str = "CrdRate: - Short: -"
+        self.last_market_data_check = 0
+        self.market_data_interval = 600 # 10 mins (Data updates slowly)
+        
+        # Holiday and Session cache
+        self.cached_holiday_status = None # None: not checked, True: holiday, False: business day
+        self.last_holiday_check_date = ""
+        
+        # Unfilled orders cache
+        self.unfilled_buy_qty = 0
+        self.unfilled_sell_qty = 0
+        self.last_unfilled_check = 0
+        self.unfilled_check_interval = 30 # Check every 30 seconds
+        
         if self.is_domestic:
             self.update_price_info()
+            
+        # Credit related states
+        self.credit_cash = 0
+        self.credit_type_code = "21" # Default to Self-financing
+        self.credit_holdings = [] # List of dict: {"qty": int, "loan_dt": str}
+        self.cash_balance = 0
         
         self.last_buy_time = 0  # To prevent rapid pyramiding
         
@@ -201,6 +275,19 @@ class UniversalScalper:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce')
             
+            # Pad data if history is too short for RSI
+            min_len = 20
+            # Raw 'df' is currently Newest -> Oldest (from API output)
+            # We need to ensure we have enough history.
+            if len(df) < min_len and not df.empty:
+                needed = min_len - len(df)
+                # Oldest data is at the end of the raw list/df
+                oldest_row = df.iloc[-1].to_dict()
+                # Create padding of oldest data
+                padding = pd.DataFrame([oldest_row] * needed)
+                # Attach padding to the END (which represents older history in current order)
+                df = pd.concat([df, padding], ignore_index=True)
+
             return df.iloc[::-1].reset_index(drop=True)
         else:
             logger.error(f"Failed to fetch chart: {res.getErrorMessage()}")
@@ -223,12 +310,103 @@ class UniversalScalper:
                 self.prev_close = float(out.get('stck_sdpr', 0))  # 전일 종가 (기준가)
                 self.prev_high = float(out.get('stck_mxpr', 0))   # 전일 고가 (stck_mxpr = 전일최고가)
                 self.daily_high = float(out.get('stck_hgpr', 0))  # 당일 최고가
+                
+                # Credit Loan Rate (Market) & Short Sale Volume
+                loan_rate = float(out.get('whol_loan_rmnd_rate', 0))
+                short_vol = int(out.get('last_ssts_cntg_qty', 0))
+                self.credit_trend_str = f"CrdRate:{loan_rate:.2f}% Short:{short_vol:,}"
+                
                 self.last_price_info_check = time.time()
-                logger.debug(f"Price Info Updated: Prev Close={self.prev_close:,.0f}, Prev High={self.prev_high:,.0f}, Daily High={self.daily_high:,.0f}")
+                logger.debug(f"Price Info Updated: prev_c={self.prev_close}, loan_rate={loan_rate}%, short={short_vol}")
         except Exception as e:
             logger.error(f"Failed to update price info: {e}")
-    
-    def get_orderbook(self):
+
+    def update_market_data(self):
+        """Fetch investor trend estimates (Real-time estimate)."""
+        if not self.is_domestic: return
+
+        try:
+            # 1. Investor Trend Estimate (HHPTJ04160200) - Real-time estimate
+            # Fields: frgn_fake_ntby_qty (Foreigner), orgn_fake_ntby_qty (Institution)
+            # Personal data is not explicitly provided in this estimate API
+            est_df = d_func.investor_trend_estimate(self.ticker)
+            if not est_df.empty:
+                row = est_df.iloc[0]
+                
+                def safe_int(val):
+                    try: return int(val) if val else 0
+                    except: return 0
+
+                frgn = safe_int(row.get('frgn_fake_ntby_qty', 0))
+                orgn = safe_int(row.get('orgn_fake_ntby_qty', 0))
+                
+                def fmt_k(n):
+                    if abs(n) >= 1000: return f"{n/1000:.1f}k"
+                    return str(n)
+                
+                # Note: 'Personal' is not in this API, so we show what we have
+                self.investor_info_str = f"Est: 외인{fmt_k(frgn)} 기관{fmt_k(orgn)}"
+            
+            # 2. Short Sale: Daily short sale info is End-of-Day. 
+            # Real-time short sale volume is not easily available via simple API.
+            # We rely on 'inquire_price' -> 'whol_loan_rmnd_rate' for Credit market info instead.
+                 
+        except Exception as e:
+            logger.error(f"Failed to update market data: {e}")
+            
+    def update_unfilled_orders(self):
+        """Fetches unfilled buy/sell quantities from KIS."""
+        if not self.live_mode:
+            return
+            
+        now = time.time()
+        if now - self.last_unfilled_check < self.unfilled_check_interval:
+            return
+            
+        try:
+            if self.is_domestic:
+                # inqr_dvsn_1: 0(주문), 1(종목) | inqr_dvsn_2: 0(전체), 1(매도), 2(매수)
+                df = d_func.inquire_psbl_rvsecncl(
+                    cano=self.trenv.my_acct, 
+                    acnt_prdt_cd=self.trenv.my_prod, 
+                    inqr_dvsn_1="1", # By Stock
+                    inqr_dvsn_2="0"  # All
+                )
+                if df is not None and not df.empty:
+                    # Filter for current ticker and aggregate by buy/sell
+                    # pdno: 종목코드, sll_buy_dvsn_cd: 01(매도), 02(매수), psbl_qty: 잔량
+                    target_df = df[df['pdno'] == self.ticker]
+                    self.unfilled_buy_qty = int(target_df[target_df['sll_buy_dvsn_cd'] == '02']['psbl_qty'].astype(float).sum())
+                    self.unfilled_sell_qty = int(target_df[target_df['sll_buy_dvsn_cd'] == '01']['psbl_qty'].astype(float).sum())
+                else:
+                    self.unfilled_buy_qty = 0
+                    self.unfilled_sell_qty = 0
+            else:
+                # Overseas
+                import overseas_stock_functions as o_func
+                # ovrs_excg_cd: NASD, NYSE, etc.
+                df = o_func.inquire_nccs(
+                    cano=self.trenv.my_acct,
+                    acnt_prdt_cd=self.trenv.my_prod,
+                    ovrs_excg_cd="NASD", # Defaulting to NASD for now
+                    sort_sqn="DS",
+                    FK200="", NK200=""
+                )
+                if df is not None and not df.empty:
+                    # pdno: 종목코드, sll_buy_dvsn_cd: 01(매도), 02(매수), nccn_qty: 미체결수량
+                    target_df = df[df['pdno'] == self.ticker]
+                    self.unfilled_buy_qty = int(target_df[target_df['sll_buy_dvsn_cd'] == '02']['nccn_qty'].astype(float).sum())
+                    self.unfilled_sell_qty = int(target_df[target_df['sll_buy_dvsn_cd'] == '01']['nccn_qty'].astype(float).sum())
+                else:
+                    self.unfilled_buy_qty = 0
+                    self.unfilled_sell_qty = 0
+                    
+            self.last_unfilled_check = now
+            logger.debug(f"Unfilled updated for {self.ticker}: Buy={self.unfilled_buy_qty}, Sell={self.unfilled_sell_qty}")
+        except Exception as e:
+            logger.warning(f"Failed to update unfilled orders: {e}")
+
+    def sync_portfolio(self):
         """Fetch orderbook data (bid/ask totals)."""
         if not self.is_domestic:
             return 0, 0, ""
@@ -260,10 +438,21 @@ class UniversalScalper:
             "avg_buy_price": float(self.avg_buy_price),
             "total_qty": int(self.total_qty),
             "current_step": int(self.current_step),
-            "buy_history": buy_history_native
+            "buy_history": buy_history_native,
+            "pending_sell": getattr(self, 'pending_sell', None)
         }
+        
+        def default_serializer(obj):
+            if isinstance(obj, (np.integer, np.int64)):
+                return int(obj)
+            if isinstance(obj, (np.floating, np.float64)):
+                return float(obj)
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+            raise TypeError(f"Type {type(obj)} not serializable")
+
         with open(self.state_file, 'w', encoding='utf-8') as f:
-            json.dump(state_data, f, indent=4)
+            json.dump(state_data, f, indent=4, default=default_serializer)
         # logger.debug(f"State saved to {self.state_file}")
 
     def load_state(self):
@@ -277,9 +466,101 @@ class UniversalScalper:
                     self.total_qty = state_data.get("total_qty", 0)
                     self.current_step = state_data.get("current_step", 0)
                     self.buy_history = state_data.get("buy_history", [])
-                logger.info(f"Loaded existing state for {self.ticker}: {self.state} | {self.total_qty} shares @ {self.avg_buy_price:.2f}")
+                    self.pending_sell = state_data.get("pending_sell", None)
+                logger.info(f"Loaded existing state for {self.ticker}: {self.state} | {self.total_qty} shares")
             except Exception as e:
                 logger.error(f"Failed to load state: {e}")
+
+    def start_ws_monitor(self):
+        """Runs the KIS WebSocket monitor in a separate event loop."""
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(self.ws_loop())
+        except Exception as e:
+            logger.error(f"WS Monitor Thread Error: {e}")
+
+    async def ws_loop(self):
+        """Connects to KIS WebSocket and listens for execution notifications."""
+        try:
+            # Need to get approval key for WS
+            kis_auth.auth_ws()
+            
+            from kis_auth import KISWebSocket
+            ws_client = KISWebSocket(api_url="/") 
+            
+            # Subscribe to Execution Notice
+            if self.is_domestic:
+                import domestic_stock_functions_ws as d_ws
+                ccnl_func = d_ws.ccnl_notice
+            else:
+                import overseas_stock_functions_ws as o_ws
+                ccnl_func = o_ws.ccnl_notice
+            
+            tr_key = self.trenv.my_htsid
+            
+            def on_ws_result(ws, res_tr_id, df, dm):
+                if res_tr_id in ["H0STCNI0", "H0STCNI9", "H0GSCNI0", "H0GSCNI9"]:
+                    self.handle_execution_notice(df)
+            logger.info(f"WebSocket Execution Monitor Active (Key: {tr_key})")
+            await ws_client._KISWebSocket__runner() 
+            
+        except Exception as e:
+            logger.error(f"WebSocket Loop Exception: {e}")
+
+    def handle_execution_notice(self, df):
+        """Processes execution notification data from WebSocket."""
+        try:
+            if df.empty: return
+            
+            row = df.iloc[0]
+            # Ensure ticker is string and clean up (handle potential float conversion from pandas)
+            val = row.get('STCK_SHRN_ISCD', '')
+            ticker = str(val).split('.')[0].replace('A', '').strip()
+            
+            # Pad with zeros ONLY for domestic tickers (short numbers)
+            if self.is_domestic and ticker.isdigit() and len(ticker) < 6:
+                ticker = ticker.zfill(6)
+            
+            cntg_yn = str(row.get('CNTG_YN', '')).split('.')[0]
+            
+            if ticker != self.ticker: return
+            
+            if cntg_yn == '2': # Execution Filled
+                qty = int(row.get('CNTG_QTY', 0))
+                price = float(row.get('CNTG_UNPR', 0))
+                
+                notify_user(f"{ticker} {qty}주 체결 완료!", ticker)
+                logger.info(f"🔔 EXECUTION FILLED: {ticker} {qty} at {price}")
+                
+                if self.state == "PENDING_SELL":
+                    self.finalize_sell(price, qty)
+        except Exception as e:
+            logger.error(f"Error handling execution notice: {e}")
+
+    def finalize_sell(self, sell_price, sell_qty):
+        """Called when a sell fill is confirmed."""
+        try:
+            # Re-calculate exact profit based on fill price
+            net_investment = self.avg_buy_price * sell_qty * (1 + self.buy_fee)
+            net_return = sell_price * sell_qty * (1 - self.sell_fee - self.sell_tax)
+            net_profit_amt = net_return - net_investment
+            net_profit_rate = (net_return / net_investment) - 1
+            
+            self.daily_realized_profit += net_profit_amt
+            
+            # Summary update
+            summary_path = "trade_summary.txt"
+            with open(summary_path, "a", encoding="utf-8") as f:
+                dt_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                f.write(f"[{dt_str}] {self.ticker} | FILLED | Net: {net_profit_rate:+.2%} | Profit: {net_profit_amt:+,.0f} | Qty: {sell_qty}\n")
+            
+            logger.info(f"💰 SELL CONFIRMED: {self.ticker} | Realized Net Profit: {net_profit_amt:,.0f}")
+            
+            self.clear_state()
+            self.cached_balance = self.get_balance() # Sync balance
+        except Exception as e:
+            logger.error(f"Error finalizing sell: {e}")
 
     def clear_state(self):
         """Clear state file after exit."""
@@ -292,6 +573,33 @@ class UniversalScalper:
         self.current_step = 0
         self.buy_history = []
 
+    def is_holiday_today(self):
+        """Checks if today is a holiday using KIS API."""
+        now_date = datetime.now().strftime("%Y%m%d")
+        
+        # Use cache if already checked today
+        if self.last_holiday_check_date == now_date and self.cached_holiday_status is not None:
+            return self.cached_holiday_status
+        
+        try:
+            logger.info(f"Checking holiday status for {now_date}...")
+            # Use max_depth=1 to prevent excessive recursion in holiday check
+            df = d_func.chk_holiday(bass_dt=now_date, max_depth=1)
+            if not df.empty:
+                # opnd_yn: 개장일 여부 (Y/N)
+                row = df.iloc[0]
+                is_holiday = row.get('opnd_yn') == 'N'
+                self.cached_holiday_status = is_holiday
+                self.last_holiday_check_date = now_date
+                
+                status_str = "HOLIDAY (CLOSED)" if is_holiday else "BUSINESS DAY (OPEN)"
+                logger.info(f"Market Status Check: Today is {status_str}")
+                return is_holiday
+        except Exception as e:
+            logger.error(f"Failed to check holiday status: {e}")
+            
+        return False # Default to business day on failure to avoid blocking
+
     def get_market_session(self):
         """Returns current market session: KRX, NXT_PRE, NXT_POST, or CLOSED."""
         now = datetime.now()
@@ -299,12 +607,19 @@ class UniversalScalper:
         time_val = hour * 100 + minute  # HHMM format
         
         if self.is_domestic:
+            # 1. Holiday Check
+            if self.is_holiday_today():
+                return "CLOSED"
+
+            # 2. Regular and Extended Hours
             if 800 <= time_val < 850:
                 return "NXT_PRE"  # NXT Pre-market
             elif 900 <= time_val < 1530:
+                # Note: This is a safe range, but we could also check if live data is flowing 
+                # to handle cases like 10:00 AM openings (CSAT day).
                 return "KRX"  # Regular session
-            elif 1540 <= time_val < 1800:
-                return "NXT_POST"  # NXT After-hours
+            elif 1540 <= time_val < 2000:
+                return "NXT_POST"  # NXT After-hours (until 20:00)
             else:
                 return "CLOSED"
         else:
@@ -322,9 +637,10 @@ class UniversalScalper:
         return session != "CLOSED"
             
     def get_balance(self):
-        """Fetches total evaluation amount and available cash."""
+        """Fetches total evaluation amount, available cash, and credit details."""
         try:
             if self.is_domestic:
+                # 1. Regular Balance
                 url = "/uapi/domestic-stock/v1/trading/inquire-balance"
                 tr_id = "TTTC8434R"
                 params = {
@@ -332,7 +648,7 @@ class UniversalScalper:
                     "ACNT_PRDT_CD": self.trenv.my_prod,
                     "AFHR_FLPR_YN": "N",
                     "OFL_YN": "",
-                    "INQR_DVSN": "02",
+                    "INQR_DVSN": "01", # 01: Loan Date, 02: Stock
                     "UNPR_DVSN": "01",
                     "FUND_STTL_ICLD_YN": "N",
                     "FNCG_AMT_AUTO_RDPT_YN": "N",
@@ -340,7 +656,71 @@ class UniversalScalper:
                     "CTX_AREA_FK100": "",
                     "CTX_AREA_NK100": ""
                 }
+                res = kis_auth._url_fetch(url, tr_id, "", params)
+                
+                cash, asset, real_avg, real_qty = 0, 0, 0, 0
+                self.credit_holdings = []
+                
+                if res.isOK():
+                    out2 = res.getBody().output2[0]
+                    cash = int(out2.get('prvs_rcdl_excc_amt', 0)) # Available Cash
+                    asset = int(out2.get('tot_evlu_amt', 0))
+                    self.cash_balance = cash
+                    
+                    out1 = res.getBody().output1
+                    for item in out1:
+                        if item.get('pdno') == self.ticker:
+                            qty = int(item.get('hldg_qty', 0))
+                            if qty > 0:
+                                loan_dt = item.get('loan_dt', "").strip()
+                                if loan_dt: # Credit holding
+                                    self.credit_holdings.append({"qty": qty, "loan_dt": loan_dt})
+                                else: # Cash holding
+                                    real_avg = float(item.get('pchs_avg_pric', 0))
+                                    real_qty += qty
+                    
+                    # 2. Credit Purchase Power (Domestic only)
+                    max_credit = 0
+                    best_credit_type = "21"
+
+                    for c_type in ["21", "23"]: # Check both Self-financing and Brokerage loans
+                        try:
+                            cre_df = d_func.inquire_credit_psamount(
+                                cano=self.trenv.my_acct,
+                                acnt_prdt_cd=self.trenv.my_prod,
+                                pdno=self.ticker,
+                                ord_dvsn="01", # Market
+                                crdt_type=c_type,
+                                cma_evlu_amt_icld_yn="N",
+                                ovrs_icld_yn="N",
+                                ord_unpr="0"
+                            )
+                            if not cre_df.empty:
+                                output = cre_df.iloc[0].to_dict()
+                                amt = int(output.get('crdt_buy_psbl_amt', 
+                                          output.get('max_buy_amt', 
+                                          output.get('ord_psbl_cash', 0))))
+                                
+                                # Use MAX instead of SUM to prevent double counting shared limit
+                                if amt > max_credit:
+                                    max_credit = amt
+                                    best_credit_type = c_type
+
+                                logger.debug(f"[DEBUG] Credit Type {c_type} amt: {amt}")
+                        except Exception as e:
+                            logger.error(f"Credit inquiry for {c_type} failed: {e}")
+                    
+                    self.credit_cash = max_credit
+                    self.credit_type_code = best_credit_type
+                    
+                    return cash, asset, real_avg, real_qty
+                
+                else:
+                    res.printError()
+                    return 0, 0, 0, 0
+
             else:
+                # Overseas
                 url = "/uapi/overseas-stock/v1/trading/inquire-balance"
                 tr_id = "TTTS3012R"
                 params = {
@@ -351,24 +731,12 @@ class UniversalScalper:
                     "CTX_AREA_FK200": "",
                     "CTX_AREA_NK200": ""
                 }
-
-            res = kis_auth._url_fetch(url, tr_id, "", params)
-
-            if res.isOK():
-                if self.is_domestic:
-                    out2 = res.getBody().output2[0]
-                    cash = int(out2.get('prvs_rcdl_excc_amt', 0)) # 주문가능금액
-                    asset = int(out2.get('tot_evlu_amt', 0)) # Total Asset
-                    
-                    # Get holding info for current ticker
-                    out1 = res.getBody().output1
-                    real_avg, real_qty = 0, 0
-                    for item in out1:
-                        if item.get('pdno') == self.ticker:
-                            real_avg = float(item.get('pchs_avg_pric', 0))
-                            real_qty = int(item.get('hldg_qty', 0))
-                            break
-                    return cash, asset, real_avg, real_qty
+                res = kis_auth._url_fetch(url, tr_id, "", params)
+                if res.isOK():
+                    out2 = res.getBody().output2
+                    cash = float(out2.get('ovrs_tot_dnca_amt', 0))
+                    asset = float(out2.get('tot_evlu_Pamt', 0))
+                    return cash, asset, 0, 0
                 else:
                     out2 = res.getBody().output2
                     cash = float(out2.get('ovrs_tot_dnca_amt', 0)) # Overseas Cash
@@ -418,6 +786,9 @@ class UniversalScalper:
 
             res = kis_auth._url_fetch(url, tr_id, "", params)
             if res.isOK():
+                if self.is_domestic:
+                    output = res.getBody().output
+                # Code logic continues below
                 if self.is_domestic:
                     output = res.getBody().output
                     for item in output:
@@ -518,78 +889,144 @@ class UniversalScalper:
         return ""
 
     def place_order(self, dv="buy", qty=0, price=0):
-        if qty <= 0: return False
+        if qty <= 0: return None
         
         mode_str = "LIVE" if self.live_mode else "DRY RUN"
         logger.info(f"[{mode_str}] {dv.upper()} {qty} of {self.ticker} at {price}")
         
         if not self.live_mode: 
-            # Play a distinct sound for Universal bot even in dry run
             os.system("afplay /System/Library/Sounds/Ping.aiff")
-            return True
+            # Simulate fill for Dry Run
+            if dv == "sell":
+                threading.Timer(2.0, self.finalize_sell, [price, qty]).start()
+            return "DRY_RUN_ORDER_NO"
         
-        if self.is_domestic:
-            url = "/uapi/domestic-stock/v1/trading/order-cash"
-            tr_id = "TTTC0012U" if dv == "buy" else "TTTC0011U"
-            params = {
-                "CANO": self.trenv.my_acct,
-                "ACNT_PRDT_CD": self.trenv.my_prod,
-                "PDNO": self.ticker,
-                "ORD_DVSN": "00",
-                "ORD_QTY": str(int(qty)),
-                "ORD_UNPR": str(int(price)),
-                "EXCG_ID_DVSN_CD": self.current_exchange  # Dynamic: KRX or NXT
-            }
-        else:
-            url = "/uapi/overseas-stock/v1/trading/order"
-            tr_id = "TTTT1002U" if dv == "buy" else "TTTT1006U"
-            params = {
-                "CANO": self.trenv.my_acct,
-                "ACNT_PRDT_CD": self.trenv.my_prod,
-                "OVRS_EXCG_CD": "NASD", # Hardcoded for NASDAQ
-                "PDNO": self.ticker,
-                "ORD_QTY": str(int(qty)),
-                "OVRS_ORD_UNPR": str(round(price, 2)), # Overseas has decimals
-                "ORD_DVSN": "00"
-            }
-            if dv == "sell": params["SLL_TYPE"] = "00"
+        try:
+            if self.is_domestic:
+                # NXT 세션에서는 지정가(00)만 가능, 정규장에서는 시장가(01) 사용
+                current_exch = getattr(self, 'current_exchange', 'KRX')
+                if current_exch == "NXT":
+                    ord_dvsn = "00"  # Limit Order for NXT
+                    ord_unpr = str(int(price))  # Use provided price
+                    logger.debug(f"NXT Session: Using limit order @ {price}")
+                else:
+                    ord_dvsn = "01"  # Market Order for KRX
+                    ord_unpr = "0"
+                
+                if dv == "buy":
+                    # Check cash first
+                    est_total = qty * price * (1 + self.buy_fee)
+                    if self.cash_balance < est_total and self.credit_cash > est_total:
+                        logger.info(f"[LIVE] Cash low ({self.cash_balance:,.0f}). Using CREDIT ({self.credit_type_code}) to BUY {qty} of {self.ticker}")
+                        today = datetime.now().strftime("%Y%m%d")
+                        df = d_func.order_credit("buy", self.trenv.my_acct, self.trenv.my_prod, self.ticker, self.credit_type_code, today, ord_dvsn, str(int(qty)), ord_unpr)
+                    else:
+                        logger.info(f"[LIVE] BUY {qty} of {self.ticker} (Cash)")
+                        env_type = "demo" if kis_auth.isPaperTrading() else "real"
+                        current_exch = getattr(self, 'current_exchange', 'KRX')
+                        df = d_func.order_cash(env_type, "buy", self.trenv.my_acct, self.trenv.my_prod, self.ticker, ord_dvsn, str(int(qty)), ord_unpr, current_exch)
+                else:
+                    # Sell logic
+                    rem_qty = qty
+                    last_odno = None
+                    
+                    # 1. Sell Cash Holdings first
+                    total_credit_qty = sum(item['qty'] for item in self.credit_holdings)
+                    cash_qty = max(0, self.total_qty - total_credit_qty)
+                    
+                    if cash_qty > 0:
+                        sell_cash_qty = min(rem_qty, cash_qty)
+                        logger.info(f"[LIVE] SELL {sell_cash_qty} (Cash) of {self.ticker}")
+                        env_type = "demo" if kis_auth.isPaperTrading() else "real"
+                        current_exch = getattr(self, 'current_exchange', 'KRX')
+                        df = d_func.order_cash(env_type, "sell", self.trenv.my_acct, self.trenv.my_prod, self.ticker, ord_dvsn, str(int(sell_cash_qty)), ord_unpr, current_exch)
+                        if df is not None and not df.empty:
+                            last_odno = str(df.iloc[0].get('ODNO', ''))
+                        rem_qty -= sell_cash_qty
+                        
+                    # 2. Sell Credit Holdings (Repayment)
+                    for item in self.credit_holdings:
+                        if rem_qty <= 0: break
+                        sell_qty_part = min(rem_qty, item['qty'])
+                        logger.info(f"[LIVE] SELL {sell_qty_part} (Credit 상환, 대출일:{item['loan_dt']}) of {self.ticker}")
+                        df = d_func.order_credit("sell", self.trenv.my_acct, self.trenv.my_prod, self.ticker, "25", item['loan_dt'], ord_dvsn, str(int(sell_qty_part)), ord_unpr)
+                        if df is not None and not df.empty:
+                            last_odno = str(df.iloc[0].get('ODNO', ''))
+                        rem_qty -= sell_qty_part
+                    
+                    if last_odno:
+                        self.last_buy_time = time.time() if dv == "buy" else self.last_buy_time
+                        self.consecutive_errors = 0
+                    return last_odno
 
-        res = kis_auth._url_fetch(url, tr_id, "", params, postFlag=True)
-        if res.isOK():
-            os.system("afplay /System/Library/Sounds/Ping.aiff")
-            logger.info(f"Order Success! No: {res.getBody().output.get('ODNO')}")
-            if dv == "buy":
-                self.last_buy_time = time.time()
-            self.consecutive_errors = 0 # Reset on success
-            return True
-        else:
-            logger.error(f"Order Failed: {res.getErrorMessage()}")
+            else:
+                # Overseas
+                import overseas_stock_functions as o_func
+                ord_dvsn = "00"
+                ord_qty_str = str(int(qty))
+                ord_unpr_str = str(round(price, 2))
+                df = o_func.order_stock(dv, self.trenv.my_acct, self.trenv.my_prod, "NASD", self.ticker, ord_dvsn, ord_qty_str, ord_unpr_str)
+                if dv == "sell" and df is not None: df["SLL_TYPE"] = "00"
+
+            if df is not None and not df.empty:
+                odno = str(df.iloc[0].get('ODNO', '')) if self.is_domestic else str(df.iloc[0].get('odno', ''))
+                logger.info(f"Order Accepted! No: {odno}")
+                if dv == "buy": self.last_buy_time = time.time()
+                self.consecutive_errors = 0
+                return odno
+                
+        except Exception as e:
+            logger.error(f"Order failed: {e}")
             self.consecutive_errors += 1
-            return False
+            notify_user(f"ORDER FAILED: {e}", self.ticker)
+            
+        return None
 
     def run(self):
         buy_price_str = f" | Buy Price: {self.manual_buy_price:,}" if self.manual_buy_price > 0 else ""
         logger.info(f"Starting Universal Scalper | Ticker: {self.ticker} ({self.market}) | Budget: {self.budget:,} | Target: {self.target_profit:.2%}{buy_price_str}")
         sum_weights = sum(WEIGHTS)
         
+        # Initial Balance Check (Critical for displaying correct credit info on startup)
+        self.cached_balance = self.get_balance()
+        
+        # Initial Market Data Update (Investor/Credit/Short)
+        if self.is_domestic:
+            self.update_market_data()
+
         # Warmup: Validate RSI data before allowing trades
-        warmup_count = 0
-        warmup_required = 3
-        logger.info(f"[Warmup] Validating data... (need {warmup_required} valid RSI readings)")
-        while warmup_count < warmup_required:
-            df = self.get_minute_chart()
-            rsi, _ = self.calculate_indicators(df)
-            if rsi is None or np.isnan(rsi):
-                logger.warning(f"[Warmup] RSI is None/NaN, waiting...")
-            elif rsi <= 10 or rsi >= 90:
-                logger.warning(f"[Warmup] RSI {rsi:.1f} looks abnormal, resetting count...")
-                warmup_count = 0
-            else:
-                warmup_count += 1
-                logger.info(f"[Warmup] RSI {rsi:.1f} valid ({warmup_count}/{warmup_required})")
-            if warmup_count < warmup_required:
-                time.sleep(10)
-        logger.info(f"[Warmup] Data validation passed! Starting trading loop...")
+        # Skip warmup during NXT sessions or CLOSED (insufficient data for RSI)
+        session = self.get_market_session()
+        if session in ["NXT_PRE", "NXT_POST", "CLOSED"]:
+            logger.info(f"[Warmup] Non-KRX Session detected ({session}). Skipping RSI warmup. Using price-based entry only.")
+        else:
+            warmup_count = 0
+            total_attempts = 0
+            warmup_required = 3
+            max_attempts = 5
+            logger.info(f"[Warmup] Validating data... (need {warmup_required} valid RSI readings)")
+            while warmup_count < warmup_required:
+                total_attempts += 1
+                df = self.get_minute_chart()
+                rsi, _ = self.calculate_indicators(df)
+                
+                # Break after max attempts regardless of RSI state
+                if total_attempts >= max_attempts:
+                    logger.warning(f"[Warmup] Max attempts ({max_attempts}) reached. Proceeding anyway.")
+                    break
+                    
+                if rsi is None or np.isnan(rsi):
+                    logger.warning(f"[Warmup] RSI is None/NaN, attempt {total_attempts}/{max_attempts}...")
+                elif rsi <= 10 or rsi >= 90:
+                    logger.warning(f"[Warmup] RSI {rsi:.1f} looks abnormal, attempt {total_attempts}/{max_attempts}...")
+                    warmup_count += 1
+                else:
+                    warmup_count += 1
+                    logger.info(f"[Warmup] RSI {rsi:.1f} valid ({warmup_count}/{warmup_required})")
+                
+                if warmup_count < warmup_required:
+                    time.sleep(10)
+            logger.info(f"[Warmup] Starting trading loop...")
         
         while True:
             # Check Runtime Safety
@@ -615,13 +1052,25 @@ class UniversalScalper:
             df = self.get_minute_chart()
             rsi, bb = self.calculate_indicators(df)
             
-            if rsi is None or np.isnan(rsi):
+            # During NXT sessions, don't block on RSI - use price-based entry only
+            if session == "KRX" and (rsi is None or np.isnan(rsi)):
                 time.sleep(10)
                 continue
+            
+            # Handle None RSI/BB gracefully for NXT
+            if rsi is None or np.isnan(rsi):
+                rsi = 50.0  # Neutral RSI for display purposes only
+            if bb is None:
+                bb = (0, 0)  # Placeholder BB
                 
-            curr_price = df['last'].iloc[-1]
-            candle_low = df['low'].iloc[-1]
+            curr_price = df['last'].iloc[-1] if not df.empty else 0
+            candle_low = df['low'].iloc[-1] if not df.empty else 0
             lower_bb, upper_bb = bb
+            
+            # Capture KRX close when first entering NXT_POST
+            if session == "NXT_POST" and self.krx_close_today == 0 and curr_price > 0:
+                self.krx_close_today = curr_price
+                logger.info(f"📌 Captured KRX close for NXT reference: {self.krx_close_today:,.0f}")
             
             # Use cached balance (updated only after trade execution)
             cash, asset, real_avg, real_qty = self.cached_balance
@@ -630,8 +1079,11 @@ class UniversalScalper:
             step_info = " | " + ", ".join([f"B{i+1}:{p:.0f}({q})" for i, (p, q) in enumerate(self.buy_history)]) if self.buy_history else ""
             
             # 1. Calculate Expected Buy Price
+            # Initialize to prevent UnboundLocalError
+            next_bb_price = lower_bb if bb else curr_price
+            next_rsi_price = None
+            
             if self.state == "SEARCHING":
-                next_bb_price = lower_bb
                 next_rsi_price = self.calculate_rsi_target_price(df, RSI_BUY_LEVEL)
                 
                 parts = [f"BB:{next_bb_price:.2f}"]
@@ -690,7 +1142,7 @@ class UniversalScalper:
             ob_info = ""
             bid_total, ask_total = 0, 0
             if self.use_orderbook and self.is_domestic:
-                bid_total, ask_total, ob_info = self.get_orderbook()
+                bid_total, ask_total, ob_info = self.sync_portfolio() # Renamed from get_orderbook
                 ob_info = f" | OB:{ob_info}" if ob_info else ""
             
             # Calculate Effective Budget (Cap user budget by actual available assets for this cycle)
@@ -702,6 +1154,9 @@ class UniversalScalper:
             holding_str = f"평단가: {self.avg_buy_price:.2f} ({self.total_qty}주)" if self.state == "HOLDING" else "보유없음"
             
             profit_info = ""
+            profit_rate = 0
+            net_profit_rate = 0
+            unrealized_net_amt = 0
             if self.state == "HOLDING":
                 profit_rate = (curr_price - self.avg_buy_price) / self.avg_buy_price
                 net_profit_rate = profit_rate - self.friction
@@ -714,8 +1169,97 @@ class UniversalScalper:
                 profit_info = f" | Profit: {profit_rate:.2%} (Net: {net_profit_rate:.2%}) | PNL: {unrealized_net_amt:,.0f}"
 
             realized_info = f" | Today: {self.daily_realized_profit:,.0f}" if self.daily_realized_profit != 0 else ""
+            
+            # Investor Info (Market Data)
+            # mkt_info variable removed as it is handled below directly
 
-            logger.info(f"{session_tag} Price: {curr_price:.2f}{bounce_str} | RSI: {rsi:.1f} | BB: [{lower_bb:.2f}, {upper_bb:.2f}]{supply_part}{ob_info}{budget_part}{profit_info}{realized_info} | {balance_str} | {holding_str}{step_info} | Target: {self.target_profit:.2%}{target_price_info} | Next Buy: {next_buy_tag}{drop_info} | EXCG: {self.current_exchange} | State: {self.state}")
+            # Core Metrics
+            self.update_unfilled_orders()
+            unfilled_str = f"Unfilled: B:{self.unfilled_buy_qty}, S:{self.unfilled_sell_qty}"
+            
+            # Calculate next_buy_price for logging
+            if self.state == "SEARCHING":
+                next_buy_price_for_log = next_bb_price # Or next_rsi_price, or manual_buy_price
+            elif self.current_step < MAX_STEPS:
+                next_buy_price_for_log = self.avg_buy_price * (1 - PYRAMIDING_THRESHOLD)
+            else:
+                next_buy_price_for_log = 0 
+            
+            # Prepare variables for the new log line
+            asset_val = asset
+            avg_price = self.avg_buy_price
+            total_qty = self.total_qty
+            h_str = step_info # Reusing step_info for buy history
+            target_price = self.avg_buy_price * (1 + self.target_profit) if self.state == "HOLDING" else 0
+            
+            # Calculate Change Rate
+            change_rate = 0
+            if self.prev_close > 0:
+                change_rate = (curr_price - self.prev_close) / self.prev_close
+
+            # Simplified log construction to avoid extra pipes
+            price_str = f"{session_tag} Price: {curr_price:,.0f} ({change_rate:+.2%})"
+            
+            # Determine reference close price based on session
+            ref_close = 0
+            if session == "NXT_PRE":
+                ref_close = self.prev_close
+                ref_label = "전일종가"
+            elif session == "NXT_POST" and self.krx_close_today > 0:
+                ref_close = self.krx_close_today
+                ref_label = "KRX종가"
+            elif session == "NXT_POST" and self.prev_close > 0: # Fallback if krx_close not captured yet
+                ref_close = self.prev_close
+                ref_label = "전일종가"
+                
+            if ref_close > 0 and session in ["NXT_PRE", "NXT_POST"]:
+                 price_str += f" [{ref_label}:{ref_close:,.0f}]"
+            
+            log_parts = [
+                f"{price_str}{bounce_str}",
+                f"RSI: {rsi:.1f}",
+                f"BB: [{lower_bb:.2f}, {upper_bb:.2f}]"
+            ]
+            if supply_part.strip(): log_parts.append(supply_part.strip())
+            if ob_info.strip(): log_parts.append(ob_info.strip())
+            if unfilled_str.strip(): log_parts.append(unfilled_str.strip())
+            
+            # Credit Info prominently displayed
+            if self.is_domestic:
+                credit_qty = sum(item['qty'] for item in self.credit_holdings)
+                c_str = f"Credit: {self.credit_cash:,.0f} ({credit_qty}주)" if credit_qty > 0 else f"Credit: {self.credit_cash:,.0f}"
+                log_parts.append(c_str)
+                # Market Info (Credit Rate & Investor Est)
+                log_parts.append(f"Mkt: {self.credit_trend_str} | {self.investor_info_str}")
+
+            if self.state == "HOLDING":
+                log_parts.append(f"Profit: {profit_rate:.2%} (Net: {net_profit_rate:.2%})")
+                log_parts.append(f"PNL: {unrealized_net_amt:,.0f}")
+                
+            log_parts.append(f"주문가능: {cash:,.0f}")
+            log_parts.append(f"총자산: {asset_val:,.0f}")
+            log_parts.append(f"평단가: {avg_price:.2f} ({total_qty}주)")
+            
+            if h_str.strip(): log_parts.append(h_str.strip())
+            if realized_info.strip(): log_parts.append(realized_info.strip())
+            
+            log_parts.append(f"Target: {self.target_profit:.2%} ({target_price:.2f})")
+            
+            if self.state == "SEARCHING":
+                # Show different target for NXT vs KRX
+                if session in ["NXT_PRE", "NXT_POST"] and ref_close > 0:
+                    nxt_target = ref_close * 0.99
+                    log_parts.append(f"NXT Buy@: {nxt_target:,.0f} ({ref_label}{ref_close:,.0f}-1%)")
+                else:
+                    log_parts.append(f"Next: {next_buy_price_for_log:.2f}")
+            elif self.current_step < MAX_STEPS:
+                next_step_weight = WEIGHTS[self.current_step]
+                next_step_qty = int(effective_budget * (next_step_weight / sum_weights) / next_buy_price_for_log) if next_buy_price_for_log > 0 else 0
+                log_parts.append(f"Next: B{self.current_step+1} @ {next_buy_price_for_log:.2f} ({next_step_qty}주)")
+                
+            log_parts.append(f"State: {self.state}")
+            
+            logger.info(" | ".join(log_parts))
             
             if self.state == "SEARCHING":
                 # Time-based Priority Entry Condition (Highest Priority)
@@ -726,9 +1270,19 @@ class UniversalScalper:
                 # Update price info periodically
                 if self.is_domestic and (current_time - self.last_price_info_check >= self.price_info_interval):
                     self.update_price_info()
+                    self.update_market_data()
+                    self.last_market_data_check = current_time
                 
                 if self.is_domestic:
-                    if 8 <= hour < 10 and self.prev_close > 0:
+                    # NXT Session: Reference Close -1% Drop Logic
+                    if session in ["NXT_PRE", "NXT_POST"] and ref_close > 0:
+                        nxt_drop_target = ref_close * 0.99
+                        if curr_price <= nxt_drop_target or candle_low <= nxt_drop_target:
+                            drop_hit = True
+                            drop_reason = f"NXT({ref_label})-1%({ref_close:,.0f}→{nxt_drop_target:,.0f})"
+                            
+                    # Regular Hours Logic (existing)
+                    elif 8 <= hour < 10 and self.prev_close > 0:
                         # 08:00~10:00: 전일 종가 대비 -2% 
                         drop_target = self.prev_close * 0.98
                         if curr_price <= drop_target or candle_low <= drop_target:
@@ -741,18 +1295,24 @@ class UniversalScalper:
                             drop_hit = True
                             drop_reason = f"DailyHigh-2%({self.daily_high:,.0f}→{drop_target:,.0f})"
                 
-                # Triple-Threat Entry Condition: Any of (RSI hit, BB hit, or Manual Price hit)
-                rsi_hit = rsi <= RSI_BUY_LEVEL
-                bb_hit = (curr_price <= lower_bb or candle_low <= lower_bb)
-                price_hit = (self.manual_buy_price > 0 and (curr_price <= self.manual_buy_price or candle_low <= self.manual_buy_price))
-                
-                # Momentum Entry Condition (Breakout: curr > prev_high)
+                # Triple-Threat Entry Condition: Only for KRX session (RSI hit, BB hit, or Manual Price hit)
+                # NXT sessions use price-drop condition ONLY
+                rsi_hit = False
+                bb_hit = False
+                price_hit = False
                 momentum_hit = False
                 momentum_reason = ""
-                if self.use_momentum and self.prev_high > 0:
-                    if curr_price > self.prev_high:
-                        momentum_hit = True
-                        momentum_reason = f"Breakout({curr_price:,.0f}>{self.prev_high:,.0f})"
+                
+                if session == "KRX":
+                    rsi_hit = rsi <= RSI_BUY_LEVEL
+                    bb_hit = (curr_price <= lower_bb or candle_low <= lower_bb)
+                    price_hit = (self.manual_buy_price > 0 and (curr_price <= self.manual_buy_price or candle_low <= self.manual_buy_price))
+                    
+                    # Momentum Entry Condition (Breakout: curr > prev_high)
+                    if self.use_momentum and self.prev_high > 0:
+                        if curr_price > self.prev_high:
+                            momentum_hit = True
+                            momentum_reason = f"Breakout({curr_price:,.0f}>{self.prev_high:,.0f})"
                 
                 if momentum_hit or drop_hit or rsi_hit or bb_hit or price_hit:
                     # Orderbook filter check (if enabled)
@@ -833,12 +1393,12 @@ class UniversalScalper:
                             self.cached_balance = self.get_balance()  # Update balance after pyramiding
                             logger.info(f"Pyramiding B{self.current_step}: {trigger_type} [{', '.join(pyramid_reason)}] | New Avg: {self.avg_buy_price:.2f}")
 
-                # Exit Conditions: BB Upper only if in profit >= 0.5%, or Target Profit reached
-                bb_exit = curr_price >= upper_bb and profit_rate >= 0.005
+                # Exit Conditions: BB Upper only if in profit >= Target Profit (2%+)
+                bb_exit = curr_price >= upper_bb and profit_rate >= self.target_profit
                 target_exit = profit_rate >= self.target_profit
                 
                 if bb_exit or target_exit:
-                    reason = "BB Upper (>=0.5% 익절)" if bb_exit else "Target Profit"
+                    reason = f"BB Upper (>={self.target_profit:.1%} 익절)" if bb_exit else "Target Profit"
                     
                     # Check for existing sell order before placing a new one
                     if self.has_uncleared_sell_order():
@@ -850,18 +1410,24 @@ class UniversalScalper:
                     net_return = curr_price * self.total_qty * (1 - self.sell_fee - self.sell_tax)
                     net_profit_amt = net_return - net_investment
                     
-                    logger.info(f"EXIT Triggered: {reason} | Qty: {self.total_qty} | Avg: {self.avg_buy_price:.2f} | Sell: {curr_price:.2f} | Gross: {profit_rate:.2%} | Net: {net_profit_rate:.2%} | Net Profit: {net_profit_amt:,.0f}")
-                    if self.place_order("sell", self.total_qty, curr_price):
-                        self.daily_realized_profit += net_profit_amt
-                        
-                        # Add to persistent summary file
-                        summary_path = "trade_summary.txt"
-                        with open(summary_path, "a", encoding="utf-8") as f:
-                            dt_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                            f.write(f"[{dt_str}] {self.ticker} | Net: {net_profit_rate:+.2%} | Profit: {net_profit_amt:+,.0f} | Qty: {self.total_qty} | {reason}\n")
-                        
-                        self.cached_balance = self.get_balance()  # Update balance after sell
-                        self.clear_state()
+                    logger.info(f"EXIT Triggered: {reason} | Qty: {self.total_qty} | Avg: {self.avg_buy_price:.2f} | Sell: {curr_price:.2f} | Gross: {profit_rate:.2%} | Net Profit: {net_profit_amt:,.0f}")
+                    odno = self.place_order("sell", self.total_qty, curr_price)
+                    if odno:
+                        self.state = "PENDING_SELL"
+                        self.pending_sell = {
+                            "odno": odno,
+                            "qty": self.total_qty,
+                            "price": curr_price,
+                            "reason": reason,
+                            "avg_buy_price": self.avg_buy_price
+                        }
+                        self.save_state()
+                        # Real summary is written upon fill confirmed by WebSocket
+            
+            elif self.state == "PENDING_SELL":
+                # Just wait for WS or manual intervention
+                # We can check balance occasionally to sync if WS misses
+                pass
             
             time.sleep(30)
 
