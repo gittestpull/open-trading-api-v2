@@ -685,7 +685,7 @@ class KISWebSocket:
     # private
     async def __subscriber(self, ws: websockets.ClientConnection):
         async for raw in ws:
-            logging.info("received message >> %s" % raw)
+            logging.debug("received message >> %s" % raw)
             show_result = False
 
             df = pd.DataFrame()
@@ -717,9 +717,9 @@ class KISWebSocket:
                 )
 
                 if rsp.isPingPong:
-                    print(f"### RECV [PINGPONG] [{raw}]")
+                    logging.debug(f"### RECV [PINGPONG] [{raw}]")
                     await ws.pong(raw)
-                    print(f"### SEND [PINGPONG] [{raw}]")
+                    logging.debug(f"### SEND [PINGPONG] [{raw}]")
 
                 if self.result_all_data:
                     show_result = True
@@ -766,7 +766,7 @@ class KISWebSocket:
 
         add_data_map(tr_id=msg["body"]["input"]["tr_id"], columns=columns)
 
-        logging.info("send message >> %s" % json.dumps(msg))
+        logging.debug("send message >> %s" % json.dumps(msg))
 
         await ws.send(json.dumps(msg))
         smart_sleep()

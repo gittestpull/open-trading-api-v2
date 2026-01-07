@@ -138,9 +138,10 @@ class UniversalScalper:
         
         # Taxes and Fees (Friction)
         if self.is_domestic:
+            # Tuned Fee to match MTS BEP (8176/8160 ~= 0.20% gap)
             self.buy_fee = 0.00015  # 0.015%
             self.sell_fee = 0.00015 # 0.015%
-            self.sell_tax = 0.0018  # 0.18% (Domestic Tax)
+            self.sell_tax = 0.0017  # 0.17% (Adjusted to match 0.20% total)
         else:
             self.buy_fee = 0.0004   # 0.04% (Standard Overseas)
             self.sell_fee = 0.0004  # 0.04%
@@ -600,6 +601,77 @@ class UniversalScalper:
             
         return False # Default to business day on failure to avoid blocking
 
+    def calculate_support_level(self, df, window=60):
+        """
+        Calculate support level using local minima within the last 'window' candles.
+        Returns the most significant support price or None.
+        """
+        if len(df) < window:
+            return None
+        
+        # Use recent data
+        recent_df = df.iloc[-window:].copy()
+        
+        # 1. Find Local Minima (Basic approach: lower than neighbors)
+        # Using a rolling window approach to find points lower than 5 previous and 5 next
+        # Since we are live, we use look-back mostly.
+        # A simple robust way: Find price levels that were "lows" multiple times.
+        
+        # Binning approach: Round prices to nearest tick (approx 0.5% bins) and count frequency of lows
+        lows = recent_df['low'].values
+        
+        # Simple Clustering:
+        # 1. Sort lows
+        # 2. Group lows that are within 0.5% of each other
+        # 3. Find the cluster with the most points (strongest support)
+        # 4. Return the average price of that cluster
+        
+        # Optimization: Just use the lowest price in the last hour as a hard support for now
+        # or find a "double bottom" pattern.
+        
+        # Let's try Double/Triple Bottom detection
+        # Check if the current price is near the absolute low of the window
+        min_price = np.min(lows)
+        
+        # Check how many times price touched near min_price (+0.5% range)
+        threshold = min_price * 1.005 # +0.5%
+        touches = np.sum(lows <= threshold)
+        
+        if touches >= 2:
+            return min_price
+            
+        return None
+
+    def check_rsi_triple_bottom(self, df, window=60):
+        """
+        Detects specific 'Triple Bottom' pattern in RSI.
+        Condition: RSI dips below 30 (Oversold) at least 3 distinct times within window.
+        Distinct means there was a recovery (e.g. RSI > 40) between dips.
+        """
+        if len(df) < window:
+            return False
+            
+        recent_rsi = df['RSI'].iloc[-window:].values
+        
+        dips = 0
+        in_dip = False
+        
+        # Simple finite state machine to count dips
+        # State: Normal -> Dip(RSI<30) -> Recovery(RSI>40) -> Normal
+        
+        for rsi_val in recent_rsi:
+            if np.isnan(rsi_val): continue
+            
+            if not in_dip:
+                if rsi_val <= 30: # Enter Dip
+                    dips += 1
+                    in_dip = True
+            else:
+                if rsi_val >= 40: # Recovered
+                    in_dip = False
+                    
+        return dips >= 3
+
     def get_market_session(self):
         """Returns current market session: KRX, NXT_PRE, NXT_POST, or CLOSED."""
         now = datetime.now()
@@ -676,7 +748,11 @@ class UniversalScalper:
                                 if loan_dt: # Credit holding
                                     self.credit_holdings.append({"qty": qty, "loan_dt": loan_dt})
                                 else: # Cash holding
-                                    real_avg = float(item.get('pchs_avg_pric', 0))
+                                    raw_avg = float(item.get('pchs_avg_pric', 0))
+                                    # Adjust Avg Price definition to BEP (Break-Even Price)
+                                    # BEP = Raw Avg Price * (1 + buy_fee + sell_fee + sell_tax)
+                                    total_cost_rate = self.buy_fee + self.sell_fee + self.sell_tax
+                                    real_avg = raw_avg * (1 + total_cost_rate)
                                     real_qty += qty
                     
                     # 2. Credit Purchase Power (Domestic only)
@@ -1329,7 +1405,32 @@ class UniversalScalper:
                         
                         logger.info(f"ENTRY Triggered: {' | '.join(reason)}")
                         
-                        step_budget = effective_budget * (WEIGHTS[0] / sum_weights)
+                        # Calculate Support Score for Weighting
+                        support_price = self.calculate_support_level(df)
+                        is_near_support = False
+                        if support_price:
+                            # Check if current price is within 0.5% above support
+                            if support_price <= curr_price <= support_price * 1.005:
+                                is_near_support = True
+                                reason.append(f"Support({support_price:,.0f})")
+                        
+                        # Check RSI Triple Bottom
+                        is_rsi_triple = self.check_rsi_triple_bottom(df)
+                        if is_rsi_triple:
+                            reason.append("RSI_3_Bottom")
+                        
+                        # Apply Multiplier
+                        qty_multiplier = 1.0
+                        
+                        # Priority: Triple Bottom (2.0x) > Support (1.5x)
+                        if is_rsi_triple:
+                            qty_multiplier = 2.0
+                            logger.info(f"💎 RSI Triple Bottom Detected! Confidence Max. Boosting buy qty by 2.0x.")
+                        elif is_near_support:
+                            qty_multiplier = 1.5
+                            logger.info(f"Strong Support Detected @ {support_price:,.0f}. Boosting buy qty by 1.5x.")
+                        
+                        step_budget = effective_budget * (WEIGHTS[0] / sum_weights) * qty_multiplier
                         qty = int(step_budget / curr_price)
                         
                         # 3. Small Budget Fix: Ensure at least 1 share if budget allows
@@ -1374,7 +1475,15 @@ class UniversalScalper:
                         if pyramiding_drop: pyramid_reason.append(f"Drop({profit_rate:.1%})")
                         if pyramiding_rsi: pyramid_reason.append(f"RSI({rsi:.1f})")
                         
-                        step_budget = effective_budget * (WEIGHTS[self.current_step] / sum_weights)
+                        
+                        # Apply Multiplier/Support Logic for Pyramiding too
+                        support_price = self.calculate_support_level(df)
+                        qty_multiplier = 1.0
+                        if support_price and support_price <= curr_price <= support_price * 1.005:
+                             qty_multiplier = 1.5
+                             logger.info(f"Pyramiding near Support @ {support_price:,.0f}. Boosting qty by 1.5x.")
+
+                        step_budget = effective_budget * (WEIGHTS[self.current_step] / sum_weights) * qty_multiplier
                         qty = int(step_budget / curr_price)
                         
                         # Small Budget Fix for Pyramiding
