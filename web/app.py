@@ -39,8 +39,17 @@ try:
     from stock_code_lookup import StockMaster
     import telegram_notifier
     import trade_history
+    from stock_screener import StockScreener
 except ImportError as e:
     logging.error(f"Failed to import core modules: {e}")
+
+# Initialize Stock Screener
+try:
+    stock_screener = StockScreener()
+except Exception as e:
+    logging.error(f"Failed to initialize StockScreener: {e}")
+    stock_screener = None
+
 
 # Ensure directories exist
 LOGS_DIR.mkdir(exist_ok=True)
@@ -1116,7 +1125,127 @@ async def factory_reset(_: str = Depends(verify_password)):
     return {"message": "All bots stopped, holdings sold, and data reset.", "results": results}
 
 
+# ============ Stock Screener API Endpoints ============
+
+@app.get("/api/screener/scan")
+async def screener_scan(
+    min_volume: int = 1000000,
+    max_per: float = 20.0,
+    require_double_bottom: bool = True,
+    require_investor_flow: bool = True,
+    _: str = Depends(verify_password)
+):
+    """
+    조건 검색 실행
+    - PER 20배 이하
+    - 쌍바닥 패턴
+    - 외국인/기관 수급 3일 지속
+    - 거래량 100만건 이상
+    """
+    if stock_screener is None:
+        raise HTTPException(status_code=503, detail="Stock Screener 초기화 실패")
+    
+    try:
+        results = await asyncio.to_thread(
+            stock_screener.scan_all,
+            min_volume=min_volume,
+            max_per=max_per,
+            require_double_bottom=require_double_bottom,
+            require_investor_flow=require_investor_flow
+        )
+        return {
+            "status": "ok",
+            "scan_time": stock_screener.last_scan_time,
+            "count": len(results),
+            "stocks": results
+        }
+    except Exception as e:
+        logger.error(f"Screener scan failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/screener/status")
+async def screener_status(_: str = Depends(verify_password)):
+    """마지막 스캔 결과 조회"""
+    if stock_screener is None:
+        raise HTTPException(status_code=503, detail="Stock Screener 초기화 실패")
+    
+    return {
+        "status": "ok",
+        "last_scan_time": stock_screener.last_scan_time,
+        "result_count": len(stock_screener.last_results),
+        "stocks": stock_screener.last_results
+    }
+
+
+@app.get("/api/screener/analyze/{ticker}")
+async def screener_analyze(ticker: str, _: str = Depends(verify_password)):
+    """특정 종목 상세 분석"""
+    if stock_screener is None:
+        raise HTTPException(status_code=503, detail="Stock Screener 초기화 실패")
+    
+    validate_ticker(ticker)
+    
+    try:
+        # 종목 코드 확인
+        if not ticker.isdigit():
+            sm = StockMaster()
+            code = sm.get_code(ticker)
+            if code:
+                ticker = code
+        
+        result = {
+            "ticker": ticker,
+            "price_info": stock_screener.get_stock_price_info(ticker),
+            "per_check": {},
+            "double_bottom": {},
+            "investor_flow": {}
+        }
+        
+        # PER 체크
+        per_ok, per_value = stock_screener.check_per(ticker)
+        result["per_check"] = {"passed": per_ok, "value": per_value}
+        
+        # 쌍바닥 체크
+        db_ok, db_msg = stock_screener.check_double_bottom(ticker)
+        result["double_bottom"] = {"passed": db_ok, "message": db_msg}
+        
+        # 수급 체크
+        flow = stock_screener.check_investor_flow(ticker)
+        result["investor_flow"] = flow
+        
+        return result
+    except Exception as e:
+        logger.error(f"Screener analyze failed for {ticker}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/screener/volume-stocks")
+async def get_volume_stocks(min_volume: int = 1000000, _: str = Depends(verify_password)):
+    """거래량 상위 종목 조회 (빠른 필터)"""
+    if stock_screener is None:
+        raise HTTPException(status_code=503, detail="Stock Screener 초기화 실패")
+    
+    try:
+        df = await asyncio.to_thread(stock_screener.get_high_volume_stocks, min_volume)
+        if df.empty:
+            return {"status": "ok", "count": 0, "stocks": []}
+        
+        return {
+            "status": "ok",
+            "count": len(df),
+            "stocks": df.to_dict(orient="records")
+        }
+    except Exception as e:
+        logger.error(f"Volume stocks fetch failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ End of Stock Screener API ============
+
+
 @app.websocket("/ws")
+
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket for real-time updates"""
     ip = get_client_ip(websocket)
