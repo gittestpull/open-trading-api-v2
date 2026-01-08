@@ -19,14 +19,42 @@ sys.path.append(os.path.join(os.getcwd(), 'examples_user'))
 import kis_auth
 from stock_code_lookup import StockMaster
 
-# Configure Logging
+# 1. Setup Logging before other imports
+LOG_DIR = os.path.join(os.getcwd(), 'logs')
+if not os.path.exists(LOG_DIR):
+    os.makedirs(LOG_DIR)
+
+log_basename = f"trading_llm_{datetime.now().strftime('%Y%m%d')}"
+if "--ticker" in sys.argv:
+    try:
+        idx = sys.argv.index("--ticker")
+        if idx + 1 < len(sys.argv):
+            safe_ticker = sys.argv[idx + 1].replace('/', '_')
+            log_basename = f"trading_{safe_ticker}_{datetime.now().strftime('%Y%m%d')}"
+            
+            if "--bot_id" in sys.argv:
+                b_idx = sys.argv.index("--bot_id")
+                if b_idx + 1 < len(sys.argv):
+                    bot_id = sys.argv[b_idx + 1]
+                    log_basename = f"trading_{safe_ticker}_{bot_id}_{datetime.now().strftime('%Y%m%d')}"
+    except:
+        pass
+
+log_filename = os.path.join(LOG_DIR, f"{log_basename}.log")
+# Setup logging with unbuffered file handler
+class FlushHandler(logging.FileHandler):
+    def emit(self, record):
+        super().emit(record)
+        self.flush()
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
     handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("llm_scalp.log", encoding='utf-8')
-    ]
+        FlushHandler(log_filename, encoding='utf-8'),
+        logging.StreamHandler()
+    ],
+    force=True
 )
 logger = logging.getLogger(__name__)
 
@@ -41,7 +69,8 @@ MAX_STEPS = 4
 WEIGHTS = [1, 2, 4, 8]
 
 class LLMScalper:
-    def __init__(self, ticker, budget, target_profit=0.005, live_mode=False, manual_buy_price=0):
+    def __init__(self, ticker, budget, target_profit=0.005, live_mode=False, manual_buy_price=0, args=None):
+        self.args = args
         # 0. Initial guess
         self.is_domestic = ticker.isdigit() and len(ticker) == 6
         
@@ -417,7 +446,7 @@ class LLMScalper:
         
         while True:
             # 0. Check Market Hours
-            if not self.check_market_hours():
+            if not self.check_market_hours() and not getattr(self.args, "ignore_market", False):
                 logger.info(f"Market Closed. Current Time: {datetime.now().strftime('%H:%M:%S')}. Stopping Bot...")
                 break
 
@@ -538,13 +567,28 @@ class LLMScalper:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--ticker", required=True)
-    parser.add_argument("--budget", type=int, default=1000000)
-    parser.add_argument("--target", type=float, default=0.005, help="Target profit rate (default: 0.005 for 0.5%)")
-    parser.add_argument("--buy_price", type=float, default=0, help="Manual buy price (triggers B1)")
-    parser.add_argument("--live", action="store_true")
+    parser.add_argument("--ticker", required=True, help="Ticker symbol")
+    parser.add_argument("--budget", type=int, default=1000000, help="Total budget in KRW")
+    parser.add_argument("--target", type=float, default=0.005, help="Target profit rate")
+    parser.add_argument("--buy_price", type=float, default=0, help="Manual buy price")
+    parser.add_argument("--live", action="store_true", help="Live trading mode")
+    parser.add_argument("--bot_id", type=str, help="Unique Bot ID for logging")
+    parser.add_argument("--ignore_market", action="store_true", help="Ignore market close check")
     args = parser.parse_args()
-    scalper = LLMScalper(args.ticker, args.budget, args.target, args.live, args.buy_price)
+    # Market Check (if not ignored)
+    if not args.ignore_market:
+        now = datetime.now()
+        time_val = now.hour * 100 + now.minute
+        is_weekend = now.weekday() >= 5
+        
+        # LLM Scalper is typically domestic, based on the current implementation
+        if is_weekend or not (800 <= time_val < 2000):
+            logger.info(f"🛑 Market Closed (KRX/NXT). Current Time: {now.strftime('%H:%M')}")
+            logger.info("Use --ignore_market to run anyway.")
+            time.sleep(1)
+            sys.exit(0)
+            
+    scalper = LLMScalper(args.ticker, args.budget, args.target, args.live, args.buy_price, args=args)
     try:
         scalper.run()
     except KeyboardInterrupt:

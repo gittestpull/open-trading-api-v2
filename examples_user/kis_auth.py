@@ -241,8 +241,9 @@ def auth(svr="prod", product=_cfg["my_prod"], url=None):
             ).access_token_token_expired  # 토큰값 만료일시 가져오기
             save_token(my_token, my_expired)  # 새로 발급 받은 토큰 저장
         else:
-            print("Get Authentification token fail!\nYou have to restart your app!!!")
-            return
+            msg = "Get Authentification token fail!\nYou have to restart your app!!!"
+            print(msg)
+            raise Exception(msg)
     else:
         my_token = saved_token  # 기존 발급 토큰 확인되어 기존 토큰 사용
 
@@ -457,9 +458,9 @@ def _url_fetch(
 
     if postFlag:
         # if (hashFlag): set_order_hash_key(headers, params)
-        res = requests.post(url, headers=headers, data=json.dumps(params))
+        res = requests.post(url, headers=headers, data=json.dumps(params), timeout=10)
     else:
-        res = requests.get(url, headers=headers, params=params)
+        res = requests.get(url, headers=headers, params=params, timeout=10)
 
     if res.status_code == 200:
         ar = APIResp(res)

@@ -5,24 +5,71 @@ import logging
 from datetime import datetime
 
 # 1. Absolute First: Setup Logging before ANY other imports
+import subprocess
 LOG_DIR = os.path.join(os.getcwd(), 'logs')
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR)
 
-log_filename = os.path.join(LOG_DIR, f"trading_{datetime.now().strftime('%Y%m%d')}.log")
+log_basename = f"trading_{datetime.now().strftime('%Y%m%d')}"
+# Try to find ticker and bot_id in args for log filename
+if "--ticker" in sys.argv:
+    try:
+        idx = sys.argv.index("--ticker")
+        if idx + 1 < len(sys.argv):
+            safe_ticker = sys.argv[idx + 1].replace('/', '_') # Sanitize
+            log_basename = f"trading_{safe_ticker}_{datetime.now().strftime('%Y%m%d')}"
+            
+            # Sub-check for bot_id to make it even more specific
+            if "--bot_id" in sys.argv:
+                b_idx = sys.argv.index("--bot_id")
+                if b_idx + 1 < len(sys.argv):
+                    bot_id = sys.argv[b_idx + 1]
+                    log_basename = f"trading_{safe_ticker}_{bot_id}_{datetime.now().strftime('%Y%m%d')}"
+    except:
+        pass
+
+log_filename = os.path.join(LOG_DIR, f"{log_basename}.log")
 
 # Setup Handlers
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.INFO)  # Terminal: INFO+
 
-file_handler = logging.FileHandler(log_filename, encoding='utf-8')
+# Compressed Rotating File Handler (keeps old logs as .gz)
+from logging.handlers import TimedRotatingFileHandler
+import gzip
+import shutil
+
+class CompressedRotatingHandler(TimedRotatingFileHandler):
+    """Rotating handler that compresses old logs with gzip instead of deleting."""
+    def __init__(self, filename, **kwargs):
+        super().__init__(filename, when='midnight', backupCount=30, encoding='utf-8', **kwargs)
+    
+    def emit(self, record):
+        super().emit(record)
+        self.flush()  # Unbuffered for real-time log streaming
+    
+    def rotator(self, source, dest):
+        """Compress rotated log file with gzip."""
+        with open(source, 'rb') as f_in:
+            with gzip.open(f'{dest}.gz', 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+        os.remove(source)
+    
+    def namer(self, default_name):
+        """Remove .gz from rotation target (added by rotator)."""
+        return default_name  # Let rotator add .gz
+
+file_handler = CompressedRotatingHandler(log_filename)
 file_handler.setLevel(logging.DEBUG)  # File: ALL (DEBUG+)
 
 # Configure Root Logger
 logging.basicConfig(
-    level=logging.DEBUG, 
+    level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[console_handler, file_handler],
+    handlers=[
+        file_handler,  # Compressed rotating handler
+        logging.StreamHandler()  # Console handler
+    ],
     force=True  # Clear any existing configuration from early imports
 )
 logger = logging.getLogger(__name__)
@@ -34,6 +81,50 @@ import argparse
 import json
 import threading
 import asyncio
+import signal
+
+class Watchdog(threading.Thread):
+    """
+    Monitors the main loop. If 'ping' isn't called within 'timeout' seconds,
+    it assumes the bot is hung and kills the process to allow Docker/System to restart it.
+    """
+    def __init__(self, timeout=60, name="Watchdog"):
+        super().__init__(daemon=True, name=name)
+        self.timeout = timeout
+        self.last_ping = time.time()
+        self.running = True
+        self.logger = logging.getLogger(__name__)
+
+    def run(self):
+        self.logger.info(f"🐶 Watchdog started (Timeout: {self.timeout}s)")
+        while self.running:
+            time.sleep(5)
+            elapsed = time.time() - self.last_ping
+            if elapsed > self.timeout:
+                self.logger.error(f"💀 WATCHDOG BITE: Main loop hung for {elapsed:.1f}s! Killing process...")
+                # Send telegram alert before dying
+                self._send_telegram_alert()
+                # Flush logs before dying
+                for handler in self.logger.handlers:
+                    handler.flush()
+                # Kill self (Force Kill to ensure we don't get stuck in shutdown hook)
+                os.kill(os.getpid(), signal.SIGKILL)
+
+    def ping(self):
+        self.last_ping = time.time()
+
+    def stop(self):
+        self.running = False
+    
+    def _send_telegram_alert(self):
+        """Send telegram alert before dying (best effort)."""
+        try:
+            import telegram_notifier
+            # Try to get ticker from global scalper instance
+            ticker = getattr(self, '_ticker', 'Unknown')
+            telegram_notifier.send_watchdog_alert(ticker)
+        except:
+            pass  # Best effort, don't let this prevent process kill
 
 # Add examples_user and subdirectories to path first
 sys.path.append(os.path.join(os.getcwd(), 'examples_user'))
@@ -42,16 +133,22 @@ sys.path.append(os.path.join(os.getcwd(), 'examples_user', 'overseas_stock'))
 
 import kis_auth
 from stock_code_lookup import StockMaster
+import trade_history
 import domestic_stock_functions as d_func
 
 def notify_user(msg, ticker=None):
-    """Utility to provide audio and desktop notifications."""
+    """Utility to provide audio and desktop notifications (Secure)."""
     try:
         title = f"Trading Bot ({ticker})" if ticker else "Trading Bot"
-        os.system(f"osascript -e 'display notification \"{msg}\" with title \"{title}\"'")
-        os.system("afplay /System/Library/Sounds/Glass.aiff")
-    except:
-        pass
+        # Sanitize to prevent AppleScript injection
+        title = title.replace('"', '').replace("'", "")
+        msg = msg.replace('"', '').replace("'", "")
+        
+        # Use subprocess to avoid shell injection
+        subprocess.run(["osascript", "-e", f'display notification "{msg}" with title "{title}"'], check=False)
+        subprocess.run(["afplay", "/System/Library/Sounds/Glass.aiff"], check=False)
+    except Exception as e:
+        logger.debug(f"Notification failed: {e}")
 
 def check_log_health(filename, limit_minutes=5, max_errors=3):
     """Analyze recent log entries for CRITICAL failures and block startup if necessary."""
@@ -113,7 +210,8 @@ MAX_STEPS = 4
 WEIGHTS = [1, 2, 4, 8]
 
 class UniversalScalper:
-    def __init__(self, ticker, budget, target_profit=0.005, live_mode=False, manual_buy_price=0, use_orderbook=False, use_momentum=False):
+    def __init__(self, ticker, budget, target_profit=0.005, live_mode=False, manual_buy_price=0, use_orderbook=False, use_momentum=False, args=None):
+        self.args = args # Store args for flag checking
         # 0. Initial guess
         self.is_domestic = ticker.isdigit() and len(ticker) == 6
         
@@ -155,6 +253,7 @@ class UniversalScalper:
         self.total_qty = 0
         self.current_step = 0
         self.buy_history = []  # List of (price, qty)
+        self.last_price = 0    # Track latest price for real-time dashboard
         self.daily_realized_profit = 0  # Accumulated net profit for this session
         
         # API Auth
@@ -200,6 +299,7 @@ class UniversalScalper:
             self.ws_active = True
         self.daily_high = 0
         self.krx_close_today = 0  # Today's KRX closing price for NXT reference
+        self.nxt_consecutive_errors = 0 # Track NXT availability
         self.last_price_info_check = 0
         self.last_price_info_check = 0
         self.price_info_interval = 300 # 5 mins
@@ -444,7 +544,11 @@ class UniversalScalper:
             "total_qty": int(self.total_qty),
             "current_step": int(self.current_step),
             "buy_history": buy_history_native,
-            "pending_sell": getattr(self, 'pending_sell', None)
+            "pending_sell": getattr(self, 'pending_sell', None),
+            "current_price": getattr(self, 'last_price', 0),
+            "current_price": getattr(self, 'last_price', 0),
+            "current_exchange": getattr(self, 'current_exchange', 'KRX'),
+            "last_update": datetime.now().isoformat()
         }
         
         def default_serializer(obj):
@@ -540,6 +644,17 @@ class UniversalScalper:
                 
                 if self.state == "PENDING_SELL":
                     self.finalize_sell(price, qty)
+                else:
+                    # Log as BUY if not pending sell (best guess for buy confirm)
+                    trade_history.log_trade(
+                        ticker=self.ticker,
+                        action="BUY",
+                        qty=qty,
+                        price=price,
+                        bot_id=getattr(self, 'bot_id', None),
+                        ticker_code=getattr(self, 'ticker_code', None),
+                        reason="Standard Buy"
+                    )
         except Exception as e:
             logger.error(f"Error handling execution notice: {e}")
 
@@ -561,6 +676,20 @@ class UniversalScalper:
                 f.write(f"[{dt_str}] {self.ticker} | FILLED | Net: {net_profit_rate:+.2%} | Profit: {net_profit_amt:+,.0f} | Qty: {sell_qty}\n")
             
             logger.info(f"💰 SELL CONFIRMED: {self.ticker} | Realized Net Profit: {net_profit_amt:,.0f}")
+            
+            # Log to DB
+            trade_history.log_trade(
+                ticker=self.ticker,
+                action="SELL",
+                qty=sell_qty,
+                price=sell_price,
+                bot_id=getattr(self, 'bot_id', None),
+                ticker_code=getattr(self, 'ticker_code', None),
+                avg_buy_price=self.avg_buy_price,
+                profit_rate=net_profit_rate,
+                profit_amt=net_profit_amt,
+                reason="Standard Sell"
+            )
             
             self.clear_state()
             self.cached_balance = self.get_balance() # Sync balance
@@ -744,20 +873,25 @@ class UniversalScalper:
                     self.cash_balance = cash
                     
                     out1 = res.getBody().output1
+                    total_pchs_amt = 0
                     for item in out1:
                         if item.get('pdno') == self.ticker:
                             qty = int(item.get('hldg_qty', 0))
                             if qty > 0:
+                                raw_avg = float(item.get('pchs_avg_pric', 0))
+                                total_pchs_amt += (raw_avg * qty)
+                                real_qty += qty
+                                
                                 loan_dt = item.get('loan_dt', "").strip()
                                 if loan_dt: # Credit holding
                                     self.credit_holdings.append({"qty": qty, "loan_dt": loan_dt})
-                                else: # Cash holding
-                                    raw_avg = float(item.get('pchs_avg_pric', 0))
-                                    # Adjust Avg Price definition to BEP (Break-Even Price)
-                                    # BEP = Raw Avg Price * (1 + buy_fee + sell_fee + sell_tax)
-                                    total_cost_rate = self.buy_fee + self.sell_fee + self.sell_tax
-                                    real_avg = raw_avg * (1 + total_cost_rate)
-                                    real_qty += qty
+                    
+                    if real_qty > 0:
+                        # Combine all holdings into a weighted average price
+                        avg_pchs_price = total_pchs_amt / real_qty
+                        # Adjust Avg Price definition to BEP (Break-Even Price)
+                        total_cost_rate = self.buy_fee + self.sell_fee + self.sell_tax
+                        real_avg = avg_pchs_price * (1 + total_cost_rate)
                     
                     # 2. Credit Purchase Power (Domestic only)
                     max_credit = 0
@@ -792,6 +926,18 @@ class UniversalScalper:
                     
                     self.credit_cash = max_credit
                     self.credit_type_code = best_credit_type
+                    
+                    # Synchronize Internal State with Real Balance
+                    if real_qty > 0:
+                        self.total_qty = real_qty
+                        self.avg_buy_price = real_avg
+                        self.state = "HOLDING"
+                    elif self.state == "HOLDING": # If we thought we were holding but aren't
+                        self.total_qty = 0
+                        self.avg_buy_price = 0
+                        self.state = "SEARCHING"
+                        self.current_step = 0
+                        self.buy_history = []
                     
                     return cash, asset, real_avg, real_qty
                 
@@ -975,7 +1121,10 @@ class UniversalScalper:
         logger.info(f"[{mode_str}] {dv.upper()} {qty} of {self.ticker} at {price}")
         
         if not self.live_mode: 
-            os.system("afplay /System/Library/Sounds/Ping.aiff")
+            try:
+                subprocess.run(["afplay", "/System/Library/Sounds/Ping.aiff"], check=False)
+            except: pass
+            
             # Simulate fill for Dry Run
             if dv == "sell":
                 threading.Timer(2.0, self.finalize_sell, [price, qty]).start()
@@ -1128,498 +1277,581 @@ class UniversalScalper:
                     time.sleep(10)
             logger.info(f"[Warmup] Starting trading loop...")
         
+        # Start Watchdog
+        self.watchdog = Watchdog(timeout=120) # 120s tolerance (30s sleep + buffer)
+        self.watchdog.start()
+        
+        last_save_time = 0
+        
         while True:
-            # Check Runtime Safety
-            if self.consecutive_errors >= self.max_allowed_errors:
-                logger.error(f"🛑 TERMINATING BOT: {self.consecutive_errors} consecutive errors detected. Check logs/ for details.")
-                break
-
-            # 0. Get current market session and update exchange
-            current_time = time.time()
-            session = self.get_market_session()
-            if session == "CLOSED":
-                logger.info(f"Market Closed. Current Time: {datetime.now().strftime('%H:%M:%S')}. Stopping Bot...")
-                break
-            
-            # Update current exchange based on session
-            if session in ["NXT_PRE", "NXT_POST"]:
-                self.current_exchange = "NXT"
-            else:
-                self.current_exchange = "KRX"
-            
-            session_tag = f"[{session}]"
+            try:
+                self.watchdog.ping()
+                current_time = time.time()
                 
-            df = self.get_minute_chart()
-            rsi, bb = self.calculate_indicators(df)
-            
-            # During NXT sessions, don't block on RSI - use price-based entry only
-            if session == "KRX" and (rsi is None or np.isnan(rsi)):
-                time.sleep(10)
-                continue
-            
-            # Handle None RSI/BB gracefully for NXT
-            if rsi is None or np.isnan(rsi):
-                rsi = 50.0  # Neutral RSI for display purposes only
-            if bb is None:
-                bb = (0, 0)  # Placeholder BB
+                # Check Runtime Safety
+                if self.consecutive_errors >= self.max_allowed_errors:
+                    logger.error(f"🛑 TERMINATING BOT: {self.consecutive_errors} consecutive errors detected. Check logs/ for details.")
+                    break
+    
+                # 0. Get current market session and update exchange
+                session = self.get_market_session()
+                if session == "CLOSED" and not getattr(self.args, "ignore_market", False):
+                    logger.info(f"Market Closed. Current Time: {datetime.now().strftime('%H:%M:%S')}. Stopping Bot...")
+                    break
                 
-            curr_price = df['last'].iloc[-1] if not df.empty else 0
-            candle_low = df['low'].iloc[-1] if not df.empty else 0
-            lower_bb, upper_bb = bb
-            
-            # Capture KRX close when first entering NXT_POST (using KRX API, not NXT price)
-            if session == "NXT_POST" and self.krx_close_today == 0:
-                try:
-                    # Fetch actual KRX closing price using KRX API (not NXT)
-                    krx_res = kis_auth._url_fetch(
-                        "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice",
-                        "FHKST03010200", "",
-                        {
-                            "FID_COND_MRKT_DIV_CODE": "J",  # KRX only
-                            "FID_INPUT_ISCD": self.ticker,
-                            "FID_INPUT_HOUR_1": "153000",  # KRX close time
-                            "FID_PW_DATA_INCU_YN": "Y",
-                            "FID_ETC_CLS_CODE": ""
-                        }
-                    )
-                    if krx_res.isOK():
-                        krx_out = krx_res.getBody().output2
-                        if krx_out and len(krx_out) > 0:
-                            self.krx_close_today = int(krx_out[0].get('stck_prpr', 0))
-                except Exception as e:
-                    logger.warning(f"Failed to fetch KRX close: {e}")
-                    self.krx_close_today = self.prev_close  # Fallback
-                
-                if self.krx_close_today > 0:
-                    logger.info(f"📌 Captured KRX close for NXT reference: {self.krx_close_today:,.0f}")
-            
-            # Use cached balance (updated only after trade execution)
-            cash, asset, real_avg, real_qty = self.cached_balance
-            
-            target_price_info = f" ({self.avg_buy_price * (1 + self.target_profit):.2f})" if self.state == "HOLDING" else ""
-            step_info = " | " + ", ".join([f"B{i+1}:{p:.0f}({q})" for i, (p, q) in enumerate(self.buy_history)]) if self.buy_history else ""
-            
-            # 1. Calculate Expected Buy Price
-            # Initialize to prevent UnboundLocalError
-            next_bb_price = lower_bb if bb else curr_price
-            next_rsi_price = None
-            
-            if self.state == "SEARCHING":
-                next_rsi_price = self.calculate_rsi_target_price(df, RSI_BUY_LEVEL)
-                
-                parts = [f"BB:{next_bb_price:.2f}"]
-                if next_rsi_price: parts.append(f"RSI{RSI_BUY_LEVEL}:{next_rsi_price:.2f}")
-                if self.manual_buy_price > 0: parts.append(f"Manual:{self.manual_buy_price:,}")
-                
-                next_buy_tag = f"B1 @ " + " / ".join(parts)
-            elif self.current_step < MAX_STEPS:
-                next_buy_price = self.avg_buy_price * (1 - PYRAMIDING_THRESHOLD)
-                next_buy_tag = f"B{self.current_step+1} @ {next_buy_price:.2f}"
-            else:
-                next_buy_tag = "MAX STEPS"
-
-            # Throttled Supply Info (update every 10 mins)
-            if self.is_domestic and (current_time - self.last_supply_check >= self.supply_check_interval):
-                new_supply = self.get_supply_info()
-                if new_supply: 
-                    self.cached_supply = new_supply
-                    self.last_supply_check = current_time
-            
-            supply_part = f" | {self.cached_supply}" if self.is_domestic else ""
-
-            # Bounce info
-            bounce_rate = (curr_price - candle_low) / candle_low if candle_low > 0 else 0
-            bounce_str = f" | Bounce: {bounce_rate:.2%}" if self.state == "SEARCHING" else ""
-            
-            # Balance and Holdings info
-            balance_str = f"주문가능: {cash:,} | 총자산: {asset:,}"
-            holding_str = f"평단가: {real_avg:.2f} ({real_qty}주)" if real_qty > 0 else "보유없음"
-            
-            # Auto-Synchronization with Actual Account Balance
-            if real_qty != self.total_qty:
-                logger.warning(f" [⚠️Sync] Status mismatch detected. Local: {self.total_qty}주, Account: {real_qty}주. Synchronizing...")
-                if real_qty == 0:
-                    self.clear_state()
-                else:
-                    self.state = "HOLDING"
-                    self.total_qty = real_qty
-                    self.avg_buy_price = real_avg
-                    self.current_step = 1  # Reset to step 1 based on current balance
-                    self.buy_history = [(real_avg, real_qty)]
-                    self.save_state()
-            
-            # Build drop target info string
-            drop_info = ""
-            if self.is_domestic:
-                hour = datetime.now().hour
-                if 8 <= hour < 10 and self.prev_close > 0:
-                    drop_target = self.prev_close * 0.98
-                    drop_info = f" | Drop@{drop_target:,.0f}(종가{self.prev_close:,.0f})"
-                elif hour >= 10 and self.daily_high > 0:
-                    drop_target = self.daily_high * 0.98
-                    drop_info = f" | Drop@{drop_target:,.0f}(고가{self.daily_high:,.0f})"
-            
-            # Orderbook info (if enabled)
-            ob_info = ""
-            bid_total, ask_total = 0, 0
-            if self.use_orderbook and self.is_domestic:
-                bid_total, ask_total, ob_info = self.sync_portfolio() # Renamed from get_orderbook
-                ob_info = f" | OB:{ob_info}" if ob_info else ""
-            
-            # Calculate Effective Budget (Cap user budget by actual available assets for this cycle)
-            holding_value = self.avg_buy_price * self.total_qty if self.state == "HOLDING" else 0
-            effective_budget = min(self.budget, cash + holding_value)
-            budget_tag = f"Budget:{effective_budget:,.0f}" if effective_budget < self.budget else ""
-            budget_part = f" | {budget_tag}" if budget_tag else ""
-            
-            holding_str = f"평단가: {self.avg_buy_price:.2f} ({self.total_qty}주)" if self.state == "HOLDING" else "보유없음"
-            
-            profit_info = ""
-            profit_rate = 0
-            net_profit_rate = 0
-            unrealized_net_amt = 0
-            if self.state == "HOLDING":
-                profit_rate = (curr_price - self.avg_buy_price) / self.avg_buy_price
-                net_profit_rate = profit_rate - self.friction
-                
-                # Unrealized Net Profit Amount
-                net_investment = self.avg_buy_price * self.total_qty * (1 + self.buy_fee)
-                net_return = curr_price * self.total_qty * (1 - self.sell_fee - self.sell_tax)
-                unrealized_net_amt = net_return - net_investment
-                
-                profit_info = f" | Profit: {profit_rate:.2%} (Net: {net_profit_rate:.2%}) | PNL: {unrealized_net_amt:,.0f}"
-
-            realized_info = f" | Today: {self.daily_realized_profit:,.0f}" if self.daily_realized_profit != 0 else ""
-            
-            # Investor Info (Market Data)
-            # mkt_info variable removed as it is handled below directly
-
-            # Core Metrics
-            self.update_unfilled_orders()
-            unfilled_str = f"Unfilled: B:{self.unfilled_buy_qty}, S:{self.unfilled_sell_qty}"
-            
-            # Calculate next_buy_price for logging
-            if self.state == "SEARCHING":
-                next_buy_price_for_log = next_bb_price # Or next_rsi_price, or manual_buy_price
-            elif self.current_step < MAX_STEPS:
-                next_buy_price_for_log = self.avg_buy_price * (1 - PYRAMIDING_THRESHOLD)
-            else:
-                next_buy_price_for_log = 0 
-            
-            # Prepare variables for the new log line
-            asset_val = asset
-            avg_price = self.avg_buy_price
-            total_qty = self.total_qty
-            h_str = step_info # Reusing step_info for buy history
-            target_price = self.avg_buy_price * (1 + self.target_profit) if self.state == "HOLDING" else 0
-            
-            # Determine reference close price based on session for Change Rate calculation
-            ref_close_price = self.prev_close
-            ref_label = "전일대비"
-
-            if session == "NXT_PRE":
-                ref_close_price = self.prev_close
-                ref_label = "전일종가"
-            elif session == "NXT_POST" and self.krx_close_today > 0:
-                ref_close_price = self.krx_close_today
-                ref_label = "KRX종가"
-            
-            # Calculate Change Rate based on the correct reference price
-            change_rate = 0
-            if ref_close_price > 0:
-                change_rate = (curr_price - ref_close_price) / ref_close_price
-
-            # Simplified log construction to avoid extra pipes
-            price_str = f"{session_tag} Price: {curr_price:,.0f} ({change_rate:+.2%})"
-            
-            if ref_close_price > 0 and session in ["NXT_PRE", "NXT_POST"]:
-                 price_str += f" [{ref_label}:{ref_close_price:,.0f}]"
-            
-            log_parts = [
-                f"{price_str}{bounce_str}",
-                f"RSI: {rsi:.1f}",
-                f"BB: [{lower_bb:.2f}, {upper_bb:.2f}]"
-            ]
-            if supply_part.strip(): log_parts.append(supply_part.strip())
-            if ob_info.strip(): log_parts.append(ob_info.strip())
-            if unfilled_str.strip(): log_parts.append(unfilled_str.strip())
-            
-            # Credit Info prominently displayed
-            if self.is_domestic:
-                credit_qty = sum(item['qty'] for item in self.credit_holdings)
-                c_str = f"Credit: {self.credit_cash:,.0f} ({credit_qty}주)" if credit_qty > 0 else f"Credit: {self.credit_cash:,.0f}"
-                log_parts.append(c_str)
-                # Market Info (Credit Rate & Investor Est)
-                log_parts.append(f"Mkt: {self.credit_trend_str} | {self.investor_info_str}")
-
-            if self.state == "HOLDING":
-                log_parts.append(f"Profit: {profit_rate:.2%} (Net: {net_profit_rate:.2%})")
-                log_parts.append(f"PNL: {unrealized_net_amt:,.0f}")
-                
-            log_parts.append(f"주문가능: {cash:,.0f}")
-            log_parts.append(f"총자산: {asset_val:,.0f}")
-            log_parts.append(f"평단가: {avg_price:.2f} ({total_qty}주)")
-            
-            if h_str.strip(): log_parts.append(h_str.strip())
-            if realized_info.strip(): log_parts.append(realized_info.strip())
-            
-            log_parts.append(f"Target: {self.target_profit:.2%} ({target_price:.2f})")
-            
-            if self.state == "SEARCHING":
-                # Show different target for NXT vs KRX
-                if session in ["NXT_PRE", "NXT_POST"] and ref_close > 0:
-                    nxt_target = ref_close * 0.99
-                    log_parts.append(f"NXT Buy@: {nxt_target:,.0f} ({ref_label}{ref_close:,.0f}-1%)")
-                else:
-                    log_parts.append(f"Next: {next_buy_price_for_log:.2f}")
-            elif self.current_step < MAX_STEPS:
-                next_step_weight = WEIGHTS[self.current_step]
-                next_step_qty = int(effective_budget * (next_step_weight / sum_weights) / next_buy_price_for_log) if next_buy_price_for_log > 0 else 0
-                log_parts.append(f"Next: B{self.current_step+1} @ {next_buy_price_for_log:.2f} ({next_step_qty}주)")
-                
-            log_parts.append(f"State: {self.state}")
-            
-            logger.info(" | ".join(log_parts))
-            
-            if self.state == "SEARCHING":
-                # Time-based Priority Entry Condition (Highest Priority)
-                drop_hit = False
-                drop_reason = ""
-                hour = datetime.now().hour
-                
-                # Update price info periodically
-                if self.is_domestic and (current_time - self.last_price_info_check >= self.price_info_interval):
-                    self.update_price_info()
-                    self.update_market_data()
-                    self.last_market_data_check = current_time
-                
-                if self.is_domestic:
-                    # NXT Session: Reference Close -1% Drop Logic
-                    if session in ["NXT_PRE", "NXT_POST"] and ref_close > 0:
-                        nxt_drop_target = ref_close * 0.99
-                        if curr_price <= nxt_drop_target or candle_low <= nxt_drop_target:
-                            drop_hit = True
-                            drop_reason = f"NXT({ref_label})-1%({ref_close:,.0f}→{nxt_drop_target:,.0f})"
-                            
-                    # Regular Hours Logic (existing)
-                    elif 8 <= hour < 10 and self.prev_close > 0:
-                        # 08:00~10:00: 전일 종가 대비 -2% 
-                        drop_target = self.prev_close * 0.98
-                        if curr_price <= drop_target or candle_low <= drop_target:
-                            drop_hit = True
-                            drop_reason = f"PrevClose-2%({self.prev_close:,.0f}→{drop_target:,.0f})"
-                    elif hour >= 10 and self.daily_high > 0:
-                        # 10:00 이후: 당일 최고가 대비 -2%
-                        drop_target = self.daily_high * 0.98
-                        if curr_price <= drop_target or candle_low <= drop_target:
-                            drop_hit = True
-                            drop_reason = f"DailyHigh-2%({self.daily_high:,.0f}→{drop_target:,.0f})"
-                
-                # Triple-Threat Entry Condition: Only for KRX session (RSI hit, BB hit, or Manual Price hit)
-                # NXT sessions use price-drop condition ONLY
-                rsi_hit = False
-                bb_hit = False
-                price_hit = False
-                momentum_hit = False
-                momentum_reason = ""
-                
-                if session == "KRX":
-                    rsi_hit = rsi <= RSI_BUY_LEVEL
-                    bb_hit = (curr_price <= lower_bb or candle_low <= lower_bb)
-                    price_hit = (self.manual_buy_price > 0 and (curr_price <= self.manual_buy_price or candle_low <= self.manual_buy_price))
-                    
-                    # Momentum Entry Condition (Breakout: curr > prev_high)
-                    if self.use_momentum and self.prev_high > 0:
-                        if curr_price > self.prev_high:
-                            momentum_hit = True
-                            momentum_reason = f"Breakout({curr_price:,.0f}>{self.prev_high:,.0f})"
-                
-                if momentum_hit or drop_hit or rsi_hit or bb_hit or price_hit:
-                    # Orderbook filter check (if enabled)
-                    if self.use_orderbook and bid_total <= ask_total:
-                        logger.info(f"Orderbook Filter Blocked: Bid({bid_total:,}) <= Ask({ask_total:,}). Skipping entry.")
-                    else:
-                        reason = []
-                        if momentum_hit: reason.append(momentum_reason)  # Momentum first
-                        if drop_hit: reason.append(drop_reason)
-                        if rsi_hit: reason.append(f"RSI({rsi:.1f})")
-                        if bb_hit: reason.append(f"BB({lower_bb:.2f})")
-                        if price_hit: reason.append(f"Price({self.manual_buy_price:,})")
-                        if self.use_orderbook: reason.append(f"OB({bid_total:,}>{ask_total:,})")
-                        
-                        logger.info(f"ENTRY Triggered: {' | '.join(reason)}")
-                        
-                        # Calculate Support Score for Weighting
-                        support_price = self.calculate_support_level(df)
-                        is_near_support = False
-                        if support_price:
-                            # Check if current price is within 0.5% above support
-                            if support_price <= curr_price <= support_price * 1.005:
-                                is_near_support = True
-                                reason.append(f"Support({support_price:,.0f})")
-                        
-                        # Check RSI Triple Bottom
-                        is_rsi_triple = self.check_rsi_triple_bottom(df)
-                        if is_rsi_triple:
-                            reason.append("RSI_3_Bottom")
-                        
-                        # Apply Multiplier
-                        qty_multiplier = 1.0
-                        
-                        # Priority: Triple Bottom (2.0x) > Support (1.5x)
-                        if is_rsi_triple:
-                            qty_multiplier = 2.0
-                            logger.info(f"💎 RSI Triple Bottom Detected! Confidence Max. Boosting buy qty by 2.0x.")
-                        elif is_near_support:
-                            qty_multiplier = 1.5
-                            logger.info(f"Strong Support Detected @ {support_price:,.0f}. Boosting buy qty by 1.5x.")
-                        
-                        step_budget = effective_budget * (WEIGHTS[0] / sum_weights) * qty_multiplier
-                        qty = int(step_budget / curr_price)
-                        
-                        # 3. Small Budget Fix: Ensure at least 1 share if budget allows
-                        if qty == 0 and effective_budget >= curr_price:
-                            qty = 1
-                            logger.info(f"Small Budget Override: buying {qty} share(s)")
-
-                        if qty > 0 and self.place_order("buy", qty, curr_price):
-                            self.avg_buy_price = curr_price
-                            self.total_qty = qty
-                            self.current_step = 1
-                            self.buy_history = [(curr_price, qty)]
-                            self.state = "HOLDING"
-                            self.save_state()
-                            self.cached_balance = self.get_balance()  # Update balance after buy
-            
-            elif self.state == "HOLDING":
-                profit_rate = (curr_price - self.avg_buy_price) / self.avg_buy_price
-                net_profit_rate = profit_rate - self.friction
-                
-                # Pyramiding (Averaging Down) Logic
-                pyramiding_drop = profit_rate <= -PYRAMIDING_THRESHOLD
-                pyramiding_rsi = rsi <= 25 and rsi > 10
-                
-                # Proactive Safety: 3-minute cooldown between buys
-                time_since_buy = (time.time() - self.last_buy_time) / 60
-                cooldown_ok = time_since_buy >= 3
-                
-                # Condition selection: B1->B2 (OR), B3+ (AND) for safety
-                if self.current_step < 2:
-                    is_pyramid_triggered = (pyramiding_drop or pyramiding_rsi)
-                    trigger_type = "OR (Drop|RSI)"
-                else:
-                    is_pyramid_triggered = (pyramiding_drop and pyramiding_rsi)
-                    trigger_type = "AND (Drop&RSI)"
-                
-                if is_pyramid_triggered and self.current_step < MAX_STEPS:
-                    if not cooldown_ok:
-                        logger.info(f"Pyramiding Blocked: Cooldown ({time_since_buy:.1f}/3.0 min)")
-                    else:
-                        pyramid_reason = []
-                        if pyramiding_drop: pyramid_reason.append(f"Drop({profit_rate:.1%})")
-                        if pyramiding_rsi: pyramid_reason.append(f"RSI({rsi:.1f})")
-                        
-                        
-                        # Apply Multiplier/Support Logic for Pyramiding too
-                        support_price = self.calculate_support_level(df)
-                        qty_multiplier = 1.0
-                        if support_price and support_price <= curr_price <= support_price * 1.005:
-                             qty_multiplier = 1.5
-                             logger.info(f"Pyramiding near Support @ {support_price:,.0f}. Boosting qty by 1.5x.")
-
-                        step_budget = effective_budget * (WEIGHTS[self.current_step] / sum_weights) * qty_multiplier
-                        qty = int(step_budget / curr_price)
-                        
-                        # Small Budget Fix for Pyramiding
-                        remaining_budget = effective_budget - (self.avg_buy_price * self.total_qty)
-                        if qty == 0 and remaining_budget >= curr_price:
-                            qty = 1
-                            logger.info(f"Small Budget Pyramiding Override: buying {qty} share(s)")
-
-                        if qty > 0 and self.place_order("buy", qty, curr_price):
-                            new_total_qty = self.total_qty + qty
-                            self.avg_buy_price = ((self.avg_buy_price * self.total_qty) + (curr_price * qty)) / new_total_qty
-                            self.total_qty = new_total_qty
-                            self.current_step += 1
-                            self.buy_history.append((curr_price, qty))
-                            self.save_state()
-                            self.cached_balance = self.get_balance()  # Update balance after pyramiding
-                            logger.info(f"Pyramiding B{self.current_step}: {trigger_type} [{', '.join(pyramid_reason)}] | New Avg: {self.avg_buy_price:.2f}")
-
-                # Exit Conditions: BB Upper only if in profit >= Target Profit (2%+)
-                bb_exit = curr_price >= upper_bb and profit_rate >= self.target_profit
-                target_exit = profit_rate >= self.target_profit
-                
-                if bb_exit or target_exit:
-                    reason = f"BB Upper (>={self.target_profit:.1%} 익절)" if bb_exit else "Target Profit"
-                    
-                    # Check for existing sell order before placing a new one
-                    if self.has_uncleared_sell_order():
-                        logger.info(f"Existing sell order found for {self.ticker}. Skipping duplicate EXIT.")
+                # Update current exchange based on session
+                if session in ["NXT_PRE", "NXT_POST"]:
+                    self.current_exchange = "NXT"
+                    # User: "NXT 먼저 체크해야하는게 정상 아닐까? ㅠㅠ"
+                    # We check availability immediately for NXT sessions
+                    df_initial = self.get_minute_chart()
+                    if df_initial.empty or (df_initial['last'].iloc[-1] <= 0):
+                        self.nxt_consecutive_errors += 1
+                        if self.nxt_consecutive_errors >= 5:
+                            logger.info(f"🛑 [{self.ticker}] Not an NXT target (Initial check failed 5x). Stopping for NXT session.")
+                            import os
+                            os._exit(0)
+                        logger.warning(f"[{session}] ⚠️ NXT Data missing (Checks:{self.nxt_consecutive_errors}). Retrying...")
+                        time.sleep(5)
                         continue
+                    else:
+                        self.nxt_consecutive_errors = 0 # Valid data received
+                else:
+                    self.current_exchange = "KRX"
+                
+                # Throttled Balance Sync (every 30 seconds) to catch manual trades/credit holdings
+                if current_time - getattr(self, 'last_balance_sync', 0) > 30:
+                    self.cached_balance = self.get_balance()
+                    self.last_balance_sync = current_time
 
-                    # Precise Net Profit Calculation
+                session_tag = f"[{session}]"
+                    
+                df = self.get_minute_chart()
+                rsi, bb = self.calculate_indicators(df)
+                
+                # During NXT sessions, don't block on RSI - use price-based entry only
+                if session == "KRX" and (rsi is None or np.isnan(rsi)):
+                    time.sleep(10)
+                    continue
+                
+                # Handle None RSI/BB gracefully for NXT
+                if rsi is None or np.isnan(rsi):
+                    rsi = 50.0  # Neutral RSI for display purposes only
+                if bb is None:
+                    bb = (0, 0)  # Placeholder BB
+                    
+                curr_price = df['last'].iloc[-1] if not df.empty else 0
+                
+                # Guard against invalid data (0 price or invalid RSI)
+                invalid_data = curr_price <= 0 or rsi is None or rsi == 0
+                
+                if invalid_data:
+                    if session != "CLOSED":
+                        logger.warning(f"{session_tag} ⚠️ Invalid data detected (Price:{curr_price}, RSI:{rsi}). Skipping iteration...")
+                    time.sleep(5)
+                    continue
+                
+                # Real-time Dashboard Update (Heartbeat)
+                should_save = False
+                if curr_price > 0 and curr_price != self.last_price:
+                    self.last_price = curr_price
+                    should_save = True
+                
+                if time.time() - last_save_time > 10:
+                    should_save = True
+                    
+                if should_save:
+                    self.save_state()
+                    last_save_time = time.time()
+                candle_low = df['low'].iloc[-1] if not df.empty else 0
+                lower_bb, upper_bb = bb
+                
+                # Capture KRX close when first entering NXT_POST (using KRX API, not NXT price)
+                if session == "NXT_POST" and self.krx_close_today == 0:
+                    try:
+                        # Fetch actual KRX closing price using KRX API (not NXT)
+                        krx_res = kis_auth._url_fetch(
+                            "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice",
+                            "FHKST03010200", "",
+                            {
+                                "FID_COND_MRKT_DIV_CODE": "J",  # KRX only
+                                "FID_INPUT_ISCD": self.ticker,
+                                "FID_INPUT_HOUR_1": "153000",  # KRX close time
+                                "FID_PW_DATA_INCU_YN": "Y",
+                                "FID_ETC_CLS_CODE": ""
+                            }
+                        )
+                        if krx_res.isOK():
+                            krx_out = krx_res.getBody().output2
+                            if krx_out and len(krx_out) > 0:
+                                self.krx_close_today = int(krx_out[0].get('stck_prpr', 0))
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch KRX close: {e}")
+                        self.krx_close_today = self.prev_close  # Fallback
+                    
+                    if self.krx_close_today > 0:
+                        logger.info(f"📌 Captured KRX close for NXT reference: {self.krx_close_today:,.0f}")
+                
+                # Use cached balance (updated only after trade execution)
+                cash, asset, real_avg, real_qty = self.cached_balance
+                
+                target_price_info = f" ({self.avg_buy_price * (1 + self.target_profit):.2f})" if self.state == "HOLDING" else ""
+                step_info = " | " + ", ".join([f"B{i+1}:{p:.0f}({q})" for i, (p, q) in enumerate(self.buy_history)]) if self.buy_history else ""
+                
+                # 1. Calculate Expected Buy Price
+                # Initialize to prevent UnboundLocalError
+                next_bb_price = lower_bb if bb else curr_price
+                next_rsi_price = None
+                
+                if self.state == "SEARCHING":
+                    next_rsi_price = self.calculate_rsi_target_price(df, RSI_BUY_LEVEL)
+                    
+                    parts = [f"BB:{next_bb_price:.2f}"]
+                    if next_rsi_price: parts.append(f"RSI{RSI_BUY_LEVEL}:{next_rsi_price:.2f}")
+                    if self.manual_buy_price > 0: parts.append(f"Manual:{self.manual_buy_price:,}")
+                    
+                    next_buy_tag = f"B1 @ " + " / ".join(parts)
+                elif self.current_step < MAX_STEPS:
+                    next_buy_price = self.avg_buy_price * (1 - PYRAMIDING_THRESHOLD)
+                    next_buy_tag = f"B{self.current_step+1} @ {next_buy_price:.2f}"
+                else:
+                    next_buy_tag = "MAX STEPS"
+    
+                # Throttled Supply Info (update every 10 mins)
+                if self.is_domestic and (current_time - self.last_supply_check >= self.supply_check_interval):
+                    new_supply = self.get_supply_info()
+                    if new_supply: 
+                        self.cached_supply = new_supply
+                        self.last_supply_check = current_time
+                
+                supply_part = f" | {self.cached_supply}" if self.is_domestic else ""
+    
+                # Bounce info
+                bounce_rate = (curr_price - candle_low) / candle_low if candle_low > 0 else 0
+                bounce_str = f" | Bounce: {bounce_rate:.2%}" if self.state == "SEARCHING" else ""
+                
+                # Balance and Holdings info
+                balance_str = f"주문가능: {cash:,} | 총자산: {asset:,}"
+                holding_str = f"평단가: {real_avg:.2f} ({real_qty}주)" if real_qty > 0 else "보유없음"
+                
+                # Auto-Synchronization with Actual Account Balance
+                if real_qty != self.total_qty:
+                    logger.warning(f" [⚠️Sync] Status mismatch detected. Local: {self.total_qty}주, Account: {real_qty}주. Synchronizing...")
+                    if real_qty == 0:
+                        self.clear_state()
+                    else:
+                        self.state = "HOLDING"
+                        self.total_qty = real_qty
+                        self.avg_buy_price = real_avg
+                        self.current_step = 1  # Reset to step 1 based on current balance
+                        self.buy_history = [(real_avg, real_qty)]
+                        self.save_state()
+                
+                # Build drop target info string
+                drop_info = ""
+                if self.is_domestic:
+                    hour = datetime.now().hour
+                    if 8 <= hour < 10 and self.prev_close > 0:
+                        drop_target = self.prev_close * 0.98
+                        drop_info = f" | Drop@{drop_target:,.0f}(종가{self.prev_close:,.0f})"
+                    elif hour >= 10 and self.daily_high > 0:
+                        drop_target = self.daily_high * 0.98
+                        drop_info = f" | Drop@{drop_target:,.0f}(고가{self.daily_high:,.0f})"
+                
+                # Orderbook info (if enabled)
+                ob_info = ""
+                bid_total, ask_total = 0, 0
+                if self.use_orderbook and self.is_domestic:
+                    bid_total, ask_total, ob_info = self.sync_portfolio() # Renamed from get_orderbook
+                    ob_info = f" | OB:{ob_info}" if ob_info else ""
+                
+                # Calculate Effective Budget (Cap user budget by actual available assets for this cycle)
+                holding_value = self.avg_buy_price * self.total_qty if self.state == "HOLDING" else 0
+                effective_budget = min(self.budget, cash + holding_value)
+                budget_tag = f"Budget:{effective_budget:,.0f}" if effective_budget < self.budget else ""
+                budget_part = f" | {budget_tag}" if budget_tag else ""
+                
+                holding_str = f"평단가: {self.avg_buy_price:.2f} ({self.total_qty}주)" if self.state == "HOLDING" else "보유없음"
+                
+                profit_info = ""
+                profit_rate = 0
+                net_profit_rate = 0
+                unrealized_net_amt = 0
+                if self.state == "HOLDING":
+                    profit_rate = (curr_price - self.avg_buy_price) / self.avg_buy_price
+                    net_profit_rate = profit_rate - self.friction
+                    
+                    # Unrealized Net Profit Amount
                     net_investment = self.avg_buy_price * self.total_qty * (1 + self.buy_fee)
                     net_return = curr_price * self.total_qty * (1 - self.sell_fee - self.sell_tax)
-                    net_profit_amt = net_return - net_investment
+                    unrealized_net_amt = net_return - net_investment
                     
-                    logger.info(f"EXIT Triggered: {reason} | Qty: {self.total_qty} | Avg: {self.avg_buy_price:.2f} | Sell: {curr_price:.2f} | Gross: {profit_rate:.2%} | Net Profit: {net_profit_amt:,.0f}")
-                    odno = self.place_order("sell", self.total_qty, curr_price)
-                    if odno:
-                        self.state = "PENDING_SELL"
-                        self.pending_sell = {
-                            "odno": odno,
-                            "qty": self.total_qty,
-                            "price": curr_price,
-                            "reason": reason,
-                            "avg_buy_price": self.avg_buy_price
-                        }
-                        self.save_state()
-                        # Real summary is written upon fill confirmed by WebSocket
-            
-            elif self.state == "PENDING_SELL":
-                # Active Fill Detection: Check if sell was executed
-                # 1. Unfilled sell qty is 0 = order was filled or cancelled
-                # 2. Actual balance shows 0 shares for this ticker
+                    profit_info = f" | Profit: {profit_rate:.2%} (Net: {net_profit_rate:.2%}) | PNL: {unrealized_net_amt:,.0f}"
+    
+                realized_info = f" | Today: {self.daily_realized_profit:,.0f}" if self.daily_realized_profit != 0 else ""
                 
-                if self.unfilled_sell_qty == 0:
-                    # Re-fetch balance to confirm actual holdings
-                    _, _, _, actual_qty = self.get_balance()
+                # Investor Info (Market Data)
+                # mkt_info variable removed as it is handled below directly
+    
+                # Core Metrics
+                self.update_unfilled_orders()
+                unfilled_str = f"Unfilled: B:{self.unfilled_buy_qty}, S:{self.unfilled_sell_qty}"
+                
+                # Calculate next_buy_price for logging
+                if self.state == "SEARCHING":
+                    next_buy_price_for_log = next_bb_price # Or next_rsi_price, or manual_buy_price
+                elif self.current_step < MAX_STEPS:
+                    next_buy_price_for_log = self.avg_buy_price * (1 - PYRAMIDING_THRESHOLD)
+                else:
+                    next_buy_price_for_log = 0 
+                
+                # Prepare variables for the new log line
+                asset_val = asset
+                avg_price = self.avg_buy_price
+                total_qty = self.total_qty
+                h_str = step_info # Reusing step_info for buy history
+                target_price = self.avg_buy_price * (1 + self.target_profit) if self.state == "HOLDING" else 0
+                
+                # Determine reference close price based on session for Change Rate calculation
+                ref_close_price = self.prev_close
+                ref_label = "전일대비"
+    
+                if session == "NXT_PRE":
+                    ref_close_price = self.prev_close
+                    ref_label = "전일종가"
+                elif session == "NXT_POST" and self.krx_close_today > 0:
+                    ref_close_price = self.krx_close_today
+                    ref_label = "KRX종가"
+                
+                # Calculate Change Rate based on the correct reference price
+                change_rate = 0
+                if ref_close_price > 0:
+                    change_rate = (curr_price - ref_close_price) / ref_close_price
+    
+                # Simplified log construction to avoid extra pipes
+                price_str = f"{session_tag} Price: {curr_price:,.0f} ({change_rate:+.2%})"
+                
+                if ref_close_price > 0 and session in ["NXT_PRE", "NXT_POST"]:
+                     price_str += f" [{ref_label}:{ref_close_price:,.0f}]"
+                
+                log_parts = [
+                    f"{price_str}{bounce_str}",
+                    f"RSI: {rsi:.1f}",
+                    f"BB: [{lower_bb:.2f}, {upper_bb:.2f}]"
+                ]
+                if supply_part.strip(): log_parts.append(supply_part.strip())
+                if ob_info.strip(): log_parts.append(ob_info.strip())
+                if unfilled_str.strip(): log_parts.append(unfilled_str.strip())
+                
+                # Credit Info prominently displayed
+                if self.is_domestic:
+                    credit_qty = sum(item['qty'] for item in self.credit_holdings)
+                    c_str = f"Credit: {self.credit_cash:,.0f} ({credit_qty}주)" if credit_qty > 0 else f"Credit: {self.credit_cash:,.0f}"
+                    log_parts.append(c_str)
+                    # Market Info (Credit Rate & Investor Est)
+                    log_parts.append(f"Mkt: {self.credit_trend_str} | {self.investor_info_str}")
+    
+                if self.state == "HOLDING":
+                    log_parts.append(f"Profit: {profit_rate:.2%} (Net: {net_profit_rate:.2%})")
+                    log_parts.append(f"PNL: {unrealized_net_amt:,.0f}")
                     
-                    if actual_qty == 0:
-                        # Sell was successfully filled!
-                        pending = getattr(self, 'pending_sell', {})
-                        sell_price = pending.get('price', 0)
-                        sell_qty = pending.get('qty', self.total_qty)
-                        
-                        logger.info(f"✅ SELL FILL CONFIRMED (detected via balance sync) | Qty: {sell_qty} @ {sell_price}")
-                        self.finalize_sell(sell_price, sell_qty)
+                log_parts.append(f"주문가능: {cash:,.0f}")
+                log_parts.append(f"총자산: {asset_val:,.0f}")
+                log_parts.append(f"평단가: {avg_price:.2f} ({total_qty}주)")
+                
+                if h_str.strip(): log_parts.append(h_str.strip())
+                if realized_info.strip(): log_parts.append(realized_info.strip())
+                
+                log_parts.append(f"Target: {self.target_profit:.2%} ({target_price:.2f})")
+                
+                if self.state == "SEARCHING":
+                    # Show different target for NXT vs KRX
+                    if session in ["NXT_PRE", "NXT_POST"] and ref_close > 0:
+                        nxt_target = ref_close * 0.99
+                        log_parts.append(f"NXT Buy@: {nxt_target:,.0f} ({ref_label}{ref_close:,.0f}-1%)")
                     else:
-                        # Still holding shares - order may have been partially filled or cancelled
-                        logger.warning(f"⚠️ PENDING_SELL but still holding {actual_qty} shares. Syncing state...")
-                        self.total_qty = actual_qty
-                        self.state = "HOLDING"
-                        self.pending_sell = None
-                        self.save_state()
+                        log_parts.append(f"Next: {next_buy_price_for_log:.2f}")
+                elif self.current_step < MAX_STEPS:
+                    next_step_weight = WEIGHTS[self.current_step]
+                    next_step_qty = int(effective_budget * (next_step_weight / sum_weights) / next_buy_price_for_log) if next_buy_price_for_log > 0 else 0
+                    log_parts.append(f"Next: B{self.current_step+1} @ {next_buy_price_for_log:.2f} ({next_step_qty}주)")
+                    
+                log_parts.append(f"State: {self.state}")
+                
+                logger.info(" | ".join(log_parts))
+                
+                if self.state == "SEARCHING":
+                    # Time-based Priority Entry Condition (Highest Priority)
+                    drop_hit = False
+                    drop_reason = ""
+                    hour = datetime.now().hour
+                    
+                    # Update price info periodically
+                    if self.is_domestic and (current_time - self.last_price_info_check >= self.price_info_interval):
+                        self.update_price_info()
+                        self.update_market_data()
+                        self.last_market_data_check = current_time
+                    
+                    if self.is_domestic:
+                        # NXT Session: Reference Close -1% Drop Logic
+                        if session in ["NXT_PRE", "NXT_POST"] and ref_close > 0:
+                            nxt_drop_target = ref_close * 0.99
+                            if curr_price <= nxt_drop_target or candle_low <= nxt_drop_target:
+                                drop_hit = True
+                                drop_reason = f"NXT({ref_label})-1%({ref_close:,.0f}→{nxt_drop_target:,.0f})"
+                                
+                        # Regular Hours Logic (existing)
+                        elif 8 <= hour < 10 and self.prev_close > 0:
+                            # 08:00~10:00: 전일 종가 대비 -2% 
+                            drop_target = self.prev_close * 0.98
+                            if curr_price <= drop_target or candle_low <= drop_target:
+                                drop_hit = True
+                                drop_reason = f"PrevClose-2%({self.prev_close:,.0f}→{drop_target:,.0f})"
+                        elif hour >= 10 and self.daily_high > 0:
+                            # 10:00 이후: 당일 최고가 대비 -2%
+                            drop_target = self.daily_high * 0.98
+                            if curr_price <= drop_target or candle_low <= drop_target:
+                                drop_hit = True
+                                drop_reason = f"DailyHigh-2%({self.daily_high:,.0f}→{drop_target:,.0f})"
+                    
+                    # Triple-Threat Entry Condition: Only for KRX session (RSI hit, BB hit, or Manual Price hit)
+                    # NXT sessions use price-drop condition ONLY
+                    rsi_hit = False
+                    bb_hit = False
+                    price_hit = False
+                    momentum_hit = False
+                    momentum_reason = ""
+                    
+                    if session == "KRX":
+                        rsi_hit = rsi <= RSI_BUY_LEVEL
+                        bb_hit = (curr_price <= lower_bb or candle_low <= lower_bb)
+                        price_hit = (self.manual_buy_price > 0 and (curr_price <= self.manual_buy_price or candle_low <= self.manual_buy_price))
+                        
+                        # Momentum Entry Condition (Breakout: curr > prev_high)
+                        if self.use_momentum and self.prev_high > 0:
+                            if curr_price > self.prev_high:
+                                momentum_hit = True
+                                momentum_reason = f"Breakout({curr_price:,.0f}>{self.prev_high:,.0f})"
+                    
+                    if momentum_hit or drop_hit or rsi_hit or bb_hit or price_hit:
+                        # Orderbook filter check (if enabled)
+                        if self.use_orderbook and bid_total <= ask_total:
+                            logger.info(f"Orderbook Filter Blocked: Bid({bid_total:,}) <= Ask({ask_total:,}). Skipping entry.")
+                        else:
+                            reason = []
+                            if momentum_hit: reason.append(momentum_reason)  # Momentum first
+                            if drop_hit: reason.append(drop_reason)
+                            if rsi_hit: reason.append(f"RSI({rsi:.1f})")
+                            if bb_hit: reason.append(f"BB({lower_bb:.2f})")
+                            if price_hit: reason.append(f"Price({self.manual_buy_price:,})")
+                            if self.use_orderbook: reason.append(f"OB({bid_total:,}>{ask_total:,})")
+                            
+                            logger.info(f"ENTRY Triggered: {' | '.join(reason)}")
+                            
+                            # Calculate Support Score for Weighting
+                            support_price = self.calculate_support_level(df)
+                            is_near_support = False
+                            if support_price:
+                                # Check if current price is within 0.5% above support
+                                if support_price <= curr_price <= support_price * 1.005:
+                                    is_near_support = True
+                                    reason.append(f"Support({support_price:,.0f})")
+                            
+                            # Check RSI Triple Bottom
+                            is_rsi_triple = self.check_rsi_triple_bottom(df)
+                            if is_rsi_triple:
+                                reason.append("RSI_3_Bottom")
+                            
+                            # Apply Multiplier
+                            qty_multiplier = 1.0
+                            
+                            # Priority: Triple Bottom (2.0x) > Support (1.5x)
+                            if is_rsi_triple:
+                                qty_multiplier = 2.0
+                                logger.info(f"💎 RSI Triple Bottom Detected! Confidence Max. Boosting buy qty by 2.0x.")
+                            elif is_near_support:
+                                qty_multiplier = 1.5
+                                logger.info(f"Strong Support Detected @ {support_price:,.0f}. Boosting buy qty by 1.5x.")
+                            
+                            step_budget = effective_budget * (WEIGHTS[0] / sum_weights) * qty_multiplier
+                            qty = int(step_budget / curr_price)
+                            
+                            # 3. Small Budget Fix: Ensure at least 1 share if budget allows
+                            if qty == 0 and effective_budget >= curr_price:
+                                qty = 1
+                                logger.info(f"Small Budget Override: buying {qty} share(s)")
+    
+                            if qty > 0 and self.place_order("buy", qty, curr_price):
+                                self.avg_buy_price = curr_price
+                                self.total_qty = qty
+                                self.current_step = 1
+                                self.buy_history = [(curr_price, qty)]
+                                self.state = "HOLDING"
+                                self.save_state()
+                                self.cached_balance = self.get_balance()  # Update balance after buy
+                
+                elif self.state == "HOLDING":
+                    profit_rate = (curr_price - self.avg_buy_price) / self.avg_buy_price
+                    net_profit_rate = profit_rate - self.friction
+                    
+                    # Pyramiding (Averaging Down) Logic
+                    pyramiding_drop = profit_rate <= -PYRAMIDING_THRESHOLD
+                    pyramiding_rsi = rsi <= 25 and rsi > 10
+                    
+                    # Proactive Safety: 3-minute cooldown between buys
+                    time_since_buy = (time.time() - self.last_buy_time) / 60
+                    cooldown_ok = time_since_buy >= 3
+                    
+                    # Condition selection: B1->B2 (OR), B3+ (AND) for safety
+                    if self.current_step < 2:
+                        is_pyramid_triggered = (pyramiding_drop or pyramiding_rsi)
+                        trigger_type = "OR (Drop|RSI)"
+                    else:
+                        is_pyramid_triggered = (pyramiding_drop and pyramiding_rsi)
+                        trigger_type = "AND (Drop&RSI)"
+                    
+                    if is_pyramid_triggered and self.current_step < MAX_STEPS:
+                        if not cooldown_ok:
+                            logger.info(f"Pyramiding Blocked: Cooldown ({time_since_buy:.1f}/3.0 min)")
+                        else:
+                            pyramid_reason = []
+                            if pyramiding_drop: pyramid_reason.append(f"Drop({profit_rate:.1%})")
+                            if pyramiding_rsi: pyramid_reason.append(f"RSI({rsi:.1f})")
+                            
+                            
+                            # Apply Multiplier/Support Logic for Pyramiding too
+                            support_price = self.calculate_support_level(df)
+                            qty_multiplier = 1.0
+                            if support_price and support_price <= curr_price <= support_price * 1.005:
+                                 qty_multiplier = 1.5
+                                 logger.info(f"Pyramiding near Support @ {support_price:,.0f}. Boosting qty by 1.5x.")
+    
+                            step_budget = effective_budget * (WEIGHTS[self.current_step] / sum_weights) * qty_multiplier
+                            qty = int(step_budget / curr_price)
+                            
+                            # Small Budget Fix for Pyramiding
+                            remaining_budget = effective_budget - (self.avg_buy_price * self.total_qty)
+                            if qty == 0 and remaining_budget >= curr_price:
+                                qty = 1
+                                logger.info(f"Small Budget Pyramiding Override: buying {qty} share(s)")
+    
+                            if qty > 0 and self.place_order("buy", qty, curr_price):
+                                new_total_qty = self.total_qty + qty
+                                self.avg_buy_price = ((self.avg_buy_price * self.total_qty) + (curr_price * qty)) / new_total_qty
+                                self.total_qty = new_total_qty
+                                self.current_step += 1
+                                self.buy_history.append((curr_price, qty))
+                                self.save_state()
+                                self.cached_balance = self.get_balance()  # Update balance after pyramiding
+                                logger.info(f"Pyramiding B{self.current_step}: {trigger_type} [{', '.join(pyramid_reason)}] | New Avg: {self.avg_buy_price:.2f}")
+    
+                    # Exit Conditions: BB Upper only if in profit >= Target Profit (2%+)
+                    bb_exit = curr_price >= upper_bb and profit_rate >= self.target_profit
+                    target_exit = profit_rate >= self.target_profit
+                    
+                    if bb_exit or target_exit:
+                        reason = f"BB Upper (>={self.target_profit:.1%} 익절)" if bb_exit else "Target Profit"
+                        
+                        # Check for existing sell order before placing a new one
+                        if self.has_uncleared_sell_order():
+                            logger.info(f"Existing sell order found for {self.ticker}. Skipping duplicate EXIT.")
+                            continue
+    
+                        # Precise Net Profit Calculation
+                        net_investment = self.avg_buy_price * self.total_qty * (1 + self.buy_fee)
+                        net_return = curr_price * self.total_qty * (1 - self.sell_fee - self.sell_tax)
+                        net_profit_amt = net_return - net_investment
+                        
+                        logger.info(f"EXIT Triggered: {reason} | Qty: {self.total_qty} | Avg: {self.avg_buy_price:.2f} | Sell: {curr_price:.2f} | Gross: {profit_rate:.2%} | Net Profit: {net_profit_amt:,.0f}")
+                        odno = self.place_order("sell", self.total_qty, curr_price)
+                        if odno:
+                            self.state = "PENDING_SELL"
+                            self.pending_sell = {
+                                "odno": odno,
+                                "qty": self.total_qty,
+                                "price": curr_price,
+                                "reason": reason,
+                                "avg_buy_price": self.avg_buy_price
+                            }
+                            self.save_state()
+                            # Real summary is written upon fill confirmed by WebSocket
+                
+                elif self.state == "PENDING_SELL":
+                    # Active Fill Detection: Check if sell was executed
+                    # 1. Unfilled sell qty is 0 = order was filled or cancelled
+                    # 2. Actual balance shows 0 shares for this ticker
+                    
+                    if self.unfilled_sell_qty == 0:
+                        # Re-fetch balance to confirm actual holdings
+                        _, _, _, actual_qty = self.get_balance()
+                        
+                        if actual_qty == 0:
+                            # Sell was successfully filled!
+                            pending = getattr(self, 'pending_sell', {})
+                            sell_price = pending.get('price', 0)
+                            sell_qty = pending.get('qty', self.total_qty)
+                            
+                            logger.info(f"✅ SELL FILL CONFIRMED (detected via balance sync) | Qty: {sell_qty} @ {sell_price}")
+                            self.finalize_sell(sell_price, sell_qty)
+                        else:
+                            # Still holding shares - order may have been partially filled or cancelled
+                            logger.warning(f"⚠️ PENDING_SELL but still holding {actual_qty} shares. Syncing state...")
+                            self.total_qty = actual_qty
+                            self.state = "HOLDING"
+                            self.pending_sell = None
+                            self.save_state()
+                
+                time.sleep(3)
             
-            time.sleep(30)
+            except KeyboardInterrupt:
+                logger.info("Admin stop requested.")
+                break
+            except Exception as e:
+                logger.error(f"⚠️ Unhandled Exception in Main Loop: {e}", exc_info=True)
+                time.sleep(10) # Wait before retry to prevent log spam
+                continue
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--ticker", required=True, help="Ticker symbol (e.g., 014940, TSLA)")
-    parser.add_argument("--budget", type=int, default=1000000, help="Total budget in KRW (default: 1M)")
-    parser.add_argument("--target", type=float, default=0.005, help="Target profit rate (default: 0.005 for 0.5%%)")
-    parser.add_argument("--buy_price", type=float, default=0, help="Manual buy price (triggers B1)")
-    parser.add_argument("--orderbook", action="store_true", help="Only buy when bid_total > ask_total")
-    parser.add_argument("--momentum", action="store_true", help="Enable momentum mode (buy on prev high breakout)")
-    parser.add_argument("--live", action="store_true", help="Execute real orders")
+    parser.add_argument("--ticker", type=str, default="오리엔탈정공", help="Ticker name or code")
+    parser.add_argument("--budget", type=int, default=1000000, help="Total budget in KRW")
+    parser.add_argument("--target", type=float, default=0.005, help="Target profit rate (0.005 = 0.5%)")
+    parser.add_argument("--live", action="store_true", help="Live trading mode")
+    parser.add_argument("--buy_price", type=float, default=0, help="Manual buy price (0 for market)")
+    parser.add_argument("--orderbook", action="store_true", help="Use orderbook filter")
+    parser.add_argument("--momentum", action="store_true", help="Use momentum mode")
+    parser.add_argument("--bot_id", type=str, help="Unique Bot ID for logging")
+    parser.add_argument("--ignore_market", action="store_true", help="Ignore market close check (for testing)")
     args = parser.parse_args()
+    
+    # 3. Quick Market Check before heavy init
+    if not args.ignore_market:
+        # We check simple hours first to avoid unnecessary KIS auth if closed
+        now = datetime.now()
+        time_val = now.hour * 100 + now.minute
+        is_weekend = now.weekday() >= 5
+        
+        is_domestic = args.ticker.isdigit() and len(args.ticker) == 6 or StockMaster().get_code(args.ticker)
+        
+        if is_domestic:
+            if is_weekend or not (800 <= time_val < 2000):
+                logger.info(f"🛑 Market Closed (KRX/NXT). Current Time: {now.strftime('%H:%M')}")
+                logger.info("Use --ignore_market to run anyway.")
+                time.sleep(1) # Give web server some time to see the process and logs
+                sys.exit(0)
+        else:
+            # Simple US check (rough)
+            if not (2200 <= time_val or time_val < 610):
+                logger.info(f"🛑 US Market Closed. Current Time: {now.strftime('%H:%M')}")
+                logger.info("Use --ignore_market to run anyway.")
+                time.sleep(1)
+                sys.exit(0)
     
     # 0. Log Health Check before starting
     if not check_log_health(log_filename):
         sys.exit(1)
     
-    scalper = UniversalScalper(args.ticker, args.budget, args.target, args.live, args.buy_price, args.orderbook, args.momentum)
+    scalper = UniversalScalper(args.ticker, args.budget, args.target, args.live, args.buy_price, args.orderbook, args.momentum, args=args)
     try:
         scalper.run()
     except KeyboardInterrupt:
