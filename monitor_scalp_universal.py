@@ -1342,8 +1342,9 @@ class UniversalScalper:
                     
                 curr_price = df['last'].iloc[-1] if not df.empty else 0
                 
-                # Guard against invalid data (0 price or invalid RSI)
-                invalid_data = curr_price <= 0 or rsi is None or rsi == 0
+                # Guard against invalid data (0 price is the only absolute blocker)
+                # RSI 0 is natural/possible in NXT/early sessions, shouldn't block
+                invalid_data = curr_price <= 0 or rsi is None
                 
                 if invalid_data:
                     if session != "CLOSED":
