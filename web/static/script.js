@@ -435,8 +435,22 @@ async function loadScreenerStatus() {
 
 async function startScan() {
     const btn = document.getElementById('scanBtn');
+    const statusEl = document.getElementById('lastScanTime');
+    const progressEl = document.getElementById('cacheStatus');
+
     btn.disabled = true;
-    btn.innerHTML = '<span class="loading-spinner"></span> 전체 종목 검색 중...';
+    btn.innerHTML = '<span class="loading-spinner"></span> 수집 준비 중...';
+
+    // 진행 상황 표시 함수
+    function updateProgress(step, detail) {
+        statusEl.innerHTML = `<span style="color:#4fc3f7;">📡 ${step}</span>`;
+        if (progressEl) {
+            progressEl.innerHTML = `<span style="color:#ffd54f;">${detail}</span>`;
+        }
+    }
+
+    // Step 1: 초기화
+    updateProgress('[1/4] 캐시 확인 중...', '[어디서] 서버 캐시 저장소 → 확인 중');
 
     // 조건별 체크박스 확인
     const useMinVolume = document.getElementById('useMinVolume')?.checked ?? true;
@@ -458,18 +472,47 @@ async function startScan() {
     if (useMaxPer) appliedFilters.push(`PER≤${document.getElementById('maxPer').value}`);
 
     const filterSummary = appliedFilters.length > 0 ? appliedFilters.join(' / ') : '조건 없음';
-    document.getElementById('lastScanTime').innerText = `📊 전체 종목 검색 중: ${filterSummary}`;
 
     try {
+        // Step 2: 캐시 상태 확인
+        btn.innerHTML = '<span class="loading-spinner"></span> 캐시 확인 중...';
+        updateProgress('[2/4] 캐시 상태 조회', '[어디서] /screener/cache-status API');
+
+        let cacheInfo = null;
+        try {
+            cacheInfo = await api('GET', '/screener/cache-status');
+        } catch (e) {
+            // 캐시 없으면 수집 필요
+            updateProgress('[2/4] 캐시 없음 → 수집 시작', '[상태] 신규 데이터 수집 필요');
+        }
+
+        // Step 3: 데이터 수집/조회
+        btn.innerHTML = '<span class="loading-spinner"></span> 네이버 금융에서 수집 중...';
+        updateProgress('[3/4] 네이버 금융에서 데이터 수집 중...', `[어디서] finance.naver.com → 전체 종목 시세/재무 수집`);
+
         // 캐시된 전체 종목에서 필터링 (3,993개 대상)
         const data = await api('GET', `/screener/cached?${params}`);
         const totalStocks = data.total_stocks || '?';
-        document.getElementById('lastScanTime').innerText =
-            `📊 전체 ${totalStocks}개 종목에서 필터링: ${filterSummary}`;
+
+        // Step 4: 필터링 완료
+        btn.innerHTML = '<span class="loading-spinner"></span> 필터링 중...';
+        updateProgress('[4/4] 필터링 완료', `[결과] ${totalStocks}개 종목 중 ${data.count}개 조건 충족`);
+
+        // 최종 결과 표시
+        statusEl.innerHTML = `✅ ${totalStocks}개 종목에서 ${filterSummary} 조건으로 검색 완료`;
         document.getElementById('resultCount').innerText = `${data.count}개`;
+
+        if (progressEl) {
+            const now = new Date().toLocaleTimeString('ko-KR');
+            progressEl.innerHTML = `<span style="color:#81c784;" title="[누가] 스크리너 시스템&#10;[무엇을] 네이버 금융에서 시세/재무 데이터 수집&#10;[언제] ${now}&#10;[어디서] finance.naver.com&#10;[왜] 필터링 및 종목 분석용&#10;[다음 갱신] 5분 후 자동">✅ ${now} 수집 완료 (${totalStocks}종목)</span>`;
+        }
+
         renderScreenerResults(data.items || []);
     } catch (e) {
-        alert('검색 실패: ' + e.message);
+        statusEl.innerHTML = `<span style="color:#ff6b6b;">❌ 검색 실패: ${e.message}</span>`;
+        if (progressEl) {
+            progressEl.innerHTML = `<span style="color:#ff6b6b;" title="[누가] 스크리너 시스템&#10;[무엇을] API 호출 실패&#10;[왜] 서버 연결 끊김 또는 네이버 금융 접속 불가&#10;&#10;👉 [사용자가 할 일]&#10;1. 헤더 연결 상태 점 확인 (🟢인지)&#10;2. 페이지 새로고침 후 재시도&#10;3. 잠시 후 다시 시도">❌ 수집 실패 (마우스 올려 확인)</span>`;
+        }
     } finally {
         btn.disabled = false;
         btn.innerHTML = '🔍 전체 종목 검색';
