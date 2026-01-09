@@ -68,39 +68,85 @@
             <div id="screener-section" class="tab-content">
                 <div class="screener-controls">
                     <div class="filter-panel">
-                        <h3>🔍 조건 검색 설정</h3>
+                        <h3>🔍 조건 검색 설정 <small style="font-weight: normal; color: #888;">(출처: 네이버 금융)</small></h3>
                         <div class="filter-row">
                             <div class="filter-group">
-                                <label><input type="checkbox" id="useMinVolume"> 최소 거래량</label>
+                                <label>
+                                    <input type="checkbox" id="useMinVolume"> 최소 거래량
+                                    <span class="has-tooltip">
+                                        <span class="info-icon">i</span>
+                                        <span class="tooltip-text">당일 누적 거래량 기준. 유동성이 낮은 종목을 제외합니다.</span>
+                                    </span>
+                                </label>
                                 <input type="number" id="minVolume" value="500000">
                             </div>
 
                             <div class="filter-group">
-                                <label><input type="checkbox" id="useMaxPer" checked> 최대 PER</label>
+                                <label>
+                                    <input type="checkbox" id="useMaxPer" checked> 최대 PER
+                                    <span class="has-tooltip">
+                                        <span class="info-icon">i</span>
+                                        <span class="tooltip-text">Price-to-Earning Ratio. 낮을수록 저평가. 음수는 적자 기업.</span>
+                                    </span>
+                                </label>
                                 <input type="number" id="maxPer" value="30" step="0.1">
                             </div>
                             <div class="filter-group">
-                                <label><input type="checkbox" id="useMinOpRate"> 최소 영업이익률 (%)</label>
+                                <label>
+                                    <input type="checkbox" id="useMinOpRate"> 최소 영업이익률 (%)
+                                    <span class="has-tooltip">
+                                        <span class="info-icon">i</span>
+                                        <span class="tooltip-text">영업이익/매출액 비율. 기업의 수익성 지표입니다.</span>
+                                    </span>
+                                </label>
                                 <input type="number" id="minOpRate" value="0" step="0.1">
                             </div>
                             <div class="filter-group">
-                                <label><input type="checkbox" id="useMaxDebtRate"> 최대 부채비율 (%)</label>
+                                <label>
+                                    <input type="checkbox" id="useMaxDebtRate"> 최대 부채비율 (%)
+                                    <span class="has-tooltip">
+                                        <span class="info-icon">i</span>
+                                        <span class="tooltip-text">부채/자본 비율. 100% 이하면 안정적인 재무구조.</span>
+                                    </span>
+                                </label>
                                 <input type="number" id="maxDebtRate" value="200" step="0.1">
                             </div>
                             <div class="filter-group">
-                                <label><input type="checkbox" id="useMaxRsrvRate"> 최대 유보율 (%)</label>
+                                <label>
+                                    <input type="checkbox" id="useMaxRsrvRate"> 최대 유보율 (%)
+                                    <span class="has-tooltip">
+                                        <span class="info-icon">i</span>
+                                        <span class="tooltip-text">사내유보금/자본금 비율. 너무 높으면 투자 부족, 적정 수준이 좋습니다.</span>
+                                    </span>
+                                </label>
                                 <input type="number" id="maxRsrvRate" value="5000" step="10">
                             </div>
                         </div>
 
                         <div class="checkbox-row">
-                            <label><input type="checkbox" id="requireDoubleBottom"> 쌍바닥 패턴</label>
-                            <label><input type="checkbox" id="requireInvestorFlow"> 외인/기관 수급</label>
+                            <label>
+                                <input type="checkbox" id="requireDoubleBottom"> 쌍바닥 패턴
+                                <span class="has-tooltip">
+                                    <span class="info-icon">i</span>
+                                    <span class="tooltip-text">W형 차트 패턴. 바닥 확인 후 반등 기대 신호입니다.</span>
+                                </span>
+                            </label>
+                            <label>
+                                <input type="checkbox" id="requireInvestorFlow"> 외인/기관 수급
+                                <span class="has-tooltip">
+                                    <span class="info-icon">i</span>
+                                    <span class="tooltip-text">외국인/기관 투자자 순매수 추세. 수급 동력 확인용.</span>
+                                </span>
+                            </label>
 
                             <label
                                 style="border: 1px solid #ffd700; padding: 2px 8px; border-radius: 4px; background: rgba(255, 215, 0, 0.05); margin-left: 10px;">
-                                <input type="checkbox" id="optimalMode"> <span
-                                    style="color: #ffd700; font-weight: bold;">✨ 최적전략(AI)</span>
+                                <input type="checkbox" id="optimalMode">
+                                <span style="color: #ffd700; font-weight: bold;">✨ 최적전략(AI)</span>
+                                <span class="has-tooltip">
+                                    <span class="info-icon" style="color: #ffd700;">i</span>
+                                    <span class="tooltip-text">여러 지표를 종합하여 AI가 추천하는 최적 조건으로 검색합니다.</span>
+                                </span>
                             </label>
                         </div>
 
