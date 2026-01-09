@@ -167,7 +167,12 @@ function renderBots() {
         let optionBadges = '';
         if (bot.orderbook) optionBadges += '<span class="badge-option">Orderbook</span>';
         if (bot.momentum) optionBadges += '<span class="badge-option">Momentum</span>';
-        if (bot.buy_price > 0) optionBadges += `<span class="badge-option">Buy@${bot.buy_price}</span>`;
+
+        const buyPrices = bot.buy_prices || (bot.buy_price > 0 ? [bot.buy_price] : []);
+        if (buyPrices.length > 0) {
+            const firstPrice = buyPrices[0].toLocaleString();
+            optionBadges += `<span class="badge-option">Buy@${firstPrice}${buyPrices.length > 1 ? `(+${buyPrices.length - 1})` : ''}</span>`;
+        }
         if (optionBadges) optionBadges = `<div class="option-badges">${optionBadges}</div>`;
 
         let heartbeat = '⚫'; // Default Black (Stopped)
@@ -207,7 +212,7 @@ function renderBots() {
                 ${bot.orderbook ? '<span class="badge badge-info">호가창</span>' : ''}
                 ${bot.momentum ? '<span class="badge badge-accent">모멘텀</span>' : ''}
                 ${bot.ignore_market ? '<span class="badge badge-error">24h</span>' : ''}
-                ${bot.buy_price > 0 ? `<span class="badge badge-warning">${Math.round(bot.buy_price).toLocaleString()}원 지정가</span>` : ''}
+                ${buyPrices.map(p => `<span class="badge badge-warning">${Math.round(p).toLocaleString()}원 지정가</span>`).join('')}
                 ${!bot.live ? '<span class="badge badge-secondary">테스트</span>' : ''}
             </div>
 
