@@ -452,26 +452,42 @@ async function startScan() {
     // Step 1: 초기화
     updateProgress('[1/4] 캐시 확인 중...', '[어디서] 서버 캐시 저장소 → 확인 중');
 
-    // 조건별 체크박스 확인
-    const useMinVolume = document.getElementById('useMinVolume')?.checked ?? true;
-    const useMaxPer = document.getElementById('useMaxPer')?.checked ?? true;
-
     // 파라미터 구성 (캐시 API용)
     const params = new URLSearchParams();
-    params.set('limit', 100);  // 결과 최대 100개
+    params.set('limit', 100);
 
-    if (useMinVolume) params.set('minVolume', document.getElementById('minVolume').value);
-    else params.set('minVolume', 0);
+    // Range Filters
+    const ranges = [
+        'minVolume', 'maxVolume',
+        'minMarketCap', 'maxMarketCap',
+        'minPer', 'maxPer',
+        'minPbr', 'maxPbr',
+        'minOpRate', 'maxOpRate',
+        'minDebtRate', 'maxDebtRate',
+        'minRsrvRate', 'maxRsrvRate'
+    ];
 
-    if (useMaxPer) params.set('maxPer', document.getElementById('maxPer').value);
-    else params.set('maxPer', 9999);
+    ranges.forEach(id => {
+        const val = document.getElementById(id)?.value;
+        if (val && val !== '0') params.set(id, val);
+    });
 
-    // 적용된 조건 표시
+    const optimalMode = document.getElementById('optimalMode')?.checked;
+    if (optimalMode) params.set('optimalMode', true);
+
+    // Checkboxes
+    if (document.getElementById('requireDoubleBottom')?.checked) params.set('requireDoubleBottom', true);
+    if (document.getElementById('requireInvestorFlow')?.checked) params.set('requireInvestorFlow', true);
+
+    // 적용된 조건 표시 (UI용 요약)
     const appliedFilters = [];
-    if (useMinVolume) appliedFilters.push(`거래량≥${(document.getElementById('minVolume').value / 10000).toFixed(0)}만`);
-    if (useMaxPer) appliedFilters.push(`PER≤${document.getElementById('maxPer').value}`);
+    if (params.get('minVolume')) appliedFilters.push(`거래량≥${(params.get('minVolume') / 10000).toFixed(0)}만`);
+    if (params.get('maxPer')) appliedFilters.push(`PER≤${params.get('maxPer')}`);
+    if (params.get('minOpRate')) appliedFilters.push(`영업익≥${params.get('minOpRate')}%`);
+    if (optimalMode) appliedFilters.push(`✨최적전략`);
+    if (document.getElementById('requireDoubleBottom')?.checked) appliedFilters.push(`쌍바닥`);
 
-    const filterSummary = appliedFilters.length > 0 ? appliedFilters.join(' / ') : '조건 없음';
+    const filterSummary = appliedFilters.length > 0 ? appliedFilters.join(' / ') : '전체 조회';
 
     try {
         // Step 2: 캐시 상태 확인
@@ -553,77 +569,43 @@ async function startScan() {
 function renderScreenerResults(stocks, filterInfo = null) {
     const tbody = document.getElementById('screenerResults');
     if (!stocks || stocks.length === 0) {
-        // 적용된 필터 정보 수집
-        const useMinVolume = document.getElementById('useMinVolume')?.checked;
-        const useMaxPer = document.getElementById('useMaxPer')?.checked;
-        const useMinOpRate = document.getElementById('useMinOpRate')?.checked;
-        const useMaxDebtRate = document.getElementById('useMaxDebtRate')?.checked;
-        const minVolume = document.getElementById('minVolume')?.value || 500000;
-        const maxPer = document.getElementById('maxPer')?.value || 30;
-
         let filterDetails = '<div style="text-align:left; padding:20px; background:#1e2530; border-radius:8px; margin:10px;">';
-        filterDetails += '<h4 style="color:#ff9800; margin-bottom:15px;">🔍 검색 결과가 없습니다 - 육하원칙 안내</h4>';
-
-        filterDetails += '<div style="margin-bottom:15px; padding:10px; background:#252d3a; border-radius:6px;">';
-        filterDetails += '<p style="color:#4fc3f7; margin-bottom:8px;"><b>[누가]</b> 스크리너 시스템이 자동 실행</p>';
-        filterDetails += '<p style="color:#4fc3f7; margin-bottom:8px;"><b>[무엇을]</b> 조건에 맞는 종목을 필터링</p>';
-        filterDetails += '<p style="color:#4fc3f7; margin-bottom:8px;"><b>[언제]</b> 방금 \'전체 종목 검색\' 버튼 클릭 시</p>';
-        filterDetails += '<p style="color:#4fc3f7; margin-bottom:8px;"><b>[어디서]</b> /screener/scan API (네이버 금융 캐시 데이터)</p>';
+        filterDetails += '<h4 style="color:#ff9800; margin-bottom:15px;">🔍 검색 결과가 없습니다</h4>';
+        filterDetails += '<p style="color:#aaa; margin-bottom:10px;">조건을 완화하여 다시 검색해보세요.</p>';
         filterDetails += '</div>';
 
-        filterDetails += '<p style="color:#aaa; margin-bottom:10px;"><b>[왜] 적용된 필터 조건:</b></p><ul style="color:#888; font-size:0.85rem; margin-left:20px; margin-bottom:15px;">';
-        if (useMinVolume) filterDetails += `<li>최소 거래량: ${Number(minVolume).toLocaleString()}주 이상</li>`;
-        if (useMaxPer) filterDetails += `<li>최대 PER: ${maxPer} 이하</li>`;
-        if (useMinOpRate) filterDetails += `<li>최소 영업이익률: ${document.getElementById('minOpRate')?.value || 0}% 이상</li>`;
-        if (useMaxDebtRate) filterDetails += `<li>최대 부채비율: ${document.getElementById('maxDebtRate')?.value || 200}% 이하</li>`;
-        if (!useMinVolume && !useMaxPer && !useMinOpRate && !useMaxDebtRate) filterDetails += '<li>필터 없음 (전체 조회)</li>';
-        filterDetails += '</ul>';
-
-        filterDetails += '<p style="color:#81c784; margin-bottom:10px;"><b>[어떻게 해결?]</b></p>';
-        filterDetails += '<ul style="color:#a5d6a7; font-size:0.85rem; margin-left:20px;">';
-        filterDetails += '<li><b>거래량 조건 완화:</b> 최소 거래량 값을 낮춰보세요</li>';
-        filterDetails += '<li><b>PER 조건 완화:</b> 최대 PER 값을 올려보세요</li>';
-        filterDetails += '<li><b>필터 해제:</b> 체크박스를 해제하고 다시 검색</li>';
-        filterDetails += '<li><b>캐시 갱신 대기:</b> 장중에는 5분마다 데이터 갱신</li>';
-        filterDetails += '<li><b>장 마감 확인:</b> 장외 시간에는 데이터가 제한될 수 있음</li>';
-        filterDetails += '</ul></div>';
-
-        tbody.innerHTML = `<tr><td colspan="10">${filterDetails}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="13">${filterDetails}</td></tr>`;
         return;
     }
 
     tbody.innerHTML = stocks.map(stock => `
         <tr>
-            <td title="[누가] KRX 상장 종목&#10;[무엇을] 종목 고유 코드&#10;[어디서] 한국거래소(KRX)&#10;[왜] 종목 식별용 (변경 불가)"><strong>${stock.ticker}</strong></td>
-            <td title="[누가] 상장 기업&#10;[무엇을] 회사 공식 상장명&#10;[어디서] 네이버 금융&#10;[왜] 클릭하면 네이버 금융 상세페이지로 이동"><a href="https://finance.naver.com/item/main.naver?code=${stock.ticker}" target="_blank" class="stock-link">${stock.name || '-'}</a></td>
-            <td title="[누가] 시장 체결가&#10;[무엇을] 마지막 체결된 가격&#10;[언제] 캐시 갱신 시 (5분마다)&#10;[어디서] 네이버 금융 시세&#10;[왜] 현재 매수 가능 가격 확인">${Math.round(stock.price || 0).toLocaleString()}원</td>
-            <td class="${(stock.change_rate || 0) > 0 ? 'text-success' : (stock.change_rate || 0) < 0 ? 'text-danger' : ''}" title="[누가] 시스템 자동 계산&#10;[무엇을] (현재가 - 전일종가) / 전일종가&#10;[언제] 캐시 갱신 시 (5분마다)&#10;[어디서] 네이버 금융&#10;[왜] 당일 상승/하락 확인&#10;🟢 양수=상승 / 🔴 음수=하락">
+            <td title="종목코드"><strong>${stock.ticker}</strong></td>
+            <td><a href="https://finance.naver.com/item/main.naver?code=${stock.ticker}" target="_blank" class="stock-link">${stock.name || '-'}</a></td>
+            <td>${Math.round(stock.price || 0).toLocaleString()}원</td>
+            <td class="${(stock.change_rate || 0) > 0 ? 'text-success' : (stock.change_rate || 0) < 0 ? 'text-danger' : ''}">
                 ${(stock.change_rate || 0) > 0 ? '+' : ''}${stock.change_rate ? stock.change_rate.toFixed(2) + '%' : '0.00%'}
             </td>
-            <td style="color: #90caf9;" title="[누가] 시장 참여자 거래&#10;[무엇을] 당일 누적 거래량&#10;[언제] 캐시 갱신 시 (5분마다)&#10;[어디서] 네이버 금융&#10;[왜] 유동성 확인 (높을수록 좋음)&#10;[단위] K=천주, M=백만주">${formatVolume(stock.volume || 0)}</td>
-            <td title="[누가] 기업 재무정보&#10;[무엇을] 주가수익비율 = 주가/주당순이익&#10;[언제] 분기별 재무제표 기준&#10;[어디서] 네이버 금융 재무정보&#10;[왜] 저평가 판단 (낮을수록 저평가)&#10;음수=적자 기업">${stock.per ? stock.per.toFixed(1) : '-'}</td>
-            <td class="${stock.op_rate >= 5 ? 'text-success' : ''}" title="[누가] 기업 재무정보&#10;[무엇을] 영업이익률 = 영업이익/매출액&#10;[언제] 분기별 재무제표 기준&#10;[어디서] 네이버 금융 재무정보&#10;[왜] 사업 수익성 확인 (5% 이상 양호)">
-                <div style="font-size: 0.9rem;">${stock.op_rate ? stock.op_rate.toFixed(1) + '%' : '-'}</div>
-                <div style="font-size: 0.7rem; color: #888;">${stock.sector || '-'}</div>
+            <td style="color: #90caf9;">${formatVolume(stock.volume || 0)}</td>
+            <td>${stock.market_cap ? Math.round(stock.market_cap / 10000) + '조' : '-'}</td>
+            <td>${stock.per ? stock.per.toFixed(2) : '-'}</td>
+            <td>${stock.pbr ? stock.pbr.toFixed(2) : '-'}</td>
+            <td class="${stock.op_rate >= 5 ? 'text-success' : ''}">
+                ${stock.op_rate ? stock.op_rate.toFixed(1) + '%' : '-'}
             </td>
-            <td title="[누가] 시스템 자동 계산&#10;[무엇을] RSI: 14일간 상승폭/하락폭 비율&#10;[언제] 캐시 갱신 시 (5분마다)&#10;[어디서] 가격 데이터 기반 계산&#10;[왜] 과매수/과매도 판단&#10;RSI≤30=과매도(매수기회) / RSI≥70=과매수(매도고려)">
+            <td>
                 ${stock.rsi ? `<span class="badge" style="background: ${stock.rsi > 60 ? '#ff9800' : stock.rsi < 40 ? '#03a9f4' : '#4caf50'}">RSI ${stock.rsi}</span>` : '-'}
-                ${stock.trend_ok ? '<span class="badge" style="background: #9c27b0" title="[무엇을] 20일 이평선 돌파 + 거래량 급증">추세</span>' : ''}
+                ${stock.trend_ok ? '<span class="badge" style="background: #9c27b0">추세</span>' : ''}
             </td>
-            <td title="[누가] 기업 재무정보&#10;[무엇을] 부채비율=부채/자본, 유보율=유보금/자본금&#10;[언제] 분기별 재무제표 기준&#10;[어디서] 네이버 금융 재무정보&#10;[왜] 재무 안정성 확인&#10;부채비율 100% 이하=안정적">
+            <td>
                 <div style="font-size: 0.8rem;">부채: ${stock.debt_rate ? stock.debt_rate.toFixed(1) + '%' : '-'}</div>
                 <div style="font-size: 0.8rem;">유보: ${stock.rsrv_rate ? Math.round(stock.rsrv_rate) + '%' : '-'}</div>
             </td>
             <td>
                 <span class="has-tooltip">
                     <button class="btn-add-quick" onclick="quickAddBot('${stock.ticker}', '${stock.name}')">봇 등록</button>
-                    <span class="tooltip-text" style="width:280px; right:0; left:auto;">
-                        <b>[누가]</b> 사용자 클릭 시<br>
-                        <b>[무엇을]</b> 이 종목으로 트레이딩 봇 생성<br>
-                        <b>[언제]</b> 클릭 즉시 모달 열림<br>
-                        <b>[어디서]</b> 대시보드 '봇 추가' 모달<br>
-                        <b>[왜]</b> 자동매매 봇 등록용<br>
-                        <b>[어떻게]</b> 예산/목표수익률 설정 후 '시작' 클릭
+                    <span class="tooltip-text" style="width:200px; right:0; left:auto;">
+                        이 종목으로 봇을 생성합니다.
                     </span>
                 </span>
             </td>
@@ -733,7 +715,7 @@ async function runStrategy(strategyName) {
     const params = new URLSearchParams(strategy.params);
 
     try {
-        const response = await fetch(`/api/screener/scan?${params}`, {
+        const response = await fetch(`/api/screener/cached?${params}`, {
             headers: { 'Authorization': token }
         });
 
@@ -743,7 +725,7 @@ async function runStrategy(strategyName) {
             document.getElementById('resultCount').textContent = (data.count || 0) + '개';
             renderScreenerResults(data.items || []);
         } else {
-            alert('검색 실패: ' + response.statusText);
+            alert('전략 실행 실패: ' + response.statusText);
         }
     } catch (e) {
         alert('검색 오류: ' + e.message);
@@ -783,6 +765,18 @@ async function lookupStock() {
     }
 }
 
+
+// Manual Update Trigger
+async function triggerManualUpdate() {
+    if (!confirm('현재 모든 종목의 데이터를 최신으로 업데이트하시겠습니까?\\n(약 3~5분 소요되며, 서버 부하가 발생할 수 있습니다.)')) return;
+
+    try {
+        const response = await api('POST', '/screener/update');
+        alert('✅ ' + response.message);
+    } catch (e) {
+        alert('❌ 실패: ' + e.message);
+    }
+}
 
 // Add Bot
 function showAddBotModal() {

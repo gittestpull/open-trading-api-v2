@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     libgl1 \
     libxkbcommon0 \
     libegl1 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv

@@ -307,30 +307,66 @@
                 <a href="/">📈 대시보드</a>
                 <a href="/static/screener.html" class="active">🔍 검색기</a>
             </div>
+            <button class="action-btn" onclick="triggerManualUpdate()" style="margin-left: auto;">🔄 데이터 수동
+                업데이트</button>
         </header>
 
         <!-- Filter Panel -->
         <div class="filter-panel">
-            <h3>검색 조건</h3>
-            <div class="filter-group">
-                <label>최소 거래량</label>
-                <input type="number" id="minVolume" value="500000" placeholder="500000">
+            <h3>검색 조건 (범위 설정: 0 입력 시 제한 없음)</h3>
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label>거래량 (주)</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="number" id="minVolume" value="0" placeholder="Min">
+                        <input type="number" id="maxVolume" value="0" placeholder="Max">
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label>시가총액 (억)</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="number" id="minMarketCap" value="0" placeholder="Min">
+                        <input type="number" id="maxMarketCap" value="0" placeholder="Max">
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label>PER (배)</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="number" id="minPer" value="0" step="0.1" placeholder="Min">
+                        <input type="number" id="maxPer" value="0" step="0.1" placeholder="Max">
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label>PBR (배)</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="number" id="minPbr" value="0" step="0.1" placeholder="Min">
+                        <input type="number" id="maxPbr" value="0" step="0.1" placeholder="Max">
+                    </div>
+                </div>
             </div>
-            <div class="filter-group">
-                <label>최대 PER</label>
-                <input type="number" id="maxPer" value="30" step="0.1" placeholder="30">
-            </div>
-            <div class="filter-group">
-                <label>최소 영업이익률 (%)</label>
-                <input type="number" id="minOpRate" value="0" step="0.1" placeholder="0">
-            </div>
-            <div class="filter-group">
-                <label>최대 부채비율 (%)</label>
-                <input type="number" id="maxDebtRate" value="200" step="0.1" placeholder="200">
-            </div>
-            <div class="filter-group">
-                <label>최대 유보율 (%)</label>
-                <input type="number" id="maxRsrvRate" value="5000" step="10" placeholder="5000">
+
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label>영업이익률 (%)</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="number" id="minOpRate" value="0" step="0.1" placeholder="Min">
+                        <input type="number" id="maxOpRate" value="0" step="0.1" placeholder="Max">
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label>부채비율 (%)</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="number" id="minDebtRate" value="0" step="0.1" placeholder="Min">
+                        <input type="number" id="maxDebtRate" value="0" step="0.1" placeholder="Max">
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label>유보율 (%)</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="number" id="minRsrvRate" value="0" step="10" placeholder="Min">
+                        <input type="number" id="maxRsrvRate" value="0" step="10" placeholder="Max">
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -399,7 +435,9 @@
                     <th>종목명</th>
                     <th>섹터</th>
                     <th>현재가</th>
+                    <th>시가총액</th>
                     <th>PER</th>
+                    <th>PBR</th>
                     <th>영업이익율</th>
                     <th>RSI / 추세</th>
                     <th>부채/유보</th>
@@ -477,12 +515,28 @@
 
             const params = new URLSearchParams({
                 minVolume: document.getElementById('minVolume').value,
+                maxVolume: document.getElementById('maxVolume').value,
+
+                minMarketCap: document.getElementById('minMarketCap').value,
+                maxMarketCap: document.getElementById('maxMarketCap').value,
+
+                minPer: document.getElementById('minPer').value,
                 maxPer: document.getElementById('maxPer').value,
+
+                minPbr: document.getElementById('minPbr').value,
+                maxPbr: document.getElementById('maxPbr').value,
+
+                minOpRate: document.getElementById('minOpRate').value,
+                maxOpRate: document.getElementById('maxOpRate').value,
+
+                minDebtRate: document.getElementById('minDebtRate').value,
+                maxDebtRate: document.getElementById('maxDebtRate').value,
+
+                minRsrvRate: document.getElementById('minRsrvRate').value,
+                maxRsrvRate: document.getElementById('maxRsrvRate').value,
+
                 requireDoubleBottom: document.getElementById('requireDoubleBottom').checked,
                 requireInvestorFlow: document.getElementById('requireInvestorFlow').checked,
-                minOpRate: document.getElementById('minOpRate').value,
-                maxDebtRate: document.getElementById('maxDebtRate').value,
-                maxRsrvRate: document.getElementById('maxRsrvRate').value,
                 optimalMode: document.getElementById('optimalMode').checked
             });
 
@@ -501,8 +555,7 @@
                     // Display applied filters
                     if (data.filters) {
                         const f = data.filters;
-                        document.getElementById('lastScanTime').textContent =
-                            `${f.description} | 거래량≥${(f.minVolume / 10000).toFixed(0)}만 | PER≤${f.maxPer}`;
+                        document.getElementById('lastScanTime').textContent = f.description || `검색 결과: ${data.count}개`;
                     }
 
                     renderResults(data.items || [], data.filters);
@@ -545,7 +598,9 @@
                     <td><a href="https://finance.naver.com/item/main.naver?code=${stock.ticker}" target="_blank" style="color: #4fc3f7; text-decoration: none;">${stock.name || '-'}</a></td>
                     <td><span class="badge badge-info">${stock.sector || '-'}</span></td>
                     <td>${formatNumber(stock.price)}원</td>
-                    <td>${stock.per ? stock.per.toFixed(1) : '-'}</td>
+                    <td style="font-size: 0.9rem;">${formatMarketCap(stock.market_cap)}</td>
+                    <td>${stock.per ? stock.per.toFixed(2) : '-'}</td>
+                    <td>${stock.pbr ? stock.pbr.toFixed(2) : '-'}</td>
                     <td class="${stock.op_rate >= 5 ? 'badge-success' : ''}">${stock.op_rate ? stock.op_rate.toFixed(1) + '%' : '-'}</td>
                     <td>
                         ${stock.rsi ? `<span class="badge" style="background: ${stock.rsi > 60 ? '#ff9800' : stock.rsi < 40 ? '#03a9f4' : '#4caf50'}">RSI ${stock.rsi}</span>` : ''}
@@ -566,6 +621,23 @@
         function formatNumber(num) {
             if (!num) return '-';
             return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        }
+
+        // Format Market Cap (억 단위 -> 조/억)
+        function formatMarketCap(amount) {
+            if (!amount) return '-';
+            // amount는 억 단위가 아니라 원 단위? 아니, 네이버 시총은 '억원' 단위로 옴. 
+            // 하지만 8,228,297 -> 822 조? 아니면 8조?
+            // 삼성전자 시총 500조. -> 5,000,000 억원.
+            // check_columns output: 8,228,297 (억원). -> 822조.
+
+            // 1조 = 10,000 억
+            if (amount >= 10000) {
+                const trillion = Math.floor(amount / 10000);
+                const billion = amount % 10000;
+                return `${trillion}조 ${billion}억`;
+            }
+            return `${formatNumber(amount)}억`;
         }
 
         // Render score dots
@@ -650,6 +722,29 @@
                 }
             } catch (e) {
                 alert('조회 오류: ' + e.message);
+            }
+        }
+
+        // Manual Update Trigger
+        async function triggerManualUpdate() {
+            if (!confirm('현재 모든 종목의 데이터를 최신으로 업데이트하시겠습니까?\n(약 3~5분 소요되며, 서버 부하가 발생할 수 있습니다.)')) return;
+
+            try {
+                const response = await fetch('/api/screener/update', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Basic ' + btoa('user:' + password)
+                    }
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    alert('✅ ' + data.message);
+                } else {
+                    alert('❌ 실패: ' + data.message);
+                }
+            } catch (e) {
+                alert('오류 발생: ' + e.message);
             }
         }
 

@@ -121,102 +121,90 @@
             <div id="screener-section" class="tab-content">
                 <div class="screener-controls">
                     <div class="filter-panel">
-                        <h3>🔍 조건 검색 설정 <small style="font-weight: normal; color: #888;">(출처: 네이버 금융)</small></h3>
+                        <h3>🔍 조건 검색 설정 <small style="font-weight: normal; color: #888;">(출처: 네이버 금융)</small>
+                            <button class="action-btn" onclick="triggerManualUpdate()"
+                                style="float: right; font-size: 0.8rem; background: transparent; border: 1px solid #4fc3f7; color: #4fc3f7; padding: 4px 8px; border-radius: 4px; cursor: pointer;">🔄
+                                데이터 수동 업데이트</button>
+                        </h3>
+
                         <div class="filter-row">
                             <div class="filter-group">
-                                <label>
-                                    <input type="checkbox" id="useMinVolume"> 최소 거래량
-                                    <span class="has-tooltip">
-                                        <span class="info-icon">i</span>
-                                        <span class="tooltip-text">당일 누적 거래량 기준. 유동성이 낮은 종목을 제외합니다.<br><br>📍 적용: <b>'전체
-                                                종목 검색'</b> 버튼</span>
-                                    </span>
-                                </label>
-                                <input type="number" id="minVolume" value="500000">
+                                <label>거래량 (주)</label>
+                                <div style="display: flex; gap: 5px;">
+                                    <input type="number" id="minVolume" value="0" placeholder="Min">
+                                    <input type="number" id="maxVolume" value="0" placeholder="Max">
+                                </div>
                             </div>
+                            <div class="filter-group">
+                                <label>시가총액 (억)</label>
+                                <div style="display: flex; gap: 5px;">
+                                    <input type="number" id="minMarketCap" value="0" placeholder="Min">
+                                    <input type="number" id="maxMarketCap" value="0" placeholder="Max">
+                                </div>
+                            </div>
+                            <div class="filter-group">
+                                <label>PER (배)</label>
+                                <div style="display: flex; gap: 5px;">
+                                    <input type="number" id="minPer" value="0" step="0.1" placeholder="Min">
+                                    <input type="number" id="maxPer" value="0" step="0.1" placeholder="Max">
+                                </div>
+                            </div>
+                            <div class="filter-group">
+                                <label>PBR (배)</label>
+                                <div style="display: flex; gap: 5px;">
+                                    <input type="number" id="minPbr" value="0" step="0.1" placeholder="Min">
+                                    <input type="number" id="maxPbr" value="0" step="0.1" placeholder="Max">
+                                </div>
+                            </div>
+                        </div>
 
+                        <div class="filter-row">
                             <div class="filter-group">
-                                <label>
-                                    <input type="checkbox" id="useMaxPer" checked> 최대 PER
-                                    <span class="has-tooltip">
-                                        <span class="info-icon">i</span>
-                                        <span class="tooltip-text">Price-to-Earning Ratio. 낮을수록 저평가. 음수는 적자
-                                            기업.<br><br>📍 적용: <b>'전체 종목 검색'</b> 버튼</span>
-                                    </span>
-                                </label>
-                                <input type="number" id="maxPer" value="30" step="0.1">
+                                <label>영업이익률 (%)</label>
+                                <div style="display: flex; gap: 5px;">
+                                    <input type="number" id="minOpRate" value="0" step="0.1" placeholder="Min">
+                                    <input type="number" id="maxOpRate" value="0" step="0.1" placeholder="Max">
+                                </div>
                             </div>
                             <div class="filter-group">
-                                <label>
-                                    <input type="checkbox" id="useMinOpRate"> 최소 영업이익률 (%)
-                                    <span class="has-tooltip">
-                                        <span class="info-icon">i</span>
-                                        <span class="tooltip-text">영업이익/매출액 비율. 기업의 수익성 지표입니다.<br><br>📍 적용: <b>'전체 종목
-                                                검색'</b> 버튼</span>
-                                    </span>
-                                </label>
-                                <input type="number" id="minOpRate" value="0" step="0.1">
+                                <label>부채비율 (%)</label>
+                                <div style="display: flex; gap: 5px;">
+                                    <input type="number" id="minDebtRate" value="0" step="0.1" placeholder="Min">
+                                    <input type="number" id="maxDebtRate" value="0" step="0.1" placeholder="Max">
+                                </div>
                             </div>
                             <div class="filter-group">
-                                <label>
-                                    <input type="checkbox" id="useMaxDebtRate"> 최대 부채비율 (%)
-                                    <span class="has-tooltip">
-                                        <span class="info-icon">i</span>
-                                        <span class="tooltip-text">부채/자본 비율. 100% 이하면 안정적인 재무구조.<br><br>📍 적용: <b>'전체 종목
-                                                검색'</b> 버튼</span>
-                                    </span>
-                                </label>
-                                <input type="number" id="maxDebtRate" value="200" step="0.1">
-                            </div>
-                            <div class="filter-group">
-                                <label>
-                                    <input type="checkbox" id="useMaxRsrvRate"> 최대 유보율 (%)
-                                    <span class="has-tooltip">
-                                        <span class="info-icon">i</span>
-                                        <span class="tooltip-text">사내유보금/자본금 비율. 너무 높으면 투자 부족, 적정 수준이 좋습니다.<br><br>📍
-                                            적용: <b>'전체 종목 검색'</b> 버튼</span>
-                                    </span>
-                                </label>
-                                <input type="number" id="maxRsrvRate" value="5000" step="10">
+                                <label>유보율 (%)</label>
+                                <div style="display: flex; gap: 5px;">
+                                    <input type="number" id="minRsrvRate" value="0" step="10" placeholder="Min">
+                                    <input type="number" id="maxRsrvRate" value="0" step="10" placeholder="Max">
+                                </div>
                             </div>
                         </div>
 
                         <div class="checkbox-row">
-                            <label>
-                                <input type="checkbox" id="requireDoubleBottom"> 쌍바닥 패턴
-                                <span class="has-tooltip">
-                                    <span class="info-icon">i</span>
-                                    <span class="tooltip-text">W형 차트 패턴. 바닥 확인 후 반등 기대 신호입니다.<br><br>📍 적용: <b>'전체 종목
-                                            검색'</b> 버튼</span>
-                                </span>
-                            </label>
-                            <label>
-                                <input type="checkbox" id="requireInvestorFlow"> 외인/기관 수급
-                                <span class="has-tooltip">
-                                    <span class="info-icon">i</span>
-                                    <span class="tooltip-text">외국인/기관 투자자 순매수 추세. 수급 동력 확인용.<br><br>📍 적용: <b>'전체 종목
-                                            검색'</b>, <b>'외인/기관 매집'</b> 전략</span>
-                                </span>
-                            </label>
-
-                            <label
-                                style="border: 1px solid #ffd700; padding: 2px 8px; border-radius: 4px; background: rgba(255, 215, 0, 0.05); margin-left: 10px;">
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="requireDoubleBottom">
+                                <label for="requireDoubleBottom">📉 쌍바닥 패턴</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="requireInvestorFlow">
+                                <label for="requireInvestorFlow">📊 외국인/기관 수급 (3일)</label>
+                            </div>
+                            <div class="checkbox-item"
+                                style="border: 1px solid #ffd700; padding: 5px 10px; border-radius: 5px; background: rgba(255, 215, 0, 0.05);">
                                 <input type="checkbox" id="optimalMode">
-                                <span style="color: #ffd700; font-weight: bold;">✨ 최적전략(AI)</span>
-                                <span class="has-tooltip">
-                                    <span class="info-icon" style="color: #ffd700;">i</span>
-                                    <span class="tooltip-text">여러 지표를 종합하여 AI가 추천하는 최적 조건으로 검색합니다.<br><br>📍 적용:
-                                        <b>'급등주'</b>, <b>'추세 돌파'</b> 전략</span>
-                                </span>
-                            </label>
+                                <label for="optimalMode" style="color: #ffd700; font-weight: bold; cursor: pointer;">✨
+                                    Antigravity 최적 전략 (AI)</label>
+                            </div>
                         </div>
 
-                        <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
+                        <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
                             <span class="has-tooltip">
                                 <button class="btn-scan" id="scanBtn" onclick="startScan()">
-                                    🔍 전체 종목 검색
+                                    🔍 검색 시작
                                 </button>
-                                <span class="tooltip-text">정해진 필터링 조건(거래량, PER 등)에 맞는 종목을 전수 조사합니다.</span>
+                                <span class="tooltip-text">설정된 조건으로 종목을 검색합니다.</span>
                             </span>
 
                             <span class="has-tooltip">
@@ -224,72 +212,41 @@
                                     onclick="startRawScan()">
                                     📊 전체보기
                                 </button>
-                                <span class="tooltip-text">필터링 없이 거래량 상위 종목만 빠르게 전체 리스팅합니다.</span>
+                                <span class="tooltip-text">필터링 없이 거래량 상위 종목을 조회합니다.</span>
                             </span>
                         </div>
 
                         <!-- Pre-built Strategies -->
-                        <div style="margin-top: 12px;">
+                        <div style="margin-top: 15px;">
                             <label style="color: #ffd54f; font-size: 0.85rem; font-weight: bold;">⚡ 빠른 전략</label>
                             <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
-                                <span class="has-tooltip">
-                                    <button class="btn-scan"
-                                        style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #ff5722, #e64a19);"
-                                        onclick="runStrategy('surge')">🔥 급등주</button>
-                                    <span class="tooltip-text" style="width:280px;">
-                                        <b>검색 조건:</b> 당일 등락률 +5% 이상<br>
-                                        <b>📍 출처:</b> 네이버 금융 실시간 시세<br>
-                                        <b>⚠️ 주의:</b> 변동성이 크므로 손절 설정 필수
-                                    </span>
-                                </span>
-                                <span class="has-tooltip">
-                                    <button class="btn-scan"
-                                        style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #4caf50, #2e7d32);"
-                                        onclick="runStrategy('value')">💰 저PER 가치주</button>
-                                    <span class="tooltip-text" style="width:280px;">
-                                        <b>검색 조건:</b> PER 10 이하 + 영업이익률 5% 이상<br>
-                                        <b>📍 출처:</b> 네이버 금융 재무정보<br>
-                                        <b>💡 특징:</b> 저평가 우량주 발굴용
-                                    </span>
-                                </span>
-                                <span class="has-tooltip">
-                                    <button class="btn-scan"
-                                        style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #2196f3, #1565c0);"
-                                        onclick="runStrategy('trend')">📈 추세 돌파</button>
-                                    <span class="tooltip-text" style="width:280px;">
-                                        <b>검색 조건:</b> 20일 이평선 돌파 + 거래량 급증<br>
-                                        <b>📍 출처:</b> 계산값 (이동평균/거래량)<br>
-                                        <b>💡 특징:</b> 상승 추세 초입 포착용
-                                    </span>
-                                </span>
-                                <span class="has-tooltip">
-                                    <button class="btn-scan"
-                                        style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #ff9800, #ef6c00);"
-                                        onclick="runStrategy('institution')">🏦 외인/기관 매집</button>
-                                    <span class="tooltip-text" style="width:280px;">
-                                        <b>검색 조건:</b> 외국인/기관 5일 연속 순매수<br>
-                                        <b>📍 출처:</b> 네이버 금융 투자자 동향<br>
-                                        <b>💡 특징:</b> 기관 수급 동력 활용
-                                    </span>
-                                </span>
+                                <button class="btn-scan"
+                                    style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #ff5722, #e64a19);"
+                                    onclick="runStrategy('surge')">🔥 급등주</button>
+                                <button class="btn-scan"
+                                    style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #4caf50, #2e7d32);"
+                                    onclick="runStrategy('value')">💰 가치주</button>
+                                <button class="btn-scan"
+                                    style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #2196f3, #1565c0);"
+                                    onclick="runStrategy('trend')">📈 추세돌파</button>
+                                <button class="btn-scan"
+                                    style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #ff9800, #ef6c00);"
+                                    onclick="runStrategy('institution')">🏦 수급매집</button>
                             </div>
                         </div>
 
                         <!-- Manual Stock Lookup -->
                         <div
-                            style="margin-top: 12px; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 6px; border: 1px dashed #456;">
-                            <label style="color: #90caf9; font-size: 0.85rem;">🔎 종목 검색 (코드 또는 이름)</label>
+                            style="margin-top: 15px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; border: 1px dashed #456;">
+                            <label style="color: #90caf9; font-size: 0.9rem;">🔎 종목 검색 (코드 또는 이름)</label>
                             <div style="display: flex; gap: 8px; margin-top: 6px;">
                                 <input type="text" id="manualTicker" placeholder="예: 005930 또는 삼성전자"
-                                    style="flex: 1; padding: 6px 10px; background: #1a2332; border: 1px solid #456; border-radius: 4px; color: #fff; font-size: 0.9rem;">
-                                <span class="has-tooltip" style="flex: 0 0 auto;">
-                                    <button class="btn-scan"
-                                        style="padding: 6px 16px; background: linear-gradient(135deg, #00bcd4, #009688);"
-                                        onclick="lookupStock()">
-                                        조회
-                                    </button>
-                                    <span class="tooltip-text">입력한 종목코드 또는 종목명의 정보를 즉시 조회합니다.</span>
-                                </span>
+                                    style="flex: 1; padding: 8px 12px; background: #1a2332; border: 1px solid #456; border-radius: 4px; color: #fff; font-size: 0.9rem;">
+                                <button class="btn-scan"
+                                    style="padding: 8px 16px; background: linear-gradient(135deg, #00bcd4, #009688);"
+                                    onclick="lookupStock()">
+                                    조회
+                                </button>
                             </div>
                         </div>
                     </div>

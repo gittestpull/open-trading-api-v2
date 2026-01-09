@@ -11,12 +11,14 @@
     "momentum": false,
     "ignore_market": false,
     "status": "STOPPED",
-    "avg_price": 0,
-    "total_qty": 0,
-    "current_price": 0,
-    "profit_rate": 0,
+    "avg_price": 19346,
+    "total_qty": 25,
+    "current_price": 19350,
+    "profit_rate": 0.00020676108756334521,
     "created_at": "2026-01-09T11:24:04.685623",
     "current_exchange": "KRX",
-    "last_update": "2026-01-09T11:26:07.421132"
+    "last_update": "2026-01-09T15:26:48.373641",
+    "buy_prices": [],
+    "pyramiding_threshold": 0.01
   }
 }

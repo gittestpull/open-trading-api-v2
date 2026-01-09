@@ -1573,37 +1573,21 @@ async def screener_lookup(query: str, _: str = Depends(verify_password)):
 @app.get("/api/screener/raw")
 async def screener_raw(minVolume: int = 0, _: str = Depends(verify_password)):
     """필터 없이 거래량 상위 종목만 조회 (RAW 모드)"""
-    if stock_screener is None:
-        raise HTTPException(status_code=503, detail="Stock Screener 초기화 실패")
-    
     try:
-        # 거래량 상위 종목 조회
-        volume_df = await asyncio.to_thread(stock_screener.get_high_volume_stocks, minVolume)
+        from stock_cache import get_stock_cache
+        cache = get_stock_cache()
         
-        if volume_df.empty:
-            return {"status": "success", "count": 0, "items": [], "message": "거래량 조건 충족 종목 없음"}
+        # 필터링 없이 거래량 기준으로 가져옴
+        results = cache.filter_stocks(
+            min_volume=minVolume,
+            limit=50
+        )
         
-        # 종목 코드 추출
-        tickers = volume_df['mksc_shrn_iscd'].tolist() if 'mksc_shrn_iscd' in volume_df.columns else []
-        
-        results = []
-        for ticker in tickers[:30]:  # 최대 30개
-            info = await asyncio.to_thread(stock_screener.get_stock_price_info, ticker)
-            if info:
-                results.append({
-                    "ticker": ticker,
-                    "name": info.get("name", ticker),
-                    "price": info.get("price", 0),
-                    "volume": info.get("volume", 0),
-                    "sector": info.get("sector", "-"),
-                    "per": None,
-                    "op_rate": None,
-                    "debt_rate": None,
-                    "rsrv_rate": None,
-                    "rsi": None,
-                    "trend_ok": False,
-                    "score": 0
-                })
+        return {
+            "status": "success", 
+            "count": len(results), 
+            "items": results
+        }
         
         return {
             "status": "success", 
@@ -1619,7 +1603,20 @@ async def screener_raw(minVolume: int = 0, _: str = Depends(verify_password)):
 @app.get("/api/screener/cached")
 async def screener_cached(
     minVolume: int = 0,
-    maxPer: float = 9999,
+    maxVolume: int = 0,
+    minPer: float = 0,
+    maxPer: float = 0,
+    minPbr: float = 0,
+    maxPbr: float = 0,
+    minMarketCap: int = 0, # 억 단위
+    maxMarketCap: int = 0,
+    minOpRate: float = -999,
+    maxOpRate: float = 0,
+    minDebtRate: float = 0,
+    maxDebtRate: float = 0,
+    minRsrvRate: float = 0,
+    maxRsrvRate: float = 0,
+    optimalMode: bool = False,
     market: str = None,
     limit: int = 100,
     _: str = Depends(verify_password)
@@ -1638,9 +1635,23 @@ async def screener_cached(
             }
         
         # 필터링
+        # 필터링
         results = cache.filter_stocks(
             min_volume=minVolume,
-            max_per=maxPer if maxPer < 9999 else 9999,
+            max_volume=maxVolume,
+            min_per=minPer,
+            max_per=maxPer,
+            min_pbr=minPbr,
+            max_pbr=maxPbr,
+            min_market_cap=minMarketCap,
+            max_market_cap=maxMarketCap,
+            min_op_rate=minOpRate,
+            max_op_rate=maxOpRate,
+            min_debt_rate=minDebtRate,
+            max_debt_rate=maxDebtRate,
+            min_rsrv_rate=minRsrvRate,
+            max_rsrv_rate=maxRsrvRate,
+            optimal_mode=optimalMode,
             market=market,
             limit=limit
         )
@@ -1654,16 +1665,34 @@ async def screener_cached(
             "last_update": stats['last_update'],
             "items": results,
             "filters": {
+                "description": "Custom Filters",
                 "minVolume": minVolume,
                 "maxPer": maxPer,
-                "market": market,
-                "limit": limit
+                "minOpRate": minOpRate
             }
         }
     except Exception as e:
         logger.error(f"Cached screener failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.post("/api/screener/update")
+async def update_cache_manual(_: str = Depends(verify_password)):
+    """수동으로 캐시 업데이트 트리거"""
+    try:
+        from stock_cache import get_stock_cache
+        cache = get_stock_cache()
+        
+        if cache.is_updating:
+            return {"status": "error", "message": "이미 업데이트가 진행 중입니다."}
+            
+        # 백그라운드에서 실행
+        asyncio.create_task(cache.update_cache())
+        
+        return {"status": "success", "message": "캐시 업데이트를 시작했습니다. (약 3~5분 소요)"}
+    except Exception as e:
+        logger.error(f"Manual update failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/screener/cache-stats")
 async def screener_cache_stats(_: str = Depends(verify_password)):
