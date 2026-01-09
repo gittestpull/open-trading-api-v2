@@ -277,7 +277,12 @@ function renderBots() {
                 </span>`
                 : `<span class="has-tooltip">
                     <button onclick="startBot('${bot.id}')" class="btn-start">시작</button>
-                    <span class="tooltip-text">봇 프로세스를 시작합니다. 설정된 조건에 따라 자동 매매를 시작합니다.</span>
+                    <span class="tooltip-text" style="width: 280px; left: 0; transform: none;">
+                        <strong>monitor_scalp_universal.py</strong> 스크립트를 실행합니다.<br><br>
+                        <b>매수 조건:</b> RSI ≤ 30 또는 볼린저 밴드 하단 반등 시 자동 매수.<br>
+                        <b>매도 조건:</b> 평단가 대비 '목표 수익률' 도달 시 전량 익절.<br>
+                        <b>물타기:</b> 평단가 대비 '하락폭' 도달 시 1:2:4:8 가중치로 추가 매수.
+                    </span>
                 </span>`
             }
                 <span class="has-tooltip">
