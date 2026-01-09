@@ -521,23 +521,23 @@ function renderScreenerResults(stocks, filterInfo = null) {
 
     tbody.innerHTML = stocks.map(stock => `
         <tr>
-            <td><strong>${stock.ticker}</strong></td>
-            <td><a href="https://finance.naver.com/item/main.naver?code=${stock.ticker}" target="_blank" class="stock-link">${stock.name || '-'}</a></td>
-            <td>${Math.round(stock.price || 0).toLocaleString()}원</td>
-            <td class="${(stock.change_rate || 0) > 0 ? 'text-success' : (stock.change_rate || 0) < 0 ? 'text-danger' : ''}">
+            <td title="[누가] KRX 상장 종목&#10;[무엇을] 종목 고유 코드&#10;[어디서] 한국거래소(KRX)&#10;[왜] 종목 식별용 (변경 불가)"><strong>${stock.ticker}</strong></td>
+            <td title="[누가] 상장 기업&#10;[무엇을] 회사 공식 상장명&#10;[어디서] 네이버 금융&#10;[왜] 클릭하면 네이버 금융 상세페이지로 이동"><a href="https://finance.naver.com/item/main.naver?code=${stock.ticker}" target="_blank" class="stock-link">${stock.name || '-'}</a></td>
+            <td title="[누가] 시장 체결가&#10;[무엇을] 마지막 체결된 가격&#10;[언제] 캐시 갱신 시 (5분마다)&#10;[어디서] 네이버 금융 시세&#10;[왜] 현재 매수 가능 가격 확인">${Math.round(stock.price || 0).toLocaleString()}원</td>
+            <td class="${(stock.change_rate || 0) > 0 ? 'text-success' : (stock.change_rate || 0) < 0 ? 'text-danger' : ''}" title="[누가] 시스템 자동 계산&#10;[무엇을] (현재가 - 전일종가) / 전일종가&#10;[언제] 캐시 갱신 시 (5분마다)&#10;[어디서] 네이버 금융&#10;[왜] 당일 상승/하락 확인&#10;🟢 양수=상승 / 🔴 음수=하락">
                 ${(stock.change_rate || 0) > 0 ? '+' : ''}${stock.change_rate ? stock.change_rate.toFixed(2) + '%' : '0.00%'}
             </td>
-            <td style="color: #90caf9;">${formatVolume(stock.volume || 0)}</td>
-            <td>${stock.per ? stock.per.toFixed(1) : '-'}</td>
-            <td class="${stock.op_rate >= 5 ? 'text-success' : ''}">
+            <td style="color: #90caf9;" title="[누가] 시장 참여자 거래&#10;[무엇을] 당일 누적 거래량&#10;[언제] 캐시 갱신 시 (5분마다)&#10;[어디서] 네이버 금융&#10;[왜] 유동성 확인 (높을수록 좋음)&#10;[단위] K=천주, M=백만주">${formatVolume(stock.volume || 0)}</td>
+            <td title="[누가] 기업 재무정보&#10;[무엇을] 주가수익비율 = 주가/주당순이익&#10;[언제] 분기별 재무제표 기준&#10;[어디서] 네이버 금융 재무정보&#10;[왜] 저평가 판단 (낮을수록 저평가)&#10;음수=적자 기업">${stock.per ? stock.per.toFixed(1) : '-'}</td>
+            <td class="${stock.op_rate >= 5 ? 'text-success' : ''}" title="[누가] 기업 재무정보&#10;[무엇을] 영업이익률 = 영업이익/매출액&#10;[언제] 분기별 재무제표 기준&#10;[어디서] 네이버 금융 재무정보&#10;[왜] 사업 수익성 확인 (5% 이상 양호)">
                 <div style="font-size: 0.9rem;">${stock.op_rate ? stock.op_rate.toFixed(1) + '%' : '-'}</div>
                 <div style="font-size: 0.7rem; color: #888;">${stock.sector || '-'}</div>
             </td>
-            <td>
-                ${stock.rsi ? `<span class="badge" style="background: ${stock.rsi > 60 ? '#ff9800' : stock.rsi < 40 ? '#03a9f4' : '#4caf50'}">RSI ${stock.rsi}</span>` : ''}
-                ${stock.trend_ok ? '<span class="badge" style="background: #9c27b0">추세</span>' : ''}
+            <td title="[누가] 시스템 자동 계산&#10;[무엇을] RSI: 14일간 상승폭/하락폭 비율&#10;[언제] 캐시 갱신 시 (5분마다)&#10;[어디서] 가격 데이터 기반 계산&#10;[왜] 과매수/과매도 판단&#10;RSI≤30=과매도(매수기회) / RSI≥70=과매수(매도고려)">
+                ${stock.rsi ? `<span class="badge" style="background: ${stock.rsi > 60 ? '#ff9800' : stock.rsi < 40 ? '#03a9f4' : '#4caf50'}">RSI ${stock.rsi}</span>` : '-'}
+                ${stock.trend_ok ? '<span class="badge" style="background: #9c27b0" title="[무엇을] 20일 이평선 돌파 + 거래량 급증">추세</span>' : ''}
             </td>
-            <td>
+            <td title="[누가] 기업 재무정보&#10;[무엇을] 부채비율=부채/자본, 유보율=유보금/자본금&#10;[언제] 분기별 재무제표 기준&#10;[어디서] 네이버 금융 재무정보&#10;[왜] 재무 안정성 확인&#10;부채비율 100% 이하=안정적">
                 <div style="font-size: 0.8rem;">부채: ${stock.debt_rate ? stock.debt_rate.toFixed(1) + '%' : '-'}</div>
                 <div style="font-size: 0.8rem;">유보: ${stock.rsrv_rate ? Math.round(stock.rsrv_rate) + '%' : '-'}</div>
             </td>
@@ -545,10 +545,12 @@ function renderScreenerResults(stocks, filterInfo = null) {
                 <span class="has-tooltip">
                     <button class="btn-add-quick" onclick="quickAddBot('${stock.ticker}', '${stock.name}')">봇 등록</button>
                     <span class="tooltip-text" style="width:280px; right:0; left:auto;">
-                        <b>클릭 시:</b> 이 종목으로 트레이딩 봇을 생성합니다.<br><br>
-                        <b>📍 어디서:</b> 대시보드 '봇 추가' 모달이 열림<br>
-                        <b>⚙️ 설정:</b> 예산, 목표수익률, 하락폭 등 직접 설정<br>
-                        <b>🚀 실행:</b> '시작' 클릭 시 monitor_scalp_universal.py 실행
+                        <b>[누가]</b> 사용자 클릭 시<br>
+                        <b>[무엇을]</b> 이 종목으로 트레이딩 봇 생성<br>
+                        <b>[언제]</b> 클릭 즉시 모달 열림<br>
+                        <b>[어디서]</b> 대시보드 '봇 추가' 모달<br>
+                        <b>[왜]</b> 자동매매 봇 등록용<br>
+                        <b>[어떻게]</b> 예산/목표수익률 설정 후 '시작' 클릭
                     </span>
                 </span>
             </td>
