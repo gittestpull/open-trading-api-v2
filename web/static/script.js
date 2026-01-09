@@ -256,7 +256,10 @@ function renderBots() {
             }
                 <button onclick="viewLogs('${bot.id}')" class="btn-log ${selectedBotId === bot.id ? 'active' : ''}">로그</button>
                 ${!isRunning ? `<button onclick="showEditBotModal('${bot.id}')" class="btn-icon" title="설정 수정">⚙️</button>` : ''}
-                <button onclick="manualBuyBot('${bot.id}', '${bot.ticker}')" class="btn-buy" title="즉시 시장가 추가 매수">⚡ 매수</button>
+                <span class="has-tooltip">
+                    <button onclick="manualBuyBot('${bot.id}', '${bot.ticker}')" class="btn-buy" title="즉시 시장가 추가 매수">⚡ 매수</button>
+                    <span class="tooltip-text" style="bottom: 150%;">클릭 시 설정된 예산의 25%만큼 즉시 시장가로 매수합니다.</span>
+                </span>
                 <button onclick="panicSellBot('${bot.id}', '${bot.ticker}')" class="btn-panic" title="전량매도 및 리셋">⚡ 매도</button>
                 <button onclick="deleteBot('${bot.id}')" class="btn-delete" title="삭제">🗑️</button>
             </div>

@@ -999,6 +999,74 @@ footer {
     gap: 4px;
 }
 
+/* Tooltips */
+.info-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    background: rgba(88, 166, 255, 0.2);
+    color: var(--accent-blue);
+    border-radius: 50%;
+    font-size: 0.75rem;
+    font-weight: bold;
+    cursor: help;
+    margin-left: 6px;
+    position: relative;
+    vertical-align: middle;
+}
+
+.has-tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+.tooltip-text {
+    visibility: hidden;
+    width: 220px;
+    background-color: #2d333b;
+    color: #adbac7;
+    text-align: left;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 10px;
+    position: absolute;
+    z-index: 1000;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-size: 0.8rem;
+    font-weight: normal;
+    line-height: 1.4;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+}
+
+.tooltip-text::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #2d333b transparent transparent transparent;
+}
+
+.has-tooltip:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Adjustments for specific placements */
+.form-group label {
+    display: flex;
+    align-items: center;
+}
+
 .badge-mini {
     padding: 2px 6px;
     border-radius: 10px;

@@ -210,13 +210,35 @@
                         <input type="number" id="budgetInput" placeholder="1300000" value="1300000" required>
                     </div>
                     <div class="form-group">
-                        <label>목표 수익률 (%)</label>
+                        <label>
+                            목표 수익 (%)
+                            <span class="has-tooltip">
+                                <span class="info-icon">i</span>
+                                <span class="tooltip-text">평단가 대비 설정한 수익률에 도달하면 전량 매도합니다. (익절 기준)</span>
+                            </span>
+                        </label>
                         <input type="number" id="targetInput" placeholder="2" value="2" step="any" required>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            추가 매수 하락폭 (%)
+                            <span class="has-tooltip">
+                                <span class="info-icon">i</span>
+                                <span class="tooltip-text">평단가 대비 설정한 하락폭만큼 떨어지면 추가 매수(물타기)를 진행합니다.</span>
+                            </span>
+                        </label>
+                        <input type="number" id="pyramidingInput" placeholder="1.0" value="1.0" step="0.1" required>
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label>수동 매수 가격 (최대 4개, 0 = 즉시시장가)</label>
+                    <label>
+                        수동 매수 가격 (최대 4개)
+                        <span class="has-tooltip">
+                            <span class="info-icon">i</span>
+                            <span class="tooltip-text">특정 가격을 지정해두면 해당 가격 터치 시 즉시 매수합니다. (0 또는 공백은 무시)</span>
+                        </span>
+                    </label>
                     <div class="multi-input-row">
                         <input type="number" id="buyPriceInput1" placeholder="매수가1" value="0">
                         <input type="number" id="buyPriceInput2" placeholder="매수가2" value="0">
@@ -271,17 +293,35 @@
                         <input type="number" id="editBudgetInput" required>
                     </div>
                     <div class="form-group">
-                        <label>목표 수익 (%)</label>
+                        <label>
+                            목표 수익 (%)
+                            <span class="has-tooltip">
+                                <span class="info-icon">i</span>
+                                <span class="tooltip-text">평단가 대비 설정한 수익률에 도달하면 전량 매도합니다. (익절 기준)</span>
+                            </span>
+                        </label>
                         <input type="number" id="editTargetInput" step="0.1" placeholder="2.0" value="2.0">
                     </div>
                     <div class="form-group">
-                        <label>추가 매수 하락폭 (%)</label>
+                        <label>
+                            추가 매수 하락폭 (%)
+                            <span class="has-tooltip">
+                                <span class="info-icon">i</span>
+                                <span class="tooltip-text">평단가 대비 설정한 하락폭만큼 떨어지면 추가 매수(물타기)를 진행합니다.</span>
+                            </span>
+                        </label>
                         <input type="number" id="editPyramidingInput" step="0.1" placeholder="1.0" value="1.0">
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label>수동 매수 가격 (최대 4개, 0 = 즉시시장가)</label>
+                    <label>
+                        수동 매수 가격 (최대 4개)
+                        <span class="has-tooltip">
+                            <span class="info-icon">i</span>
+                            <span class="tooltip-text">특정 가격을 지정해두면 해당 가격 터치 시 즉시 매수합니다. (0 또는 공백은 무시)</span>
+                        </span>
+                    </label>
                     <div class="multi-input-row">
                         <input type="number" id="editBuyPriceInput1" placeholder="매수가1" value="0">
                         <input type="number" id="editBuyPriceInput2" placeholder="매수가2" value="0">
