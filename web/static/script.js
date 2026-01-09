@@ -466,7 +466,15 @@ function renderScreenerResults(stocks) {
                 <div style="font-size: 0.8rem;">유보: ${stock.rsrv_rate ? Math.round(stock.rsrv_rate) + '%' : '-'}</div>
             </td>
             <td>
-                <button class="btn-add-quick" onclick="quickAddBot('${stock.ticker}', '${stock.name}')">봇 등록</button>
+                <span class="has-tooltip">
+                    <button class="btn-add-quick" onclick="quickAddBot('${stock.ticker}', '${stock.name}')">봇 등록</button>
+                    <span class="tooltip-text" style="width:280px; right:0; left:auto;">
+                        <b>클릭 시:</b> 이 종목으로 트레이딩 봇을 생성합니다.<br><br>
+                        <b>📍 어디서:</b> 대시보드 '봇 추가' 모달이 열림<br>
+                        <b>⚙️ 설정:</b> 예산, 목표수익률, 하락폭 등 직접 설정<br>
+                        <b>🚀 실행:</b> '시작' 클릭 시 monitor_scalp_universal.py 실행
+                    </span>
+                </span>
             </td>
         </tr>
     `).join('');

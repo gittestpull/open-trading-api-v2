@@ -179,18 +179,46 @@
                         <div style="margin-top: 12px;">
                             <label style="color: #ffd54f; font-size: 0.85rem; font-weight: bold;">⚡ 빠른 전략</label>
                             <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
-                                <button class="btn-scan"
-                                    style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #ff5722, #e64a19);"
-                                    onclick="runStrategy('surge')">🔥 급등주</button>
-                                <button class="btn-scan"
-                                    style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #4caf50, #2e7d32);"
-                                    onclick="runStrategy('value')">💰 저PER 가치주</button>
-                                <button class="btn-scan"
-                                    style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #2196f3, #1565c0);"
-                                    onclick="runStrategy('trend')">📈 추세 돌파</button>
-                                <button class="btn-scan"
-                                    style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #ff9800, #ef6c00);"
-                                    onclick="runStrategy('institution')">🏦 외인/기관 매집</button>
+                                <span class="has-tooltip">
+                                    <button class="btn-scan"
+                                        style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #ff5722, #e64a19);"
+                                        onclick="runStrategy('surge')">🔥 급등주</button>
+                                    <span class="tooltip-text" style="width:280px;">
+                                        <b>검색 조건:</b> 당일 등락률 +5% 이상<br>
+                                        <b>📍 출처:</b> 네이버 금융 실시간 시세<br>
+                                        <b>⚠️ 주의:</b> 변동성이 크므로 손절 설정 필수
+                                    </span>
+                                </span>
+                                <span class="has-tooltip">
+                                    <button class="btn-scan"
+                                        style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #4caf50, #2e7d32);"
+                                        onclick="runStrategy('value')">💰 저PER 가치주</button>
+                                    <span class="tooltip-text" style="width:280px;">
+                                        <b>검색 조건:</b> PER 10 이하 + 영업이익률 5% 이상<br>
+                                        <b>📍 출처:</b> 네이버 금융 재무정보<br>
+                                        <b>💡 특징:</b> 저평가 우량주 발굴용
+                                    </span>
+                                </span>
+                                <span class="has-tooltip">
+                                    <button class="btn-scan"
+                                        style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #2196f3, #1565c0);"
+                                        onclick="runStrategy('trend')">📈 추세 돌파</button>
+                                    <span class="tooltip-text" style="width:280px;">
+                                        <b>검색 조건:</b> 20일 이평선 돌파 + 거래량 급증<br>
+                                        <b>📍 출처:</b> 계산값 (이동평균/거래량)<br>
+                                        <b>💡 특징:</b> 상승 추세 초입 포착용
+                                    </span>
+                                </span>
+                                <span class="has-tooltip">
+                                    <button class="btn-scan"
+                                        style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #ff9800, #ef6c00);"
+                                        onclick="runStrategy('institution')">🏦 외인/기관 매집</button>
+                                    <span class="tooltip-text" style="width:280px;">
+                                        <b>검색 조건:</b> 외국인/기관 5일 연속 순매수<br>
+                                        <b>📍 출처:</b> 네이버 금융 투자자 동향<br>
+                                        <b>💡 특징:</b> 기관 수급 동력 활용
+                                    </span>
+                                </span>
                             </div>
                         </div>
 
@@ -239,16 +267,83 @@
                     <table class="screener-table">
                         <thead>
                             <tr>
-                                <th>코드</th>
-                                <th>종목명</th>
-                                <th>현재가</th>
-                                <th>등락률</th>
-                                <th>거래량</th>
-                                <th>PER</th>
-                                <th>수익성</th>
-                                <th>RSI/추세</th>
-                                <th>부채/유보</th>
-                                <th>작업</th>
+                                <th class="has-tooltip">코드
+                                    <span class="tooltip-text" style="width:220px;">
+                                        📍 출처: KRX 상장 종목 코드<br>
+                                        🔄 갱신: 고정값 (변경 없음)<br><br>
+                                        종목 고유 식별자입니다.
+                                    </span>
+                                </th>
+                                <th class="has-tooltip">종목명
+                                    <span class="tooltip-text" style="width:220px;">
+                                        📍 출처: 네이버 금융<br>
+                                        🔄 갱신: 캐시 갱신 시 (5분)<br><br>
+                                        회사 공식 상장명입니다.
+                                    </span>
+                                </th>
+                                <th class="has-tooltip">현재가
+                                    <span class="tooltip-text" style="width:250px;">
+                                        📍 출처: 네이버 금융 실시간 시세<br>
+                                        🔄 갱신: 캐시 갱신 시 (5분)<br><br>
+                                        마지막 체결가 기준입니다.
+                                    </span>
+                                </th>
+                                <th class="has-tooltip">등락률
+                                    <span class="tooltip-text" style="width:250px;">
+                                        📍 출처: 네이버 금융<br>
+                                        📊 계산: (현재가 - 전일종가) / 전일종가<br>
+                                        🔄 갱신: 캐시 갱신 시 (5분)<br><br>
+                                        전일 대비 등락률입니다.
+                                    </span>
+                                </th>
+                                <th class="has-tooltip">거래량
+                                    <span class="tooltip-text" style="width:250px;">
+                                        📍 출처: 네이버 금융<br>
+                                        🔄 갱신: 캐시 갱신 시 (5분)<br><br>
+                                        당일 누적 체결 수량입니다.<br>
+                                        높을수록 유동성이 좋습니다.
+                                    </span>
+                                </th>
+                                <th class="has-tooltip">PER
+                                    <span class="tooltip-text" style="width:280px;">
+                                        📍 출처: 네이버 금융 (재무정보)<br>
+                                        📊 계산: 주가 / 주당순이익(EPS)<br>
+                                        🔄 갱신: 분기별 + 캐시 5분<br><br>
+                                        낮을수록 저평가. 음수는 적자 기업.
+                                    </span>
+                                </th>
+                                <th class="has-tooltip">수익성
+                                    <span class="tooltip-text" style="width:280px;">
+                                        📍 출처: 네이버 금융 (재무정보)<br>
+                                        📊 계산: 영업이익률 = 영업이익/매출액<br>
+                                        🔄 갱신: 분기별 + 캐시 5분<br><br>
+                                        높을수록 사업 경쟁력이 좋습니다.
+                                    </span>
+                                </th>
+                                <th class="has-tooltip">RSI/추세
+                                    <span class="tooltip-text" style="width:300px;">
+                                        📍 출처: 계산값 (14일 RSI)<br>
+                                        📊 계산: 14일간 상승폭/하락폭 비율<br>
+                                        🔄 갱신: 캐시 갱신 시 (5분)<br><br>
+                                        RSI ≤ 30: 과매도 (매수 기회)<br>
+                                        RSI ≥ 70: 과매수 (매도 고려)
+                                    </span>
+                                </th>
+                                <th class="has-tooltip">부채/유보
+                                    <span class="tooltip-text" style="width:280px;">
+                                        📍 출처: 네이버 금융 (재무정보)<br>
+                                        📊 부채비율: 부채/자본<br>
+                                        📊 유보율: 사내유보금/자본금<br>
+                                        🔄 갱신: 분기별 + 캐시 5분<br><br>
+                                        부채비율 100% 이하 = 안정적
+                                    </span>
+                                </th>
+                                <th class="has-tooltip">작업
+                                    <span class="tooltip-text" style="width:250px;">
+                                        이 종목으로 트레이딩 봇을 등록하거나<br>
+                                        상세 정보를 확인할 수 있습니다.
+                                    </span>
+                                </th>
                             </tr>
                         </thead>
                         <tbody id="screenerResults">
