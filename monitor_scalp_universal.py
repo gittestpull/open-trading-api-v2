@@ -1567,9 +1567,9 @@ class UniversalScalper:
                 
                 if self.state == "SEARCHING":
                     # Show different target for NXT vs KRX
-                    if session in ["NXT_PRE", "NXT_POST"] and ref_close > 0:
-                        nxt_target = ref_close * 0.99
-                        log_parts.append(f"NXT Buy@: {nxt_target:,.0f} ({ref_label}{ref_close:,.0f}-1%)")
+                    if session in ["NXT_PRE", "NXT_POST"] and ref_close_price > 0:
+                        nxt_target = ref_close_price * 0.99
+                        log_parts.append(f"NXT Buy@: {nxt_target:,.0f} ({ref_label}{ref_close_price:,.0f}-1%)")
                     else:
                         log_parts.append(f"Next: {next_buy_price_for_log:.2f}")
                 elif self.current_step < MAX_STEPS:
@@ -1595,11 +1595,11 @@ class UniversalScalper:
                     
                     if self.is_domestic:
                         # NXT Session: Reference Close -1% Drop Logic
-                        if session in ["NXT_PRE", "NXT_POST"] and ref_close > 0:
-                            nxt_drop_target = ref_close * 0.99
+                        if session in ["NXT_PRE", "NXT_POST"] and ref_close_price > 0:
+                            nxt_drop_target = ref_close_price * 0.99
                             if curr_price <= nxt_drop_target or candle_low <= nxt_drop_target:
                                 drop_hit = True
-                                drop_reason = f"NXT({ref_label})-1%({ref_close:,.0f}→{nxt_drop_target:,.0f})"
+                                drop_reason = f"NXT({ref_label})-1%({ref_close_price:,.0f}→{nxt_drop_target:,.0f})"
                                 
                         # Regular Hours Logic (existing)
                         elif 8 <= hour < 10 and self.prev_close > 0:
