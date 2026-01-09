@@ -238,34 +238,84 @@ function renderBots() {
 
             <div class="card-details">
                 <div class="detail-row">
-                    <span>예산</span>
+                    <span class="has-tooltip">예산
+                        <span class="tooltip-text" style="width:250px; left:0; transform:none;">
+                            <b>📊 유형:</b> 사용자 설정값<br>
+                            <b>📍 출처:</b> 봇 생성 시 입력한 투자 예산<br>
+                            <b>🔄 갱신:</b> 봇 설정 수정 시에만 변경<br><br>
+                            이 금액 내에서 매수가 진행됩니다.
+                        </span>
+                    </span>
                     <span class="budget-value">${(bot.budget || 0).toLocaleString()}원</span>
                 </div>
                 <div class="detail-row">
-                    <span>현재가</span>
+                    <span class="has-tooltip">현재가
+                        <span class="tooltip-text" style="width:280px; left:0; transform:none;">
+                            <b>📊 유형:</b> 실시간 데이터<br>
+                            <b>📍 출처:</b> KIS API (장중) / 네이버 금융 (장외)<br>
+                            <b>🔄 갱신:</b> 약 10초마다 자동 조회<br><br>
+                            [${bot.current_exchange || 'KRX'}]는 현재 시세를 제공하는 거래소입니다.
+                        </span>
+                    </span>
                     <span>
                         ${Math.round(bot.current_price || 0).toLocaleString()}원
                         <small class="text-muted" style="margin-left:4px; font-size:0.8em;">[${bot.current_exchange || 'KRX'}]</small>
                     </span>
                 </div>
                 <div class="detail-row">
-                    <span>마지막 확인</span>
+                    <span class="has-tooltip">마지막 확인
+                        <span class="tooltip-text" style="width:250px; left:0; transform:none;">
+                            <b>📊 유형:</b> 봇 활동 시간<br>
+                            <b>📍 출처:</b> 봇 프로세스가 마지막으로 시세를 조회한 시각<br>
+                            <b>🔄 갱신:</b> 봇 실행 중 10초마다<br><br>
+                            🟢 20초 이내 = 정상 | 🟡 1분 이내 = 지연 | 🔴 1분 이상 = 이상
+                        </span>
+                    </span>
                     <span style="font-size:0.8em; color:#888;">${bot.last_update ? new Date(bot.last_update).toLocaleTimeString() : '-'}</span>
                 </div>
                 <div class="detail-row">
-                    <span>평단가</span>
+                    <span class="has-tooltip">평단가
+                        <span class="tooltip-text" style="width:280px; left:0; transform:none;">
+                            <b>📊 유형:</b> 계산값 (서버 저장)<br>
+                            <b>📍 출처:</b> 총 매수금액 ÷ 총 보유수량<br>
+                            <b>🔄 갱신:</b> 매수 체결 시 자동 계산<br><br>
+                            물타기 시 평단가가 낮아지며, 익절/추가매수 기준이 됩니다.
+                        </span>
+                    </span>
                     <span>${Math.round(bot.avg_price || 0).toLocaleString()}원</span>
                 </div>
                 <div class="detail-row">
-                    <span>보유량</span>
+                    <span class="has-tooltip">보유량
+                        <span class="tooltip-text" style="width:250px; left:0; transform:none;">
+                            <b>📊 유형:</b> 실시간 (KIS 계좌 연동)<br>
+                            <b>📍 출처:</b> KIS 계좌 잔고 조회 API<br>
+                            <b>🔄 갱신:</b> 매수/매도 체결 후 즉시 반영<br><br>
+                            실제 증권사 계좌의 보유 수량입니다.
+                        </span>
+                    </span>
                     <span>${bot.total_qty?.toLocaleString()}주</span>
                 </div>
                 <div class="detail-row">
-                    <span>목표가</span>
+                    <span class="has-tooltip">목표가
+                        <span class="tooltip-text" style="width:280px; left:0; transform:none;">
+                            <b>📊 유형:</b> 계산값<br>
+                            <b>📍 계산식:</b> 평단가 × (1 + 목표수익률)<br>
+                            <b>🔄 갱신:</b> 평단가 변경 시 자동 재계산<br><br>
+                            현재가가 이 가격에 도달하면 <b>전량 익절 매도</b>합니다.
+                        </span>
+                    </span>
                     <span>${Math.round(bot.avg_price * (1 + bot.target)).toLocaleString()}원 <small class="target-percent">(${(bot.target * 100).toFixed(1)}%)</small></span>
                 </div>
                 <div class="detail-row">
-                    <span>추가 매수</span>
+                    <span class="has-tooltip">추가 매수
+                        <span class="tooltip-text" style="width:300px; left:0; transform:none;">
+                            <b>📊 유형:</b> 설정값 기반 계산<br>
+                            <b>📍 계산식:</b> 평단가 × (1 - 하락폭)<br>
+                            <b>🔄 갱신:</b> 평단가 변경 시 자동 재계산<br><br>
+                            현재가가 이 가격 이하로 떨어지면 <b>1:2:4:8 가중치</b>로 물타기 매수합니다.<br>
+                            (최대 4회, 점점 더 많은 금액을 투입)
+                        </span>
+                    </span>
                     <span>평단가 -${(bot.pyramiding_threshold * 100).toFixed(1)}%</span>
                 </div>
             </div>
@@ -323,6 +373,22 @@ async function loadScreenerStatus() {
         }
     } catch (e) {
         console.error('Failed to load screener status:', e);
+    }
+
+    // Load cache status
+    try {
+        const cache = await api('GET', '/screener/cache-status');
+        const cacheEl = document.getElementById('cacheStatus');
+        if (cacheEl && cache.last_update) {
+            const updateTime = new Date(cache.last_update).toLocaleTimeString('ko-KR');
+            cacheEl.innerText = `${updateTime} (${cache.stock_count}종목)`;
+            cacheEl.title = `다음 갱신: 약 ${cache.next_update_in || '5'}분 후`;
+        } else if (cacheEl) {
+            cacheEl.innerText = '갱신 대기 중...';
+        }
+    } catch (e) {
+        const cacheEl = document.getElementById('cacheStatus');
+        if (cacheEl) cacheEl.innerText = '캐시 로드 실패';
     }
 }
 
