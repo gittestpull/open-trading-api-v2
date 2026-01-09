@@ -10,6 +10,7 @@ Stock Cache Module
 import asyncio
 import logging
 import time
+import os
 import pandas as pd
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
