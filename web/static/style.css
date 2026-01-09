@@ -1019,7 +1019,9 @@ footer {
 
 .has-tooltip {
     position: relative;
-    display: inline-block;
+    display: inline-flex;
+    /* Changed from inline-block for better alignment */
+    align-items: center;
 }
 
 .tooltip-text {
@@ -1037,12 +1039,17 @@ footer {
     left: 50%;
     transform: translateX(-50%);
     opacity: 0;
+    z-index: 1000;
+    /* Ensure it's above other elements */
     transition: opacity 0.3s;
     font-size: 0.8rem;
     font-weight: normal;
     line-height: 1.4;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
     pointer-events: none;
+    white-space: normal;
+    /* Allow wrapping for long text */
+    min-width: 150px;
 }
 
 .tooltip-text::after {
@@ -1133,6 +1140,7 @@ footer {
         transform: rotate(360deg);
     }
 }
+
 /* Environment Badges */
 .env-badge {
     padding: 4px 12px;
@@ -1190,7 +1198,8 @@ footer {
     margin-bottom: 8px;
 }
 
-.guide-content ul, .guide-content ol {
+.guide-content ul,
+.guide-content ol {
     padding-left: 20px;
     margin-bottom: 16px;
 }

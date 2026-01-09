@@ -274,14 +274,27 @@ function renderBots() {
                 ? `<button onclick="stopBot('${bot.id}')" class="btn-stop">중지</button>`
                 : `<button onclick="startBot('${bot.id}')" class="btn-start">시작</button>`
             }
-                <button onclick="viewLogs('${bot.id}')" class="btn-log ${selectedBotId === bot.id ? 'active' : ''}">로그</button>
-                ${!isRunning ? `<button onclick="showEditBotModal('${bot.id}')" class="btn-icon" title="설정 수정">⚙️</button>` : ''}
+                <span class="has-tooltip">
+                    <button onclick="viewLogs('${bot.id}')" class="btn-log ${selectedBotId === bot.id ? 'active' : ''}">로그</button>
+                    <span class="tooltip-text">현재 봇의 실시간 매매 로그 및 상태를 하단에서 확인합니다.</span>
+                </span>
+                ${!isRunning ? `
+                <span class="has-tooltip">
+                    <button onclick="showEditBotModal('${bot.id}')" class="btn-icon" title="설정 수정">⚙️</button>
+                    <span class="tooltip-text">봇의 투자 예산, 목표가 등 설정을 변경합니다.</span>
+                </span>` : ''}
                 <span class="has-tooltip">
                     <button onclick="manualBuyBot('${bot.id}', '${bot.ticker}')" class="btn-buy" title="즉시 시장가 추가 매수">⚡ 매수</button>
-                    <span class="tooltip-text" style="bottom: 150%;">클릭 시 설정된 예산의 25%만큼 즉시 시장가로 매수합니다.</span>
+                    <span class="tooltip-text" style="bottom: 150%;">클릭 시 전체 예산의 25%를 즉시 시장가로 수동 매수합니다.</span>
                 </span>
-                <button onclick="panicSellBot('${bot.id}', '${bot.ticker}')" class="btn-panic" title="전량매도 및 리셋">⚡ 매도</button>
-                <button onclick="deleteBot('${bot.id}')" class="btn-delete" title="삭제">🗑️</button>
+                <span class="has-tooltip">
+                    <button onclick="panicSellBot('${bot.id}', '${bot.ticker}')" class="btn-panic" title="전량매도 및 리셋">⚡ 매도</button>
+                    <span class="tooltip-text">현재 보유 물량을 즉시 전량 매도하고 봇 데이터를 초기화합니다.</span>
+                </span>
+                <span class="has-tooltip">
+                    <button onclick="deleteBot('${bot.id}')" class="btn-delete" title="삭제">🗑️</button>
+                    <span class="tooltip-text">봇 프로세스를 종료하고 대시보드에서 삭제합니다.</span>
+                </span>
             </div>
         `;
         container.appendChild(card);

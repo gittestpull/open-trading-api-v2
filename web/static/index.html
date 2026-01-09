@@ -105,14 +105,20 @@
                         </div>
 
                         <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
-                            <button class="btn-scan" id="scanBtn" onclick="startScan()">
-                                🔍 전체 종목 검색
-                            </button>
+                            <span class="has-tooltip">
+                                <button class="btn-scan" id="scanBtn" onclick="startScan()">
+                                    🔍 전체 종목 검색
+                                </button>
+                                <span class="tooltip-text">정해진 필터링 조건(거래량, PER 등)에 맞는 종목을 전수 조사합니다.</span>
+                            </span>
 
-                            <button class="btn-scan" style="background: linear-gradient(135deg, #9c27b0, #673ab7);"
-                                onclick="startRawScan()">
-                                📊 전체보기
-                            </button>
+                            <span class="has-tooltip">
+                                <button class="btn-scan" style="background: linear-gradient(135deg, #9c27b0, #673ab7);"
+                                    onclick="startRawScan()">
+                                    📊 전체보기
+                                </button>
+                                <span class="tooltip-text">필터링 없이 거래량 상위 종목만 빠르게 전체 리스팅합니다.</span>
+                            </span>
                         </div>
 
                         <!-- Pre-built Strategies -->
@@ -141,11 +147,14 @@
                             <div style="display: flex; gap: 8px; margin-top: 6px;">
                                 <input type="text" id="manualTicker" placeholder="예: 005930 또는 삼성전자"
                                     style="flex: 1; padding: 6px 10px; background: #1a2332; border: 1px solid #456; border-radius: 4px; color: #fff; font-size: 0.9rem;">
-                                <button class="btn-scan"
-                                    style="padding: 6px 16px; background: linear-gradient(135deg, #00bcd4, #009688);"
-                                    onclick="lookupStock()">
-                                    조회
-                                </button>
+                                <span class="has-tooltip" style="flex: 0 0 auto;">
+                                    <button class="btn-scan"
+                                        style="padding: 6px 16px; background: linear-gradient(135deg, #00bcd4, #009688);"
+                                        onclick="lookupStock()">
+                                        조회
+                                    </button>
+                                    <span class="tooltip-text">입력한 종목코드 또는 종목명의 정보를 즉시 조회합니다.</span>
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -285,7 +294,13 @@
 
                 <div class="form-group checkbox live-box">
                     <input type="checkbox" id="liveInput" checked>
-                    <label for="liveInput">🚨 실제 매매 (Live Mode)</label>
+                    <label for="liveInput">
+                        🚨 실제 매매 (Live Mode)
+                        <span class="has-tooltip">
+                            <span class="info-icon">i</span>
+                            <span class="tooltip-text">체크 시 모의 투자가 아닌 실제 계좌에서 주문이 집행됩니다. 주의하세요!</span>
+                        </span>
+                    </label>
                 </div>
 
                 <div class="form-actions">
@@ -386,7 +401,13 @@
 
                 <div class="form-group checkbox live-box">
                     <input type="checkbox" id="editLiveInput">
-                    <label for="editLiveInput">🚨 실제 매매 (Live Mode)</label>
+                    <label for="editLiveInput">
+                        🚨 실제 매매 (Live Mode)
+                        <span class="has-tooltip">
+                            <span class="info-icon">i</span>
+                            <span class="tooltip-text">체크 시 모의 투자가 아닌 실제 계좌에서 주문이 집행됩니다. 주의하세요!</span>
+                        </span>
+                    </label>
                 </div>
 
                 <div class="form-actions">
