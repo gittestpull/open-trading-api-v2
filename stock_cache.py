@@ -176,8 +176,15 @@ class StockCache:
             pass
         return 0.0
     
-    async def update_cache(self, include_per: bool = False) -> int:
-        """캐시 갱신 (전체 종목 데이터 수집)"""
+    async def update_cache(self, include_per: bool = False, include_financials: bool = True) -> int:
+        """캐시 갱신 (전체 종목 데이터 수집)
+        
+        [누가] StockCache 백그라운드 태스크
+        [무엇을] KOSPI+KOSDAQ 전체 종목 시세 수집
+        [언제] 서버 시작 시 + 5분마다
+        [어디서] 네이버 금융 (기본) + KIS API (재무)
+        [왜] 스크리너 필터링용 캐시 데이터
+        """
         if self.is_updating:
             logger.warning("Cache update already in progress")
             return 0
@@ -204,7 +211,10 @@ class StockCache:
             new_stocks = {}
             now = datetime.now()
             
-            for stock in kospi_stocks + kosdaq_stocks:
+            all_stocks = kospi_stocks + kosdaq_stocks
+            logger.info(f"[수집 1/3] 기본 시세 수집 완료: {len(all_stocks)}개 종목")
+            
+            for stock in all_stocks:
                 new_stocks[stock['code']] = StockData(
                     code=stock['code'],
                     name=stock['name'],
@@ -212,15 +222,53 @@ class StockCache:
                     price=stock['price'],
                     change_rate=stock['change_rate'],
                     volume=stock['volume'],
-                    per=0.0,  # PER은 필요시 개별 조회
+                    per=0.0,
                     updated_at=now
                 )
+            
+            # 상위 100개 종목에 대해 재무 데이터 수집
+            if include_financials:
+                try:
+                    # 거래량 상위 100개 선정
+                    top_stocks = sorted(all_stocks, key=lambda x: x.get('volume', 0), reverse=True)[:100]
+                    logger.info(f"[수집 2/3] 상위 {len(top_stocks)}개 종목 재무 데이터 수집 시작...")
+                    
+                    # 재무 데이터 수집 (KIS API 사용)
+                    collected = 0
+                    for i, stock in enumerate(top_stocks):
+                        code = stock['code']
+                        try:
+                            # 네이버에서 PER 수집
+                            per = await loop.run_in_executor(self._executor, self._get_stock_per, code)
+                            
+                            # 네이버에서 재무 데이터 수집 (간단한 크롤링)
+                            financials = await loop.run_in_executor(self._executor, self._get_naver_financials, code)
+                            
+                            if code in new_stocks:
+                                new_stocks[code].per = per
+                                new_stocks[code].op_rate = financials.get('op_rate', 0.0)
+                                new_stocks[code].debt_rate = financials.get('debt_rate', 0.0)
+                                new_stocks[code].rsrv_rate = financials.get('rsrv_rate', 0.0)
+                                new_stocks[code].sector = financials.get('sector', '')
+                                collected += 1
+                            
+                            # 진행 상황 로그 (10개마다)
+                            if (i + 1) % 10 == 0:
+                                logger.info(f"[수집 2/3] 재무 데이터: {i+1}/{len(top_stocks)} ({collected}개 수집됨)")
+                                await asyncio.sleep(0.1)  # Rate limiting
+                        except Exception as e:
+                            logger.debug(f"재무 수집 실패 {code}: {e}")
+                            continue
+                    
+                    logger.info(f"[수집 2/3] 재무 데이터 수집 완료: {collected}개")
+                except Exception as e:
+                    logger.error(f"재무 데이터 수집 실패: {e}")
             
             self.stocks = new_stocks
             self.last_update = now
             
             elapsed = time.time() - start_time
-            logger.info(f"Cache updated: {len(self.stocks)} stocks in {elapsed:.1f}s")
+            logger.info(f"[수집 3/3] 캐시 갱신 완료: {len(self.stocks)}개 종목, {elapsed:.1f}초 소요")
             
             return len(self.stocks)
             
@@ -229,6 +277,48 @@ class StockCache:
             return 0
         finally:
             self.is_updating = False
+    
+    def _get_naver_financials(self, code: str) -> dict:
+        """네이버 금융에서 재무 데이터 수집
+        
+        [누가] StockCache
+        [무엇을] 영업이익률, 부채비율, 유보율, 업종
+        [어디서] finance.naver.com/item/main.naver
+        """
+        result = {'op_rate': 0.0, 'debt_rate': 0.0, 'rsrv_rate': 0.0, 'sector': ''}
+        try:
+            url = f"https://finance.naver.com/item/main.naver?code={code}"
+            req = urllib.request.Request(url, headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            })
+            with urllib.request.urlopen(req, timeout=5) as response:
+                html = response.read().decode('euc-kr', errors='ignore')
+            
+            # 업종 파싱
+            sector_match = re.search(r'업종.*?<a[^>]*>([^<]+)</a>', html, re.DOTALL)
+            if sector_match:
+                result['sector'] = sector_match.group(1).strip()
+            
+            # 영업이익률 파싱 (간단한 정규식)
+            op_match = re.search(r'영업이익률.*?<em>([0-9,.-]+)%</em>', html, re.DOTALL)
+            if op_match:
+                result['op_rate'] = float(op_match.group(1).replace(',', ''))
+            
+            # 부채비율 파싱
+            debt_match = re.search(r'부채비율.*?<em>([0-9,.-]+)%</em>', html, re.DOTALL)
+            if debt_match:
+                result['debt_rate'] = float(debt_match.group(1).replace(',', ''))
+            
+            # 유보율 파싱
+            rsrv_match = re.search(r'유보율.*?<em>([0-9,.-]+)%</em>', html, re.DOTALL)
+            if rsrv_match:
+                result['rsrv_rate'] = float(rsrv_match.group(1).replace(',', ''))
+                
+        except Exception as e:
+            logger.debug(f"Naver financials failed {code}: {e}")
+        
+        return result
+
     
     def filter_stocks(
         self,
