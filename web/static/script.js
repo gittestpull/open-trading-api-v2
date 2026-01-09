@@ -384,12 +384,12 @@ async function loadScreenerStatus() {
             cacheEl.innerText = `${updateTime} (${cache.stock_count}종목)`;
             cacheEl.title = `다음 갱신: 약 ${cache.next_update_in || '5'}분 후`;
         } else if (cacheEl) {
-            cacheEl.innerHTML = `<span style="color:#ffd54f; cursor:help;" title="📍 상태: 캐시 아직 생성되지 않음&#10;&#10;🔧 캐시 생성 방법:&#10;1. '🔍 전체 종목 검색' 버튼 클릭&#10;2. 5분 후 자동 갱신 시작&#10;&#10;📍 출처: 네이버 금융에서 수집">⏳ 대기 중 (hover)</span>`;
+            cacheEl.innerHTML = `<span style="color:#ffd54f; cursor:help;" title="⏳ 캐시 준비 중&#10;&#10;[누가] 시스템이 준비 중&#10;[무엇을] 전체 종목 데이터 수집&#10;[언제] 첫 검색 시 생성됨&#10;[어디서] 네이버 금융에서 수집&#10;[왜] 아직 검색을 실행하지 않음&#10;&#10;👉 [사용자가 할 일]&#10;위의 '🔍 전체 종목 검색' 버튼을 클릭하세요!&#10;→ 클릭하면 데이터가 자동으로 수집되고&#10;→ 이후 5분마다 자동 갱신됩니다">⏳ 준비 중 (클릭하면 생성됩니다)</span>`;
         }
     } catch (e) {
         const cacheEl = document.getElementById('cacheStatus');
         if (cacheEl) {
-            cacheEl.innerHTML = `<span style="color:#ff6b6b; cursor:help;" title="📍 호출 API: /screener/cache-status&#10;❌ 오류: 서버 응답 없음 또는 캐시 미생성&#10;&#10;🔧 해결 방법:&#10;1. '🔍 전체 종목 검색' 버튼 클릭 → 캐시 자동 생성&#10;2. 페이지 새로고침 (F5)&#10;3. 서버 상태 확인 (연결 상태 점 확인)&#10;4. 5분 후 자동 갱신 대기">❌ 캐시 실패 (hover)</span>`;
+            cacheEl.innerHTML = `<span style="color:#ff6b6b; cursor:help;" title="❌ 캐시 로드 실패&#10;&#10;[누가] 시스템이 자동으로 시도했으나 실패&#10;[무엇을] 종목 데이터 캐시 로드&#10;[언제] 페이지 접속 시 자동&#10;[어디서] 서버 캐시 저장소&#10;[왜] 아직 검색을 한 적이 없거나 서버 연결 끊김&#10;&#10;👉 [사용자가 할 일]&#10;1. 위의 '🔍 전체 종목 검색' 버튼 클릭하세요&#10;   → 클릭하면 캐시가 자동 생성됩니다&#10;2. 또는 F5 눌러 페이지 새로고침&#10;3. 헤더 오른쪽 연결 상태 점이 🟢인지 확인">❌ 캐시 실패 (마우스 올려 해결방법 확인)</span>`;
         }
     }
 }
@@ -449,21 +449,31 @@ function renderScreenerResults(stocks, filterInfo = null) {
         const minVolume = document.getElementById('minVolume')?.value || 500000;
         const maxPer = document.getElementById('maxPer')?.value || 30;
 
-        let filterDetails = '<div style="text-align:left; padding:15px; background:#1e2530; border-radius:8px; margin:10px;">';
-        filterDetails += '<h4 style="color:#ff9800; margin-bottom:10px;">🔍 검색 결과가 없습니다</h4>';
-        filterDetails += '<p style="color:#aaa; margin-bottom:15px;"><b>📍 API 호출:</b> /screener/scan (네이버 금융 캐시)</p>';
-        filterDetails += '<p style="color:#aaa; margin-bottom:10px;"><b>⚙️ 적용된 필터:</b></p><ul style="color:#888; font-size:0.85rem; margin-left:20px;">';
+        let filterDetails = '<div style="text-align:left; padding:20px; background:#1e2530; border-radius:8px; margin:10px;">';
+        filterDetails += '<h4 style="color:#ff9800; margin-bottom:15px;">🔍 검색 결과가 없습니다 - 육하원칙 안내</h4>';
+
+        filterDetails += '<div style="margin-bottom:15px; padding:10px; background:#252d3a; border-radius:6px;">';
+        filterDetails += '<p style="color:#4fc3f7; margin-bottom:8px;"><b>[누가]</b> 스크리너 시스템이 자동 실행</p>';
+        filterDetails += '<p style="color:#4fc3f7; margin-bottom:8px;"><b>[무엇을]</b> 조건에 맞는 종목을 필터링</p>';
+        filterDetails += '<p style="color:#4fc3f7; margin-bottom:8px;"><b>[언제]</b> 방금 \'전체 종목 검색\' 버튼 클릭 시</p>';
+        filterDetails += '<p style="color:#4fc3f7; margin-bottom:8px;"><b>[어디서]</b> /screener/scan API (네이버 금융 캐시 데이터)</p>';
+        filterDetails += '</div>';
+
+        filterDetails += '<p style="color:#aaa; margin-bottom:10px;"><b>[왜] 적용된 필터 조건:</b></p><ul style="color:#888; font-size:0.85rem; margin-left:20px; margin-bottom:15px;">';
         if (useMinVolume) filterDetails += `<li>최소 거래량: ${Number(minVolume).toLocaleString()}주 이상</li>`;
         if (useMaxPer) filterDetails += `<li>최대 PER: ${maxPer} 이하</li>`;
         if (useMinOpRate) filterDetails += `<li>최소 영업이익률: ${document.getElementById('minOpRate')?.value || 0}% 이상</li>`;
         if (useMaxDebtRate) filterDetails += `<li>최대 부채비율: ${document.getElementById('maxDebtRate')?.value || 200}% 이하</li>`;
+        if (!useMinVolume && !useMaxPer && !useMinOpRate && !useMaxDebtRate) filterDetails += '<li>필터 없음 (전체 조회)</li>';
         filterDetails += '</ul>';
-        filterDetails += '<p style="color:#ff6b6b; margin-top:15px;"><b>💡 가능한 원인:</b></p>';
-        filterDetails += '<ul style="color:#888; font-size:0.85rem; margin-left:20px;">';
-        filterDetails += '<li>거래량 조건이 너무 높음 → 값을 낮춰보세요</li>';
-        filterDetails += '<li>PER 조건이 너무 낮음 → 값을 올려보세요</li>';
-        filterDetails += '<li>캐시 갱신 중 → 잠시 후 다시 시도</li>';
-        filterDetails += '<li>장 마감 후 → 다음 거래일 확인</li>';
+
+        filterDetails += '<p style="color:#81c784; margin-bottom:10px;"><b>[어떻게 해결?]</b></p>';
+        filterDetails += '<ul style="color:#a5d6a7; font-size:0.85rem; margin-left:20px;">';
+        filterDetails += '<li><b>거래량 조건 완화:</b> 최소 거래량 값을 낮춰보세요</li>';
+        filterDetails += '<li><b>PER 조건 완화:</b> 최대 PER 값을 올려보세요</li>';
+        filterDetails += '<li><b>필터 해제:</b> 체크박스를 해제하고 다시 검색</li>';
+        filterDetails += '<li><b>캐시 갱신 대기:</b> 장중에는 5분마다 데이터 갱신</li>';
+        filterDetails += '<li><b>장 마감 확인:</b> 장외 시간에는 데이터가 제한될 수 있음</li>';
         filterDetails += '</ul></div>';
 
         tbody.innerHTML = `<tr><td colspan="10">${filterDetails}</td></tr>`;
