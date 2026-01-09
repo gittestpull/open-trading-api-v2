@@ -218,22 +218,61 @@ function renderBots() {
 
         card.innerHTML = `
             <div class="card-header">
-                <h3>${bot.ticker === bot.ticker_code ? bot.ticker : `${bot.ticker} (${bot.ticker_code || ''})`}</h3>
-                ${modeBadge}
+                <span class="has-tooltip">
+                    <h3>${bot.ticker === bot.ticker_code ? bot.ticker : `${bot.ticker} (${bot.ticker_code || ''})`}</h3>
+                    <span class="tooltip-text" style="width:280px; left:0; transform:none;">
+                        <b>[누가]</b> KRX 상장 종목<br>
+                        <b>[무엇을]</b> 이 봇이 감시/매매하는 종목<br>
+                        <b>[언제]</b> 봇 생성 시 지정됨 (변경 불가)<br>
+                        <b>[어디서]</b> 네이버 금융에서 종목명 조회<br>
+                        <b>[왜]</b> 자동매매 대상 종목 식별용
+                    </span>
+                </span>
+                <span class="has-tooltip">
+                    ${modeBadge}
+                    <span class="tooltip-text" style="width:280px; right:0; left:auto;">
+                        <b>[누가]</b> 사용자가 봇 생성 시 설정<br>
+                        <b>[무엇을]</b> ${bot.live ? '🔴 실전: 실제 계좌에서 주문 집행' : '⚪ 테스트: 모의 투자 (실제 주문 없음)'}<br>
+                        <b>[언제]</b> 봇 추가/수정 시 설정<br>
+                        <b>[어디서]</b> KIS API (실전) 또는 로컬 시뮬레이션 (테스트)<br>
+                        <b>[왜]</b> 실제 자금 투입 여부 구분<br>
+                        <b>[어떻게]</b> 봇 수정에서 체크박스로 변경 가능
+                    </span>
+                </span>
             </div>
             ${optionBadges}
             <div class="card-status">
-                <span class="status-indicator" title="${heartbeatTitle}">${heartbeat} ${bot.status}</span>
-                <span class="profit ${bot.profit_rate >= 0 ? 'positive' : 'negative'}">
-                    ${(bot.profit_rate * 100).toFixed(2)}%
+                <span class="has-tooltip">
+                    <span class="status-indicator" title="${heartbeatTitle}">${heartbeat} ${bot.status}</span>
+                    <span class="tooltip-text" style="width:300px; left:0; transform:none;">
+                        <b>[누가]</b> 서버 봇 프로세스<br>
+                        <b>[무엇을]</b> ${bot.status === 'RUNNING' ? '실행 중 - 10초마다 시세 조회 및 매매 판단' : '중지됨 - 시세 조회/매매 없음'}<br>
+                        <b>[언제]</b> ${bot.status === 'RUNNING' ? '시작 버튼 클릭 후 계속' : '중지 버튼 클릭 또는 익절 완료 시'}<br>
+                        <b>[어디서]</b> monitor_scalp_universal.py 스크립트<br>
+                        <b>[왜]</b> 현재 봇 활성화 상태 표시<br>
+                        <b>[어떻게]</b> 아래 시작/중지 버튼으로 제어
+                    </span>
+                </span>
+                <span class="has-tooltip">
+                    <span class="profit ${bot.profit_rate >= 0 ? 'positive' : 'negative'}">
+                        ${(bot.profit_rate * 100).toFixed(2)}%
+                    </span>
+                    <span class="tooltip-text" style="width:300px; right:0; left:auto;">
+                        <b>[누가]</b> 시스템이 자동 계산<br>
+                        <b>[무엇을]</b> 현재 평가 수익률 = (현재가 - 평단가) / 평단가<br>
+                        <b>[언제]</b> 봇 실행 중 10초마다 갱신<br>
+                        <b>[어디서]</b> 실시간 시세 기반 계산<br>
+                        <b>[왜]</b> 현재 수익/손실 상태 확인<br>
+                        <b>[어떻게]</b> 🟢 양수: 수익 중 / 🔴 음수: 손실 중
+                    </span>
                 </span>
             </div>
             <div class="card-options">
-                ${bot.orderbook ? '<span class="badge badge-info">호가창</span>' : ''}
-                ${bot.momentum ? '<span class="badge badge-accent">모멘텀</span>' : ''}
-                ${bot.ignore_market ? '<span class="badge badge-error">24h</span>' : ''}
-                ${buyPrices.map(p => `<span class="badge badge-warning">${Math.round(p).toLocaleString()}원 지정가</span>`).join('')}
-                ${!bot.live ? '<span class="badge badge-secondary">테스트</span>' : ''}
+                ${bot.orderbook ? '<span class="badge badge-info" title="[누가] 사용자 설정&#10;[무엇을] 호가잔량 필터 활성화&#10;[왜] 매수/매도 호가 잔량 확인 후 매매">호가창</span>' : ''}
+                ${bot.momentum ? '<span class="badge badge-accent" title="[누가] 사용자 설정&#10;[무엇을] 모멘텀 모드 활성화&#10;[왜] RSI/볼린저 무시하고 거래량 돌파 시 추격매수">모멘텀</span>' : ''}
+                ${bot.ignore_market ? '<span class="badge badge-error" title="[누가] 사용자 설정&#10;[무엇을] 장외시간(NXT) 무시&#10;[왜] 24시간 매매 허용 (야간 시장 포함)">24h</span>' : ''}
+                ${buyPrices.map(p => `<span class="badge badge-warning" title="[누가] 사용자 설정 지정가&#10;[무엇을] ${Math.round(p).toLocaleString()}원 도달 시 즉시 매수&#10;[왜] RSI/볼린저 무시하고 특정 가격에 매수">${Math.round(p).toLocaleString()}원 지정가</span>`).join('')}
+                ${!bot.live ? '<span class="badge badge-secondary" title="[누가] 사용자 설정&#10;[무엇을] 테스트 모드 (모의 투자)&#10;[왜] 실제 주문 없이 전략 검증">테스트</span>' : ''}
             </div>
 
             <div class="card-details">
