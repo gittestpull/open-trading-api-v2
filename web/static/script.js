@@ -518,7 +518,12 @@ async function addBot(event) {
         ticker: document.getElementById('tickerInput').value,
         budget: parseInt(document.getElementById('budgetInput').value),
         target: parseFloat(document.getElementById('targetInput').value),
-        buy_price: parseFloat(document.getElementById('buyPriceInput').value || 0),
+        buy_prices: [
+            parseFloat(document.getElementById('buyPriceInput1').value || 0),
+            parseFloat(document.getElementById('buyPriceInput2').value || 0),
+            parseFloat(document.getElementById('buyPriceInput3').value || 0),
+            parseFloat(document.getElementById('buyPriceInput4').value || 0)
+        ].filter(p => p > 0),
         orderbook: document.getElementById('orderbookInput').checked,
         momentum: document.getElementById('momentumInput').checked,
         ignore_market: document.getElementById('ignoreMarketInput').checked,
@@ -543,7 +548,13 @@ function showEditBotModal(botId) {
     document.getElementById('editTickerInput').value = bot.ticker;
     document.getElementById('editBudgetInput').value = bot.budget;
     document.getElementById('editTargetInput').value = parseFloat((bot.target * 100).toFixed(4));
-    document.getElementById('editBuyPriceInput').value = bot.buy_price || 0;
+
+    // Set buy prices
+    const buyPrices = bot.buy_prices || (bot.buy_price ? [bot.buy_price] : []);
+    for (let i = 1; i <= 4; i++) {
+        document.getElementById(`editBuyPriceInput${i}`).value = buyPrices[i - 1] || 0;
+    }
+
     document.getElementById('editOrderbookInput').checked = bot.orderbook || false;
     document.getElementById('editMomentumInput').checked = bot.momentum || false;
     document.getElementById('editIgnoreMarketInput').checked = bot.ignore_market || false;
@@ -564,7 +575,12 @@ async function updateBot(event) {
         ticker: document.getElementById('editTickerInput').value,
         budget: parseInt(document.getElementById('editBudgetInput').value),
         target: parseFloat(document.getElementById('editTargetInput').value),
-        buy_price: parseFloat(document.getElementById('editBuyPriceInput').value || 0),
+        buy_prices: [
+            parseFloat(document.getElementById('editBuyPriceInput1').value || 0),
+            parseFloat(document.getElementById('editBuyPriceInput2').value || 0),
+            parseFloat(document.getElementById('editBuyPriceInput3').value || 0),
+            parseFloat(document.getElementById('editBuyPriceInput4').value || 0)
+        ].filter(p => p > 0),
         orderbook: document.getElementById('editOrderbookInput').checked,
         momentum: document.getElementById('editMomentumInput').checked,
         ignore_market: document.getElementById('editIgnoreMarketInput').checked,

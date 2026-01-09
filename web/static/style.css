@@ -625,10 +625,16 @@ footer {
 }
 
 .form-row,
-.options-group {
+.options-group,
+.multi-input-row {
     display: flex;
     gap: 15px;
     margin-bottom: 15px;
+}
+
+.multi-input-row input {
+    flex: 1;
+    min-width: 0;
 }
 
 .form-row .form-group {
@@ -824,8 +830,15 @@ footer {
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Screener Layout */
@@ -978,16 +991,31 @@ footer {
     font-weight: 800;
 }
 
-.badge-mini.pass { background: var(--accent-green); color: black; }
-.badge-mini.fail { background: #333; color: #666; }
+.badge-mini.pass {
+    background: var(--accent-green);
+    color: black;
+}
+
+.badge-mini.fail {
+    background: #333;
+    color: #666;
+}
 
 .score-dots {
     display: flex;
     gap: 3px;
 }
 
-.dot { width: 6px; height: 6px; border-radius: 50%; background: #333; }
-.dot.filled { background: var(--accent-blue); }
+.dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #333;
+}
+
+.dot.filled {
+    background: var(--accent-blue);
+}
 
 .btn-add-quick {
     background: transparent;
@@ -1018,5 +1046,7 @@ footer {
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }

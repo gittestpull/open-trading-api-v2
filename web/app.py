@@ -271,7 +271,8 @@ class BotConfig(BaseModel):
     budget: int
     target: float = 0.02
     live: bool = True
-    buy_price: float = 0
+    buy_price: float = 0 # Deprecated, kept for backward compatibility during transition
+    buy_prices: List[float] = [] # New: Support multiple prices
     orderbook: bool = False
     momentum: bool = False
     ignore_market: bool = False
@@ -290,7 +291,8 @@ class BotStatus(BaseModel):
     total_qty: int = 0
     current_price: float = 0
     profit_rate: float = 0
-    buy_price: float = 0
+    buy_price: float = 0 # Deprecated
+    buy_prices: List[float] = [] # New
     orderbook: bool = False
     momentum: bool = False
     ignore_market: bool = False
@@ -341,10 +343,17 @@ class BotManager:
                     self.bots = json.load(f)
                 
                 # Migration: Convert target profit from percentage to decimal if >= 0.1
+                # Migration 2: Support multiple buy prices
                 migrated = False
                 for bot in self.bots.values():
                     if bot.get("target", 0) >= 0.1:
                         bot["target"] = bot["target"] / 100.0
+                        migrated = True
+                    
+                    if "buy_prices" not in bot:
+                        # Migrate single buy_price to list
+                        old_price = bot.get("buy_price", 0)
+                        bot["buy_prices"] = [old_price] if old_price > 0 else []
                         migrated = True
                 
                 if migrated:
@@ -467,8 +476,14 @@ class BotManager:
         ]
         
         # Extended options
-        if bot.get("buy_price", 0) > 0:
-            cmd.extend(["--buy_price", str(bot["buy_price"])])
+        buy_prices = bot.get("buy_prices", [])
+        # Support legacy buy_price if list is empty
+        if not buy_prices and bot.get("buy_price", 0) > 0:
+            buy_prices = [bot["buy_price"]]
+            
+        for bp in buy_prices:
+            if bp > 0:
+                cmd.extend(["--buy_price", str(bp)])
         
         if bot.get("orderbook", False):
             cmd.append("--orderbook")

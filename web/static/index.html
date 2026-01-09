@@ -216,9 +216,14 @@
                 </div>
 
                 <div class="form-group">
-                    <label>수동 매수 가격 (0 = 즉시시장가)</label>
-                    <input type="number" id="buyPriceInput" placeholder="0" value="0">
-                    <small class="hint">0이면 즉시 시장가 매수 시작</small>
+                    <label>수동 매수 가격 (최대 4개, 0 = 즉시시장가)</label>
+                    <div class="multi-input-row">
+                        <input type="number" id="buyPriceInput1" placeholder="매수가1" value="0">
+                        <input type="number" id="buyPriceInput2" placeholder="매수가2" value="0">
+                        <input type="number" id="buyPriceInput3" placeholder="매수가3" value="0">
+                        <input type="number" id="buyPriceInput4" placeholder="매수가4" value="0">
+                    </div>
+                    <small class="hint">하나라도 현재가에 도달하면 즉시 매수합니다.</small>
                 </div>
 
                 <div class="options-group">
@@ -272,8 +277,14 @@
                 </div>
 
                 <div class="form-group">
-                    <label>수동 매수 가격</label>
-                    <input type="number" id="editBuyPriceInput">
+                    <label>수동 매수 가격 (최대 4개, 0 = 즉시시장가)</label>
+                    <div class="multi-input-row">
+                        <input type="number" id="editBuyPriceInput1" placeholder="매수가1" value="0">
+                        <input type="number" id="editBuyPriceInput2" placeholder="매수가2" value="0">
+                        <input type="number" id="editBuyPriceInput3" placeholder="매수가3" value="0">
+                        <input type="number" id="editBuyPriceInput4" placeholder="매수가4" value="0">
+                    </div>
+                    <small class="hint">하나라도 현재가에 도달하면 즉시 매수합니다.</small>
                 </div>
 
                 <div class="options-group">

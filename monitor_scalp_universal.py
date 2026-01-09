@@ -228,7 +228,12 @@ class UniversalScalper:
         self.budget = budget
         self.target_profit = target_profit
         self.live_mode = live_mode
-        self.manual_buy_price = manual_buy_price
+        # Support both single float (legacy) and list of floats
+        if isinstance(manual_buy_price, (int, float)):
+            self.manual_buy_prices = [float(manual_buy_price)] if manual_buy_price > 0 else []
+        else:
+            self.manual_buy_prices = [float(p) for p in manual_buy_price if p > 0]
+        
         self.market = "Domestic" if self.is_domestic else "Overseas"
         self.current_exchange = "KRX"  # Will be updated dynamically for NXT sessions
         self.use_orderbook = use_orderbook  # Orderbook filter option
@@ -1232,7 +1237,8 @@ class UniversalScalper:
         return None
 
     def run(self):
-        buy_price_str = f" | Buy Price: {self.manual_buy_price:,}" if self.manual_buy_price > 0 else ""
+        buy_prices_display = ", ".join([f"{p:,}" for p in self.manual_buy_prices])
+        buy_price_str = f" | Buy Prices: [{buy_prices_display}]" if self.manual_buy_prices else ""
         logger.info(f"Starting Universal Scalper | Ticker: {self.ticker} ({self.market}) | Budget: {self.budget:,} | Target: {self.target_profit:.2%}{buy_price_str}")
         sum_weights = sum(WEIGHTS)
         
@@ -1409,7 +1415,9 @@ class UniversalScalper:
                     
                     parts = [f"BB:{next_bb_price:.2f}"]
                     if next_rsi_price: parts.append(f"RSI{RSI_BUY_LEVEL}:{next_rsi_price:.2f}")
-                    if self.manual_buy_price > 0: parts.append(f"Manual:{self.manual_buy_price:,}")
+                    if self.manual_buy_prices:
+                        prices_str = "/".join([f"{p:,}" for p in self.manual_buy_prices])
+                        parts.append(f"Manual:{prices_str}")
                     
                     next_buy_tag = f"B1 @ " + " / ".join(parts)
                 elif self.current_step < MAX_STEPS:
@@ -1607,13 +1615,13 @@ class UniversalScalper:
                             drop_target = self.prev_close * 0.98
                             if curr_price <= drop_target or candle_low <= drop_target:
                                 drop_hit = True
-                                drop_reason = f"PrevClose-2%({self.prev_close:,.0f}→{drop_target:,.0f})"
+                                drop_reason = f"MorningDrop(KRX)-2%({self.prev_close:,.0f}→{drop_target:,.0f})"
                         elif hour >= 10 and self.daily_high > 0:
-                            # 10:00 이후: 당일 최고가 대비 -2%
+                            # 10:00~: 당일 고가 대비 -2%
                             drop_target = self.daily_high * 0.98
                             if curr_price <= drop_target or candle_low <= drop_target:
                                 drop_hit = True
-                                drop_reason = f"DailyHigh-2%({self.daily_high:,.0f}→{drop_target:,.0f})"
+                                drop_reason = f"HighDrop-2%({self.daily_high:,.0f}→{drop_target:,.0f})"
                     
                     # Triple-Threat Entry Condition: Only for KRX session (RSI hit, BB hit, or Manual Price hit)
                     # NXT sessions use price-drop condition ONLY
@@ -1626,7 +1634,17 @@ class UniversalScalper:
                     if session == "KRX":
                         rsi_hit = rsi <= RSI_BUY_LEVEL
                         bb_hit = (curr_price <= lower_bb or candle_low <= lower_bb)
-                        price_hit = (self.manual_buy_price > 0 and (curr_price <= self.manual_buy_price or candle_low <= self.manual_buy_price))
+
+                        # Manual Price Hit Check (Support multiple prices)
+                        manual_price_hit = False
+                        hit_price = 0
+                        for p in self.manual_buy_prices:
+                            if curr_price <= p or candle_low <= p:
+                                manual_price_hit = True
+                                hit_price = p
+                                break
+
+                        price_hit = manual_price_hit or (not self.manual_buy_prices and (curr_price <= next_bb_price or candle_low <= next_bb_price))
                         
                         # Momentum Entry Condition (Breakout: curr > prev_high)
                         if self.use_momentum and self.prev_high > 0:
@@ -1818,7 +1836,7 @@ if __name__ == "__main__":
     parser.add_argument("--budget", type=int, default=1000000, help="Total budget in KRW")
     parser.add_argument("--target", type=float, default=0.005, help="Target profit rate (0.005 = 0.5%)")
     parser.add_argument("--live", action="store_true", help="Live trading mode")
-    parser.add_argument("--buy_price", type=float, default=0, help="Manual buy price (0 for market)")
+    parser.add_argument("--buy_price", type=float, action="append", help="Manual buy price (can specify multiple times, 0 or empty for market/BB entry)")
     parser.add_argument("--orderbook", action="store_true", help="Use orderbook filter")
     parser.add_argument("--momentum", action="store_true", help="Use momentum mode")
     parser.add_argument("--bot_id", type=str, help="Unique Bot ID for logging")
@@ -1852,7 +1870,7 @@ if __name__ == "__main__":
     if not check_log_health(log_filename):
         sys.exit(1)
     
-    scalper = UniversalScalper(args.ticker, args.budget, args.target, args.live, args.buy_price, args.orderbook, args.momentum, args=args)
+    scalper = UniversalScalper(args.ticker, args.budget, args.target, args.live, args.buy_price or [], args.orderbook, args.momentum, args=args)
     try:
         scalper.run()
     except KeyboardInterrupt:
