@@ -26,7 +26,13 @@
     <!-- Main Dashboard -->
     <div id="dashboard" class="hidden">
         <header>
-            <h1>📈 Trading Bot Dashboard</h1>
+            <div class="header-left">
+                <h1>📈 Trading Bot Dashboard</h1>
+                <nav class="main-tabs">
+                    <button onclick="showTab('dashboard')" id="tab-dashboard" class="tab-btn active">메인 대시보드</button>
+                    <button onclick="showTab('screener')" id="tab-screener" class="tab-btn">🔍 종목 검색기</button>
+                </nav>
+            </div>
             <div class="header-actions">
                 <span id="connectionStatus" class="status-dot disconnected"></span>
                 <button onclick="showAddBotModal()" class="btn-primary">+ 봇 추가</button>
@@ -34,22 +40,85 @@
         </header>
 
         <main>
-            <!-- Bot Cards Container -->
-            <div id="botCards" class="bot-cards">
-                <div class="empty-state" id="emptyState">
-                    <p>등록된 봇이 없습니다</p>
-                    <button onclick="showAddBotModal()">첫 번째 봇 추가하기</button>
+            <!-- Dashboard Section -->
+            <div id="dashboard-section" class="tab-content active">
+                <!-- Bot Cards Container -->
+                <div id="botCards" class="bot-cards">
+                    <div class="empty-state" id="emptyState">
+                        <p>등록된 봇이 없습니다</p>
+                        <button onclick="showAddBotModal()">첫 번째 봇 추가하기</button>
+                    </div>
+                </div>
+
+                <!-- Log Viewer -->
+                <div class="log-section">
+                    <div class="log-header">
+                        <h3 id="logHeaderTitle">📋 로그</h3>
+                        <button onclick="refreshLogs()" class="btn-small">새로고침</button>
+                    </div>
+                    <div id="logViewer" class="log-viewer">
+                        <p class="log-placeholder">봇을 시작하면 로그가 표시됩니다...</p>
+                    </div>
                 </div>
             </div>
 
-            <!-- Log Viewer -->
-            <div class="log-section">
-                <div class="log-header">
-                    <h3 id="logHeaderTitle">📋 로그</h3>
-                    <button onclick="refreshLogs()" class="btn-small">새로고침</button>
+            <!-- Screener Section -->
+            <div id="screener-section" class="tab-content">
+                <div class="screener-controls">
+                    <div class="filter-panel">
+                        <h3>🔍 조건 검색 설정</h3>
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <label>최소 거래량</label>
+                                <input type="number" id="minVolume" value="1000000">
+                            </div>
+                            <div class="filter-group">
+                                <label>최대 PER</label>
+                                <input type="number" id="maxPer" value="20" step="0.1">
+                            </div>
+                        </div>
+                        <div class="checkbox-row">
+                            <label><input type="checkbox" id="requireDoubleBottom" checked> 쌍바닥 패턴</label>
+                            <label><input type="checkbox" id="requireInvestorFlow" checked> 외인/기관 수급</label>
+                        </div>
+                        <button class="btn-scan" id="scanBtn" onclick="startScan()">
+                            🔍 검색 시작 (KRX 전종목)
+                        </button>
+                    </div>
+
+                    <div class="screener-status">
+                        <div class="status-item">
+                            <span>마지막 검색:</span>
+                            <strong id="lastScanTime">-</strong>
+                        </div>
+                        <div class="status-item">
+                            <span>검색 결과:</span>
+                            <strong id="resultCount">0개</strong>
+                        </div>
+                    </div>
                 </div>
-                <div id="logViewer" class="log-viewer">
-                    <p class="log-placeholder">봇을 시작하면 로그가 표시됩니다...</p>
+
+                <div class="results-container">
+                    <table class="screener-table">
+                        <thead>
+                            <tr>
+                                <th>코드</th>
+                                <th>종목명</th>
+                                <th>현재가</th>
+                                <th>PER</th>
+                                <th>거래량</th>
+                                <th>패턴</th>
+                                <th>수급</th>
+                                <th>점수</th>
+                                <th>작업</th>
+                            </tr>
+                        </thead>
+                        <tbody id="screenerResults">
+                            <tr>
+                                <td colspan="9" class="empty-state">검색 버튼을 눌러 분석을 시작하세요.</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </main>

@@ -74,7 +74,25 @@ async function initDashboard() {
     document.getElementById('dashboard').classList.remove('hidden');
     connectWebSocket();
     loadBots();
+    loadScreenerStatus();
 }
+
+// Tab Management
+function showTab(tabId) {
+    // Buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.getElementById(`tab-${tabId}`).classList.add('active');
+
+    // Sections
+    document.querySelectorAll('.tab-content').forEach(section => section.classList.remove('active'));
+    document.getElementById(`${tabId}-section`).classList.add('active');
+
+    // If switching to dashboard, maybe refresh bots
+    if (tabId === 'dashboard') {
+        loadBots();
+    }
+}
+
 
 // WebSocket
 function connectWebSocket() {
@@ -236,6 +254,101 @@ function renderBots() {
         container.appendChild(card);
     });
 }
+
+// Screener Management
+async function loadScreenerStatus() {
+    try {
+        const data = await api('GET', '/screener/status');
+        if (data.last_scan_time) {
+            document.getElementById('lastScanTime').innerText = data.last_scan_time;
+            document.getElementById('resultCount').innerText = `${data.result_count}개`;
+            renderScreenerResults(data.stocks || []);
+        }
+    } catch (e) {
+        console.error('Failed to load screener status:', e);
+    }
+}
+
+async function startScan() {
+    const btn = document.getElementById('scanBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading-spinner"></span> 검색 중...';
+
+    const params = new URLSearchParams({
+        min_volume: document.getElementById('minVolume').value,
+        max_per: document.getElementById('maxPer').value,
+        require_double_bottom: document.getElementById('requireDoubleBottom').checked,
+        require_investor_flow: document.getElementById('requireInvestorFlow').checked
+    });
+
+    try {
+        const data = await api('GET', `/screener/scan?${params}`);
+        document.getElementById('lastScanTime').innerText = data.scan_time || 'Just now';
+        document.getElementById('resultCount').innerText = `${data.count}개`;
+        renderScreenerResults(data.stocks || []);
+    } catch (e) {
+        alert('검색 실패: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '🔍 검색 시작 (KRX 전종목)';
+    }
+}
+
+function renderScreenerResults(stocks) {
+    const tbody = document.getElementById('screenerResults');
+    if (!stocks || stocks.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">조건에 맞는 종목이 없습니다.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = stocks.map(stock => `
+        <tr>
+            <td><strong>${stock.ticker}</strong></td>
+            <td>${stock.name || '-'}</td>
+            <td>${Math.round(stock.price || 0).toLocaleString()}원</td>
+            <td>${stock.per ? stock.per.toFixed(1) : '-'}</td>
+            <td>${formatVolume(stock.volume)}</td>
+            <td>${renderBadge(stock.double_bottom, '쌍바닥')}</td>
+            <td>
+                <div class="screener-badges">
+                    ${renderBadge(stock.foreign_consecutive, '외')}
+                    ${renderBadge(stock.institution_consecutive, '기')}
+                </div>
+            </td>
+            <td>${renderScoreDots(stock.score)}</td>
+            <td>
+                <button class="btn-add-quick" onclick="quickAddBot('${stock.ticker}', '${stock.name}')">봇 등록</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function renderBadge(passed, text) {
+    const className = passed ? 'pass' : 'fail';
+    const icon = passed ? '✓' : '✗';
+    return `<span class="badge-mini ${className}" title="${text}">${icon}</span>`;
+}
+
+function renderScoreDots(score) {
+    let dots = '<div class="score-dots">';
+    for (let i = 1; i <= 4; i++) {
+        dots += `<div class="dot ${i <= score ? 'filled' : ''}"></div>`;
+    }
+    dots += '</div>';
+    return dots;
+}
+
+function formatVolume(vol) {
+    if (vol >= 1000000) return (vol / 1000000).toFixed(1) + 'M';
+    if (vol >= 1000) return (vol / 1000).toFixed(1) + 'K';
+    return vol;
+}
+
+function quickAddBot(ticker, name) {
+    document.getElementById('tickerInput').value = ticker;
+    showAddBotModal();
+}
+
 
 // Add Bot
 function showAddBotModal() {
