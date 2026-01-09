@@ -271,8 +271,14 @@ function renderBots() {
             </div>
             <div class="card-actions">
                 ${isRunning
-                ? `<button onclick="stopBot('${bot.id}')" class="btn-stop">중지</button>`
-                : `<button onclick="startBot('${bot.id}')" class="btn-start">시작</button>`
+                ? `<span class="has-tooltip">
+                    <button onclick="stopBot('${bot.id}')" class="btn-stop">중지</button>
+                    <span class="tooltip-text">봇의 실시간 모니터링을 중지합니다. 보유 주식은 그대로 유지됩니다.</span>
+                </span>`
+                : `<span class="has-tooltip">
+                    <button onclick="startBot('${bot.id}')" class="btn-start">시작</button>
+                    <span class="tooltip-text">봇 프로세스를 시작합니다. 설정된 조건에 따라 자동 매매를 시작합니다.</span>
+                </span>`
             }
                 <span class="has-tooltip">
                     <button onclick="viewLogs('${bot.id}')" class="btn-log ${selectedBotId === bot.id ? 'active' : ''}">로그</button>
