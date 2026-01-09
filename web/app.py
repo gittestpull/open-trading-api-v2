@@ -527,7 +527,7 @@ class BotManager:
         return True
 
     def perform_sell(self, bot: dict, price: int = 0) -> bool:
-        """Perform sell order (Market or Limit)"""
+        """Perform sell order (Market or Limit) with NXT session support"""
         try:
             qty = bot.get("total_qty", 0)
             if qty <= 0:
@@ -537,6 +537,10 @@ class BotManager:
             if not code:
                 return False
 
+            # Detect Session / Exchange
+            # current_exchange is synced in get_bot_status from state file
+            current_exch = bot.get("current_exchange", "KRX")
+            
             # Construct Order Payload
             tr_id = "VTTC0801U" if not bot["live"] else "TTTC0801U"
             
@@ -553,9 +557,18 @@ class BotManager:
             # API Endpoint
             url = "/uapi/domestic-stock/v1/trading/order-cash"
             
-            # Determine Market (01) or Limit (00)
-            ord_dvsn = "01" if price == 0 else "00"
-            ord_unpr = "0" if price == 0 else str(price)
+            # Determine Order Division and Price
+            # NXT only supports Limit Order (00)
+            if current_exch == "NXT":
+                ord_dvsn = "00"
+                # If Market Sell (price=0) requested during NXT, use current_price as limit
+                ord_unpr = str(int(price)) if price > 0 else str(int(bot.get("current_price", 0)))
+                if ord_unpr == "0":
+                    logger.error(f"Cannot sell {code} on NXT: Price is missing")
+                    return False
+            else:
+                ord_dvsn = "01" if price == 0 else "00"
+                ord_unpr = "0" if price == 0 else str(price)
             
             params = {
                 "CANO": account_num,
@@ -564,21 +577,23 @@ class BotManager:
                 "ORD_DVSN": ord_dvsn,
                 "ORD_QTY": str(qty),
                 "ORD_UNPR": ord_unpr,
+                "EXCG_ID_DVSN_CD": current_exch  # Pass "NXT" or "KRX"
             }
             
             res = kis_auth._url_fetch(url, tr_id, "", params, postFlag=True)
             
             if res.isOK():
-                type_str = "Market" if price == 0 else f"Limit({price})"
-                logger.info(f"✅ Emergency Sell Success: {code} {qty}ea [{type_str}]")
+                type_str = "Market" if ord_dvsn == "01" else f"Limit({ord_unpr})"
+                logger.info(f"✅ Emergency Sell Success [{current_exch}]: {code} {qty}ea [{type_str}]")
                 return True
             else:
-                logger.error(f"❌ Emergency Sell Failed: {res.getBody()}")
+                logger.error(f"❌ Emergency Sell Failed [{current_exch}]: {res.getBody()}")
                 return False
                 
         except Exception as e:
             logger.error(f"Emergency sell error: {e}")
             return False
+
 
 
     
