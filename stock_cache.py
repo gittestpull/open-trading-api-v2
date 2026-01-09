@@ -23,7 +23,13 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class StockData:
-    """개별 종목 데이터"""
+    """개별 종목 데이터
+    
+    [누가] 네이버 금융에서 수집
+    [무엇을] 종목 시세 및 재무 정보
+    [언제] 5분마다 자동 갱신
+    [어디서] finance.naver.com
+    """
     code: str
     name: str
     market: str  # 'kospi' or 'kosdaq'
@@ -32,6 +38,13 @@ class StockData:
     volume: int = 0
     market_cap: int = 0
     per: float = 0.0
+    # 추가 재무 데이터 (현재 수집 미구현 - 추후 확장 예정)
+    op_rate: float = 0.0       # 영업이익률 (%)
+    debt_rate: float = 0.0     # 부채비율 (%)
+    rsrv_rate: float = 0.0     # 유보율 (%)
+    rsi: int = 0               # RSI (14일 기준)
+    sector: str = ''           # 업종
+    trend_ok: bool = False     # 추세 돌파 여부
     updated_at: Optional[datetime] = None
 
 
@@ -226,7 +239,13 @@ class StockCache:
         market: Optional[str] = None,
         limit: int = 100
     ) -> List[Dict[str, Any]]:
-        """캐시된 데이터에서 조건 필터링"""
+        """캐시된 데이터에서 조건 필터링
+        
+        [누가] StockCache 시스템
+        [무엇을] 조건에 맞는 종목 필터링
+        [언제] API 호출 시 실시간
+        [어디서] 메모리 캐시 데이터
+        """
         results = []
         
         for code, stock in self.stocks.items():
@@ -248,8 +267,23 @@ class StockCache:
                 'price': stock.price,
                 'change_rate': stock.change_rate,
                 'volume': stock.volume,
-                'per': stock.per,
-                'updated_at': stock.updated_at.isoformat() if stock.updated_at else None
+                'per': stock.per if stock.per > 0 else None,
+                # 재무 데이터 (현재 수집 중 - 일부 종목은 값이 없을 수 있음)
+                'op_rate': stock.op_rate if stock.op_rate != 0 else None,
+                'debt_rate': stock.debt_rate if stock.debt_rate != 0 else None,
+                'rsrv_rate': stock.rsrv_rate if stock.rsrv_rate != 0 else None,
+                'rsi': stock.rsi if stock.rsi != 0 else None,
+                'sector': stock.sector or None,
+                'trend_ok': stock.trend_ok,
+                'updated_at': stock.updated_at.isoformat() if stock.updated_at else None,
+                # 데이터 수집 상태 안내
+                '_data_status': {
+                    'per': '수집됨' if stock.per > 0 else '미수집 (네이버 금융 개별 조회 필요)',
+                    'op_rate': '수집됨' if stock.op_rate != 0 else '미구현 (향후 확장 예정)',
+                    'debt_rate': '수집됨' if stock.debt_rate != 0 else '미구현 (향후 확장 예정)',
+                    'rsrv_rate': '수집됨' if stock.rsrv_rate != 0 else '미구현 (향후 확장 예정)',
+                    'rsi': '수집됨' if stock.rsi != 0 else '미구현 (향후 확장 예정)',
+                }
             })
         
         # 거래량 순 정렬
