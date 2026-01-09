@@ -1,0 +1,42 @@
+{
+  "bot_오리엔탈정공_223703": {
+    "id": "bot_오리엔탈정공_223703",
+    "ticker": "오리엔탈정공",
+    "ticker_code": "014940",
+    "budget": 1300000,
+    "target": 0.02,
+    "live": true,
+    "buy_price": 0.0,
+    "orderbook": false,
+    "momentum": true,
+    "status": "RUNNING",
+    "avg_price": 8437,
+    "total_qty": 59,
+    "current_price": 8550,
+    "profit_rate": 0.01339338627474218,
+    "created_at": "2026-01-07T22:37:03.482331",
+    "ignore_market": false,
+    "current_exchange": "KRX",
+    "last_update": "2026-01-09T11:47:00.386668"
+  },
+  "bot_이노스페이스_112232": {
+    "id": "bot_이노스페이스_112232",
+    "ticker": "이노스페이스",
+    "ticker_code": "462350",
+    "budget": 1300000,
+    "target": 0.02,
+    "live": true,
+    "buy_price": 0.0,
+    "orderbook": false,
+    "momentum": false,
+    "ignore_market": false,
+    "status": "STOPPED",
+    "avg_price": 19786,
+    "total_qty": 8,
+    "current_price": 19750,
+    "profit_rate": -0.0018194683109269416,
+    "created_at": "2026-01-09T11:22:32.551118",
+    "current_exchange": "KRX",
+    "last_update": "2026-01-09T11:23:29.350790"
+  }
+}

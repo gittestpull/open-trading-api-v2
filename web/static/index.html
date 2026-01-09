@@ -69,22 +69,85 @@
                         <h3>🔍 조건 검색 설정</h3>
                         <div class="filter-row">
                             <div class="filter-group">
-                                <label>최소 거래량</label>
-                                <input type="number" id="minVolume" value="1000000">
+                                <label><input type="checkbox" id="useMinVolume"> 최소 거래량</label>
+                                <input type="number" id="minVolume" value="500000">
+                            </div>
+
+                            <div class="filter-group">
+                                <label><input type="checkbox" id="useMaxPer" checked> 최대 PER</label>
+                                <input type="number" id="maxPer" value="30" step="0.1">
                             </div>
                             <div class="filter-group">
-                                <label>최대 PER</label>
-                                <input type="number" id="maxPer" value="20" step="0.1">
+                                <label><input type="checkbox" id="useMinOpRate"> 최소 영업이익률 (%)</label>
+                                <input type="number" id="minOpRate" value="0" step="0.1">
+                            </div>
+                            <div class="filter-group">
+                                <label><input type="checkbox" id="useMaxDebtRate"> 최대 부채비율 (%)</label>
+                                <input type="number" id="maxDebtRate" value="200" step="0.1">
+                            </div>
+                            <div class="filter-group">
+                                <label><input type="checkbox" id="useMaxRsrvRate"> 최대 유보율 (%)</label>
+                                <input type="number" id="maxRsrvRate" value="5000" step="10">
                             </div>
                         </div>
+
                         <div class="checkbox-row">
-                            <label><input type="checkbox" id="requireDoubleBottom" checked> 쌍바닥 패턴</label>
-                            <label><input type="checkbox" id="requireInvestorFlow" checked> 외인/기관 수급</label>
+                            <label><input type="checkbox" id="requireDoubleBottom"> 쌍바닥 패턴</label>
+                            <label><input type="checkbox" id="requireInvestorFlow"> 외인/기관 수급</label>
+
+                            <label
+                                style="border: 1px solid #ffd700; padding: 2px 8px; border-radius: 4px; background: rgba(255, 215, 0, 0.05); margin-left: 10px;">
+                                <input type="checkbox" id="optimalMode"> <span
+                                    style="color: #ffd700; font-weight: bold;">✨ 최적전략(AI)</span>
+                            </label>
                         </div>
-                        <button class="btn-scan" id="scanBtn" onclick="startScan()">
-                            🔍 검색 시작 (KRX 전종목)
-                        </button>
+
+                        <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
+                            <button class="btn-scan" id="scanBtn" onclick="startScan()">
+                                🔍 전체 종목 검색
+                            </button>
+
+                            <button class="btn-scan" style="background: linear-gradient(135deg, #9c27b0, #673ab7);"
+                                onclick="startRawScan()">
+                                📊 전체보기
+                            </button>
+                        </div>
+
+                        <!-- Pre-built Strategies -->
+                        <div style="margin-top: 12px;">
+                            <label style="color: #ffd54f; font-size: 0.85rem; font-weight: bold;">⚡ 빠른 전략</label>
+                            <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
+                                <button class="btn-scan"
+                                    style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #ff5722, #e64a19);"
+                                    onclick="runStrategy('surge')">🔥 급등주</button>
+                                <button class="btn-scan"
+                                    style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #4caf50, #2e7d32);"
+                                    onclick="runStrategy('value')">💰 저PER 가치주</button>
+                                <button class="btn-scan"
+                                    style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #2196f3, #1565c0);"
+                                    onclick="runStrategy('trend')">📈 추세 돌파</button>
+                                <button class="btn-scan"
+                                    style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #ff9800, #ef6c00);"
+                                    onclick="runStrategy('institution')">🏦 외인/기관 매집</button>
+                            </div>
+                        </div>
+
+                        <!-- Manual Stock Lookup -->
+                        <div
+                            style="margin-top: 12px; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 6px; border: 1px dashed #456;">
+                            <label style="color: #90caf9; font-size: 0.85rem;">🔎 종목 검색 (코드 또는 이름)</label>
+                            <div style="display: flex; gap: 8px; margin-top: 6px;">
+                                <input type="text" id="manualTicker" placeholder="예: 005930 또는 삼성전자"
+                                    style="flex: 1; padding: 6px 10px; background: #1a2332; border: 1px solid #456; border-radius: 4px; color: #fff; font-size: 0.9rem;">
+                                <button class="btn-scan"
+                                    style="padding: 6px 16px; background: linear-gradient(135deg, #00bcd4, #009688);"
+                                    onclick="lookupStock()">
+                                    조회
+                                </button>
+                            </div>
+                        </div>
                     </div>
+
 
                     <div class="screener-status">
                         <div class="status-item">
@@ -105,11 +168,12 @@
                                 <th>코드</th>
                                 <th>종목명</th>
                                 <th>현재가</th>
-                                <th>PER</th>
+                                <th>등락률</th>
                                 <th>거래량</th>
-                                <th>패턴</th>
-                                <th>수급</th>
-                                <th>점수</th>
+                                <th>PER</th>
+                                <th>수익성</th>
+                                <th>RSI/추세</th>
+                                <th>부채/유보</th>
                                 <th>작업</th>
                             </tr>
                         </thead>

@@ -5,29 +5,31 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.web
-    container_name: trading-web
+    image: trading-web:${ENV_TYPE:-prod}
     restart: unless-stopped
     ports:
-
       - "${WEB_PORT:-30800}:8080"
     volumes:
-      # KIS API config (required)
+      # KIS API config (shared)
       - ./kis_devlp.yaml:/app/kis_devlp.yaml:ro
-      # Logs directory (persist logs)
-      - ./logs:/app/logs:rw
-      # State data (persist trading state)
-      - ./scalp_data:/app/scalp_data:rw
-      # Trade history (SQLite DB)
-      - ./data:/app/data:rw
-      # Bot config (persist added bots)
-      - ./web/bots_config.json:/app/web/bots_config.json:rw
-      # Blocked IPs (persist security state)
-      - ./web/blocked_ips.json:/app/web/blocked_ips.json:rw
+      # Logs directory (environment-specific isolation)
+      - ./logs/${ENV_TYPE:-prod}:/app/logs:rw
+      # State data (environment-specific isolation)
+      - ./scalp_data/${ENV_TYPE:-prod}:/app/scalp_data:rw
+      # Trade history (environment-specific isolation)
+      - ./data/${ENV_TYPE:-prod}:/app/data:rw
+      # Bot config (environment-specific isolation)
+      - ./web/config/${ENV_TYPE:-prod}/bots_config.json:/app/web/bots_config.json:rw
+      # Blocked IPs (environment-specific isolation)
+      - ./web/config/${ENV_TYPE:-prod}/blocked_ips.json:/app/web/blocked_ips.json:rw
+
     environment:
       - TZ=Asia/Seoul
       - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-trading123}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - PUBLIC_IP=${PUBLIC_IP}
+      - WEB_PORT=${WEB_PORT:-8080}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/"]
       interval: 30s

@@ -272,56 +272,83 @@ async function loadScreenerStatus() {
 async function startScan() {
     const btn = document.getElementById('scanBtn');
     btn.disabled = true;
-    btn.innerHTML = '<span class="loading-spinner"></span> 검색 중...';
+    btn.innerHTML = '<span class="loading-spinner"></span> 전체 종목 검색 중...';
 
-    const params = new URLSearchParams({
-        min_volume: document.getElementById('minVolume').value,
-        max_per: document.getElementById('maxPer').value,
-        require_double_bottom: document.getElementById('requireDoubleBottom').checked,
-        require_investor_flow: document.getElementById('requireInvestorFlow').checked
-    });
+    // 조건별 체크박스 확인
+    const useMinVolume = document.getElementById('useMinVolume')?.checked ?? true;
+    const useMaxPer = document.getElementById('useMaxPer')?.checked ?? true;
+
+    // 파라미터 구성 (캐시 API용)
+    const params = new URLSearchParams();
+    params.set('limit', 100);  // 결과 최대 100개
+
+    if (useMinVolume) params.set('minVolume', document.getElementById('minVolume').value);
+    else params.set('minVolume', 0);
+
+    if (useMaxPer) params.set('maxPer', document.getElementById('maxPer').value);
+    else params.set('maxPer', 9999);
+
+    // 적용된 조건 표시
+    const appliedFilters = [];
+    if (useMinVolume) appliedFilters.push(`거래량≥${(document.getElementById('minVolume').value / 10000).toFixed(0)}만`);
+    if (useMaxPer) appliedFilters.push(`PER≤${document.getElementById('maxPer').value}`);
+
+    const filterSummary = appliedFilters.length > 0 ? appliedFilters.join(' / ') : '조건 없음';
+    document.getElementById('lastScanTime').innerText = `📊 전체 종목 검색 중: ${filterSummary}`;
 
     try {
-        const data = await api('GET', `/screener/scan?${params}`);
-        document.getElementById('lastScanTime').innerText = data.scan_time || 'Just now';
+        // 캐시된 전체 종목에서 필터링 (3,993개 대상)
+        const data = await api('GET', `/screener/cached?${params}`);
+        const totalStocks = data.total_stocks || '?';
+        document.getElementById('lastScanTime').innerText =
+            `📊 전체 ${totalStocks}개 종목에서 필터링: ${filterSummary}`;
         document.getElementById('resultCount').innerText = `${data.count}개`;
-        renderScreenerResults(data.stocks || []);
+        renderScreenerResults(data.items || []);
     } catch (e) {
         alert('검색 실패: ' + e.message);
     } finally {
         btn.disabled = false;
-        btn.innerHTML = '🔍 검색 시작 (KRX 전종목)';
+        btn.innerHTML = '🔍 전체 종목 검색';
     }
 }
+
 
 function renderScreenerResults(stocks) {
     const tbody = document.getElementById('screenerResults');
     if (!stocks || stocks.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">조건에 맞는 종목이 없습니다.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="empty-state">조건에 맞는 종목이 없습니다.</td></tr>';
         return;
     }
 
     tbody.innerHTML = stocks.map(stock => `
         <tr>
             <td><strong>${stock.ticker}</strong></td>
-            <td>${stock.name || '-'}</td>
+            <td><a href="https://finance.naver.com/item/main.naver?code=${stock.ticker}" target="_blank" class="stock-link">${stock.name || '-'}</a></td>
             <td>${Math.round(stock.price || 0).toLocaleString()}원</td>
-            <td>${stock.per ? stock.per.toFixed(1) : '-'}</td>
-            <td>${formatVolume(stock.volume)}</td>
-            <td>${renderBadge(stock.double_bottom, '쌍바닥')}</td>
-            <td>
-                <div class="screener-badges">
-                    ${renderBadge(stock.foreign_consecutive, '외')}
-                    ${renderBadge(stock.institution_consecutive, '기')}
-                </div>
+            <td class="${(stock.change_rate || 0) > 0 ? 'text-success' : (stock.change_rate || 0) < 0 ? 'text-danger' : ''}">
+                ${(stock.change_rate || 0) > 0 ? '+' : ''}${stock.change_rate ? stock.change_rate.toFixed(2) + '%' : '0.00%'}
             </td>
-            <td>${renderScoreDots(stock.score)}</td>
+            <td style="color: #90caf9;">${formatVolume(stock.volume || 0)}</td>
+            <td>${stock.per ? stock.per.toFixed(1) : '-'}</td>
+            <td class="${stock.op_rate >= 5 ? 'text-success' : ''}">
+                <div style="font-size: 0.9rem;">${stock.op_rate ? stock.op_rate.toFixed(1) + '%' : '-'}</div>
+                <div style="font-size: 0.7rem; color: #888;">${stock.sector || '-'}</div>
+            </td>
+            <td>
+                ${stock.rsi ? `<span class="badge" style="background: ${stock.rsi > 60 ? '#ff9800' : stock.rsi < 40 ? '#03a9f4' : '#4caf50'}">RSI ${stock.rsi}</span>` : ''}
+                ${stock.trend_ok ? '<span class="badge" style="background: #9c27b0">추세</span>' : ''}
+            </td>
+            <td>
+                <div style="font-size: 0.8rem;">부채: ${stock.debt_rate ? stock.debt_rate.toFixed(1) + '%' : '-'}</div>
+                <div style="font-size: 0.8rem;">유보: ${stock.rsrv_rate ? Math.round(stock.rsrv_rate) + '%' : '-'}</div>
+            </td>
             <td>
                 <button class="btn-add-quick" onclick="quickAddBot('${stock.ticker}', '${stock.name}')">봇 등록</button>
             </td>
         </tr>
     `).join('');
 }
+
 
 function renderBadge(passed, text) {
     const className = passed ? 'pass' : 'fail';
@@ -347,6 +374,131 @@ function formatVolume(vol) {
 function quickAddBot(ticker, name) {
     document.getElementById('tickerInput').value = ticker;
     showAddBotModal();
+}
+
+// Toggle filter inputs enabled/disabled
+function setFiltersEnabled(enabled) {
+    const filterIds = ['minVolume', 'maxPer', 'minOpRate', 'maxDebtRate', 'maxRsrvRate',
+        'requireDoubleBottom', 'requireInvestorFlow', 'optimalMode'];
+    filterIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.disabled = !enabled;
+            el.style.opacity = enabled ? '1' : '0.5';
+        }
+    });
+}
+
+// RAW Scan - No filters, just high volume stocks
+async function startRawScan() {
+    const minVolume = document.getElementById('minVolume').value || 0;
+
+    setFiltersEnabled(false); // 필터 비활성화
+    document.getElementById('lastScanTime').textContent = '📊 전체보기: 거래량 상위 종목 (필터 없음)';
+
+    try {
+        const response = await fetch(`/api/screener/raw?minVolume=${minVolume}`, {
+            headers: { 'Authorization': token }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            document.getElementById('lastScanTime').textContent =
+                `📊 ${data.message || '전체보기'} | 거래량 ≥ ${(minVolume / 10000).toFixed(0)}만`;
+            document.getElementById('resultCount').textContent = (data.count || 0) + '개';
+            renderScreenerResults(data.items || []);
+        } else {
+            alert('조회 실패: ' + response.statusText);
+            setFiltersEnabled(true);
+        }
+    } catch (e) {
+        alert('조회 오류: ' + e.message);
+        setFiltersEnabled(true);
+    }
+}
+
+// Pre-built strategy runner - uses ONLY strategy preset conditions (ignores UI filters)
+async function runStrategy(strategyName) {
+    const strategies = {
+        'surge': {
+            name: '🔥 급등주',
+            desc: '거래량 100만+ / 추세·모멘텀 정배열',
+            params: { minVolume: 1000000, maxPer: 50, optimalMode: true }
+        },
+        'value': {
+            name: '💰 저PER 가치주',
+            desc: 'PER≤10 / 영업이익률≥5% / 부채≤100%',
+            params: { minVolume: 500000, maxPer: 10, minOpRate: 5, maxDebtRate: 100, maxRsrvRate: 5000 }
+        },
+        'trend': {
+            name: '📈 추세 돌파',
+            desc: '5/20일 정배열 / RSI 30~70',
+            params: { minVolume: 500000, maxPer: 30, optimalMode: true }
+        },
+        'institution': {
+            name: '🏦 외인/기관 매집',
+            desc: '3일 연속 순매수',
+            params: { minVolume: 500000, maxPer: 30, requireInvestorFlow: true }
+        }
+    };
+
+    const strategy = strategies[strategyName];
+    if (!strategy) return;
+
+    setFiltersEnabled(false);  // UI 필터 비활성화 (사용 안 함 표시)
+    document.getElementById('lastScanTime').textContent = `${strategy.name}: ${strategy.desc}`;
+
+    const params = new URLSearchParams(strategy.params);
+
+    try {
+        const response = await fetch(`/api/screener/scan?${params}`, {
+            headers: { 'Authorization': token }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            document.getElementById('lastScanTime').textContent = `${strategy.name}: ${strategy.desc}`;
+            document.getElementById('resultCount').textContent = (data.count || 0) + '개';
+            renderScreenerResults(data.items || []);
+        } else {
+            alert('검색 실패: ' + response.statusText);
+        }
+    } catch (e) {
+        alert('검색 오류: ' + e.message);
+    } finally {
+        setFiltersEnabled(true);
+    }
+}
+
+
+
+// Manual stock lookup
+async function lookupStock() {
+    const ticker = document.getElementById('manualTicker').value.trim();
+    if (!ticker) {
+        alert('종목코드 또는 이름을 입력하세요');
+        return;
+    }
+
+    document.getElementById('lastScanTime').textContent = `🔎 "${ticker}" 검색 중...`;
+
+    try {
+        const response = await fetch(`/api/screener/lookup?query=${encodeURIComponent(ticker)}`, {
+            headers: { 'Authorization': token }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            document.getElementById('lastScanTime').textContent = `🔎 수동 조회: ${data.item.name} (${data.item.ticker})`;
+            document.getElementById('resultCount').textContent = '1개';
+            renderScreenerResults([data.item]);
+        } else {
+            const err = await response.json();
+            alert('조회 실패: ' + (err.detail || response.statusText));
+        }
+    } catch (e) {
+        alert('조회 오류: ' + e.message);
+    }
 }
 
 
@@ -462,10 +614,28 @@ async function deleteBot(botId) {
 
 async function panicSellBot(botId, ticker) {
     const bot = bots.find(b => b.id === botId);
+    if (!bot) return;
+
+    // 1. Ask if it's a local reset only
+    const isLocalReset = confirm(`🚨 [${ticker}] 로컬 데이터만 초기화하시겠습니까?\n\n'확인' -> 실제 매도 없이 데이터만 초기화\n'취소' -> 실제 매매 포함 진행`);
+
+    if (isLocalReset) {
+        if (!confirm(`정말 [${ticker}]의 로컬 데이터를 초기화하시겠습니까?\n- 실제 매도 주문은 나가지 않습니다.\n- 봇이 중지되고 보유량이 0으로 리셋됩니다.`)) return;
+        try {
+            const res = await api('POST', `/bots/${botId}/panic-sell`, { price: 0, skip_trade: true });
+            alert(res.message);
+            loadBots();
+        } catch (e) {
+            alert('초기화 실패: ' + e.message);
+        }
+        return;
+    }
+
+    // 2. Original Real Sell Logic
     const currentPrice = bot ? Math.round(bot.current_price || 0) : 0;
 
     // Prompt for price (Default to current price for convenience, or 0 for Market)
-    let priceInput = prompt(`매도 가격을 입력하세요.\n(0 입력 시 '시장가'로 매도합니다)\n\n현재가: ${currentPrice.toLocaleString()}원`, currentPrice > 0 ? currentPrice : "0");
+    let priceInput = prompt(`실제 매도 가격을 입력하세요.\n(0 입력 시 '시장가'로 매도합니다)\n\n현재가: ${currentPrice.toLocaleString()}원`, currentPrice > 0 ? currentPrice : "0");
 
     if (priceInput === null) return; // Cancelled
 
@@ -477,10 +647,10 @@ async function panicSellBot(botId, ticker) {
 
     const typeStr = price === 0 ? "시장가" : `${price.toLocaleString()}원(지정가)`;
 
-    if (!confirm(`🚨 [${ticker}] 경고 🚨\n\n1. 봇이 즉시 중지됩니다.\n2. 매도 주문: ${typeStr}\n3. 매매 기록이 초기화됩니다.\n\n정말 진행하시겠습니까?`)) return;
+    if (!confirm(`🚨 [${ticker}] 실제 매수/매도 경고 🚨\n\n1. 봇이 즉시 중지됩니다.\n2. 매도 주문: ${typeStr}\n3. 매매 기록이 초기화됩니다.\n\n정말 진행하시겠습니까?`)) return;
 
     try {
-        const res = await api('POST', `/bots/${botId}/panic-sell`, { price: price });
+        const res = await api('POST', `/bots/${botId}/panic-sell`, { price: price, skip_trade: false });
         alert(res.message);
         loadBots();
     } catch (e) {

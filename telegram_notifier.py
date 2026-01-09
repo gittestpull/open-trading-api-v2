@@ -6,6 +6,7 @@ Sends alerts for errors, crashes, and important events.
 import os
 import requests
 import logging
+from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ def is_configured() -> bool:
     """Check if Telegram notifications are configured."""
     return bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
 
-def send_alert(message: str, level: str = "INFO", ticker: str = None) -> bool:
+def send_alert(message: str, level: str = "INFO", ticker: str = None, buttons: List[List[dict]] = None) -> bool:
     """
     Send a Telegram alert message.
     
@@ -25,6 +26,8 @@ def send_alert(message: str, level: str = "INFO", ticker: str = None) -> bool:
         message: The message to send
         level: Alert level (INFO, WARNING, ERROR, CRITICAL)
         ticker: Optional ticker name for context
+        buttons: Optional list of lists of dicts for inline keyboard
+                 e.g. [[{"text": "Button", "callback_data": "data"}]]
     
     Returns:
         True if sent successfully, False otherwise
@@ -52,6 +55,10 @@ def send_alert(message: str, level: str = "INFO", ticker: str = None) -> bool:
             "text": formatted_message,
             "parse_mode": "HTML"
         }
+        
+        if buttons:
+            payload["reply_markup"] = {"inline_keyboard": buttons}
+            
         response = requests.post(url, json=payload, timeout=5)
         
         if response.status_code == 200:

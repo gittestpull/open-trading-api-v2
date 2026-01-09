@@ -92,3 +92,30 @@ class StockMaster:
             return self.kosdaq_master[name]
             
         return None
+
+    def get_name(self, code):
+        # Check KOSPI first
+        if self.kospi_master is None:
+            if self._download_and_extract('kospi'):
+                self.kospi_master = self._parse_master('kospi')
+            else:
+                self.kospi_master = {}
+        
+        # Reverse search in KOSPI
+        for name, cd in self.kospi_master.items():
+            if cd == code:
+                return name
+                
+        # Check KOSDAQ
+        if self.kosdaq_master is None:
+            if self._download_and_extract('kosdaq'):
+                self.kosdaq_master = self._parse_master('kosdaq')
+            else:
+                self.kosdaq_master = {}
+                
+        # Reverse search in KOSDAQ
+        for name, cd in self.kosdaq_master.items():
+            if cd == code:
+                return name
+                
+        return None

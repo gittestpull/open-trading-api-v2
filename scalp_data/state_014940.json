@@ -2,15 +2,19 @@
     "state": "HOLDING",
     "avg_buy_price": 8073.550743538462,
     "total_qty": 156,
-    "current_step": 1,
+    "current_step": 2,
     "buy_history": [
         [
-            8073.550743538462,
-            156
+            8140.0,
+            10
+        ],
+        [
+            8140.0,
+            21
         ]
     ],
     "pending_sell": null,
-    "current_price": 8050,
+    "current_price": 8160,
     "current_exchange": "NXT",
-    "last_update": "2026-01-08T16:19:28.953569"
+    "last_update": "2026-01-09T08:49:57.967933"
 }

@@ -244,7 +244,9 @@
         }
 
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         .action-btn {
@@ -267,13 +269,17 @@
             .filter-row {
                 grid-template-columns: 1fr;
             }
+
             .checkbox-row {
                 flex-direction: column;
             }
+
             .results-table {
                 font-size: 0.85rem;
             }
-            .results-table th, .results-table td {
+
+            .results-table th,
+            .results-table td {
                 padding: 10px 8px;
             }
         }
@@ -306,72 +312,112 @@
         <!-- Filter Panel -->
         <div class="filter-panel">
             <h3>검색 조건</h3>
-            <div class="filter-row">
-                <div class="filter-group">
-                    <label>최소 거래량</label>
-                    <input type="number" id="minVolume" value="1000000" placeholder="1000000">
-                </div>
-                <div class="filter-group">
-                    <label>최대 PER</label>
-                    <input type="number" id="maxPer" value="20" step="0.1" placeholder="20">
-                </div>
+            <div class="filter-group">
+                <label>최소 거래량</label>
+                <input type="number" id="minVolume" value="500000" placeholder="500000">
             </div>
-            
-            <div class="checkbox-row">
-                <div class="checkbox-item">
-                    <input type="checkbox" id="requireDoubleBottom" checked>
-                    <label for="requireDoubleBottom">📉 쌍바닥 패턴</label>
-                </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" id="requireInvestorFlow" checked>
-                    <label for="requireInvestorFlow">📊 외국인/기관 수급 (3일)</label>
-                </div>
+            <div class="filter-group">
+                <label>최대 PER</label>
+                <input type="number" id="maxPer" value="30" step="0.1" placeholder="30">
             </div>
+            <div class="filter-group">
+                <label>최소 영업이익률 (%)</label>
+                <input type="number" id="minOpRate" value="0" step="0.1" placeholder="0">
+            </div>
+            <div class="filter-group">
+                <label>최대 부채비율 (%)</label>
+                <input type="number" id="maxDebtRate" value="200" step="0.1" placeholder="200">
+            </div>
+            <div class="filter-group">
+                <label>최대 유보율 (%)</label>
+                <input type="number" id="maxRsrvRate" value="5000" step="10" placeholder="5000">
+            </div>
+        </div>
 
+        <div class="checkbox-row">
+            <div class="checkbox-item">
+                <input type="checkbox" id="requireDoubleBottom">
+                <label for="requireDoubleBottom">📉 쌍바닥 패턴</label>
+            </div>
+            <div class="checkbox-item">
+                <input type="checkbox" id="requireInvestorFlow">
+                <label for="requireInvestorFlow">📊 외국인/기관 수급 (3일)</label>
+            </div>
+            <div class="checkbox-item"
+                style="border: 1px solid #ffd700; padding: 5px 10px; border-radius: 5px; background: rgba(255, 215, 0, 0.05);">
+                <input type="checkbox" id="optimalMode">
+                <label for="optimalMode" style="color: #ffd700; font-weight: bold; cursor: pointer;">✨ Antigravity 최적 전략
+                    (AI)</label>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
             <button class="btn-scan" id="scanBtn" onclick="startScan()">
                 🔍 검색 시작
             </button>
+            <button class="btn-scan" style="background: linear-gradient(135deg, #9c27b0, #673ab7);"
+                onclick="startRawScan()">
+                📊 전체보기 (필터없음)
+            </button>
         </div>
 
-        <!-- Status Bar -->
-        <div class="status-bar">
-            <div class="status-item">
-                <span class="status-label">마지막 검색:</span>
-                <span class="status-value" id="lastScanTime">-</span>
-            </div>
-            <div class="status-item">
-                <span class="status-label">검색 결과:</span>
-                <span class="status-value" id="resultCount">0개</span>
+        <!-- Manual Stock Lookup -->
+        <div
+            style="margin-top: 15px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; border: 1px dashed #456;">
+            <label style="color: #90caf9; font-size: 0.9rem;">🔎 수동 종목 검색 (종목코드 입력)</label>
+            <div style="display: flex; gap: 10px; margin-top: 8px;">
+                <input type="text" id="manualTicker" placeholder="예: 005930 (삼성전자)"
+                    style="flex: 1; padding: 8px 12px; background: #1a2332; border: 1px solid #456; border-radius: 5px; color: #fff;">
+                <button class="btn-scan"
+                    style="padding: 8px 20px; background: linear-gradient(135deg, #00bcd4, #009688);"
+                    onclick="lookupStock()">
+                    조회
+                </button>
             </div>
         </div>
+    </div>
 
-        <!-- Results Table -->
-        <div class="results-container">
-            <table class="results-table" id="resultsTable">
-                <thead>
-                    <tr>
-                        <th>종목코드</th>
-                        <th>종목명</th>
-                        <th>현재가</th>
-                        <th>PER</th>
-                        <th>거래량</th>
-                        <th>쌍바닥</th>
-                        <th>외국인</th>
-                        <th>기관</th>
-                        <th>점수</th>
-                        <th>액션</th>
-                    </tr>
-                </thead>
-                <tbody id="resultsBody">
-                    <tr>
-                        <td colspan="10" class="empty-state">
-                            <h3>🔍 검색 결과 없음</h3>
-                            <p>검색 조건을 설정하고 "검색 시작" 버튼을 클릭하세요.</p>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+        <div class="status-item">
+            <span class="status-label">마지막 검색:</span>
+            <span class="status-value" id="lastScanTime">-</span>
         </div>
+        <div class="status-item">
+            <span class="status-label">검색 결과:</span>
+            <span class="status-value" id="resultCount">0개</span>
+        </div>
+    </div>
+
+    <!-- Results Table -->
+    <div class="results-container">
+        <table class="results-table" id="resultsTable">
+            <thead>
+                <tr>
+                    <th>종목코드</th>
+                    <th>종목명</th>
+                    <th>섹터</th>
+                    <th>현재가</th>
+                    <th>PER</th>
+                    <th>영업이익율</th>
+                    <th>RSI / 추세</th>
+                    <th>부채/유보</th>
+                    <th>거래량</th>
+                    <th>평가</th>
+                    <th>액션</th>
+                </tr>
+            </thead>
+            <tbody id="resultsBody">
+                <tr>
+                    <td colspan="13" class="empty-state">
+                        <h3>🔍 검색 결과 없음</h3>
+                        <p>검색 조건을 설정하고 "검색 시작" 버튼을 클릭하세요.</p>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
     </div>
 
     <script>
@@ -409,7 +455,7 @@
                         'Authorization': 'Basic ' + btoa('user:' + password)
                     }
                 });
-                
+
                 if (response.ok) {
                     const data = await response.json();
                     if (data.last_scan_time) {
@@ -430,10 +476,14 @@
             btn.innerHTML = '<span class="loading-spinner"></span> 검색 중...';
 
             const params = new URLSearchParams({
-                min_volume: document.getElementById('minVolume').value,
-                max_per: document.getElementById('maxPer').value,
-                require_double_bottom: document.getElementById('requireDoubleBottom').checked,
-                require_investor_flow: document.getElementById('requireInvestorFlow').checked
+                minVolume: document.getElementById('minVolume').value,
+                maxPer: document.getElementById('maxPer').value,
+                requireDoubleBottom: document.getElementById('requireDoubleBottom').checked,
+                requireInvestorFlow: document.getElementById('requireInvestorFlow').checked,
+                minOpRate: document.getElementById('minOpRate').value,
+                maxDebtRate: document.getElementById('maxDebtRate').value,
+                maxRsrvRate: document.getElementById('maxRsrvRate').value,
+                optimalMode: document.getElementById('optimalMode').checked
             });
 
             try {
@@ -445,9 +495,17 @@
 
                 if (response.ok) {
                     const data = await response.json();
-                    document.getElementById('lastScanTime').textContent = data.scan_time || 'Just now';
+                    document.getElementById('lastScanTime').textContent = data.scan_time || new Date().toLocaleString();
                     document.getElementById('resultCount').textContent = (data.count || 0) + '개';
-                    renderResults(data.stocks || []);
+
+                    // Display applied filters
+                    if (data.filters) {
+                        const f = data.filters;
+                        document.getElementById('lastScanTime').textContent =
+                            `${f.description} | 거래량≥${(f.minVolume / 10000).toFixed(0)}만 | PER≤${f.maxPer}`;
+                    }
+
+                    renderResults(data.items || [], data.filters);
                 } else {
                     alert('검색 실패: ' + response.statusText);
                 }
@@ -460,31 +518,44 @@
         }
 
         // Render results
-        function renderResults(stocks) {
+        function renderResults(stocks, filters) {
             const tbody = document.getElementById('resultsBody');
-            
+
+            // Filter summary string
+            const filterSummary = filters ?
+                `[${filters.description}] 거래량≥${(filters.minVolume / 10000).toFixed(0)}만, PER≤${filters.maxPer}, 영업이익률≥${filters.minOpRate}%` : '';
+
             if (!stocks || stocks.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="10" class="empty-state">
+                        <td colspan="13" class="empty-state">
                             <h3>🔍 조건에 맞는 종목이 없습니다</h3>
-                            <p>검색 조건을 완화해 보세요.</p>
+                            <p style="font-size: 0.9rem; color: #78909c;">${filterSummary}</p>
+                            <p>검색 조건을 완화하거나 "최적전략(AI)" 체크를 해제해 보세요.</p>
                         </td>
                     </tr>
                 `;
                 return;
             }
 
+
             tbody.innerHTML = stocks.map(stock => `
                 <tr>
                     <td class="ticker">${stock.ticker}</td>
-                    <td>${stock.name || '-'}</td>
+                    <td><a href="https://finance.naver.com/item/main.naver?code=${stock.ticker}" target="_blank" style="color: #4fc3f7; text-decoration: none;">${stock.name || '-'}</a></td>
+                    <td><span class="badge badge-info">${stock.sector || '-'}</span></td>
                     <td>${formatNumber(stock.price)}원</td>
                     <td>${stock.per ? stock.per.toFixed(1) : '-'}</td>
+                    <td class="${stock.op_rate >= 5 ? 'badge-success' : ''}">${stock.op_rate ? stock.op_rate.toFixed(1) + '%' : '-'}</td>
+                    <td>
+                        ${stock.rsi ? `<span class="badge" style="background: ${stock.rsi > 60 ? '#ff9800' : stock.rsi < 40 ? '#03a9f4' : '#4caf50'}">RSI ${stock.rsi}</span>` : ''}
+                        ${stock.trend_ok ? '<span class="badge" style="background: #9c27b0">추세</span>' : ''}
+                    </td>
+                    <td>
+                        <div style="font-size: 0.85rem;">부채: ${stock.debt_rate ? stock.debt_rate.toFixed(1) + '%' : '-'}</div>
+                        <div style="font-size: 0.85rem;">유보: ${stock.rsrv_rate ? Math.round(stock.rsrv_rate) + '%' : '-'}</div>
+                    </td>
                     <td>${formatNumber(stock.volume)}</td>
-                    <td>${stock.double_bottom ? '<span class="badge badge-success">✓</span>' : '<span class="badge badge-warning">✗</span>'}</td>
-                    <td>${stock.foreign_consecutive ? '<span class="badge badge-success">매수</span>' : '<span class="badge badge-warning">-</span>'}</td>
-                    <td>${stock.institution_consecutive ? '<span class="badge badge-success">매수</span>' : '<span class="badge badge-warning">-</span>'}</td>
                     <td>${renderScore(stock.score)}</td>
                     <td><button class="action-btn" onclick="analyzeStock('${stock.ticker}')">상세</button></td>
                 </tr>
@@ -527,11 +598,67 @@
             }
         }
 
+        // RAW Scan - No filters, just high volume stocks
+        async function startRawScan() {
+            const minVolume = document.getElementById('minVolume').value || 0;
+
+            document.getElementById('lastScanTime').textContent = '조회 중...';
+
+            try {
+                const response = await fetch(`/api/screener/raw?minVolume=${minVolume}`, {
+                    headers: {
+                        'Authorization': 'Basic ' + btoa('user:' + password)
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('lastScanTime').textContent = data.message || '전체보기 모드';
+                    document.getElementById('resultCount').textContent = (data.count || 0) + '개';
+                    renderResults(data.items || [], null);
+                } else {
+                    alert('조회 실패: ' + response.statusText);
+                }
+            } catch (e) {
+                alert('조회 오류: ' + e.message);
+            }
+        }
+
+        // Manual stock lookup
+        async function lookupStock() {
+            const ticker = document.getElementById('manualTicker').value.trim();
+            if (!ticker) {
+                alert('종목코드를 입력하세요');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/screener/lookup?ticker=${ticker}`, {
+                    headers: {
+                        'Authorization': 'Basic ' + btoa('user:' + password)
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('lastScanTime').textContent = `수동 조회: ${ticker}`;
+                    document.getElementById('resultCount').textContent = '1개';
+                    renderResults([data.item], null);
+                } else {
+                    const err = await response.json();
+                    alert('조회 실패: ' + (err.detail || response.statusText));
+                }
+            } catch (e) {
+                alert('조회 오류: ' + e.message);
+            }
+        }
+
         // Check if already logged in (via session/cookie check would be ideal)
         document.addEventListener('DOMContentLoaded', () => {
             // Show login modal by default
         });
     </script>
+
 </body>
 
 </html>

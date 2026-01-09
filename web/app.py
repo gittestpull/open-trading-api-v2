@@ -119,17 +119,16 @@ def check_rate_limit(request: Request):
     return ip
 
 # Telegram Notification Helpers
-def send_telegram_alert(message: str):
+def send_telegram_alert(message: str, buttons: List[List[dict]] = None):
     """Send security alert via Telegram"""
     try:
         config_path = BASE_DIR / "kis_devlp.yaml"
         if not config_path.exists():
             return
             
-        # We parse manually or import yaml if available (FastAPI env usually has pyyaml)
         import yaml
         import urllib.request
-        import urllib.parse
+        import json
         import ssl
 
         with open(config_path, "r") as f:
@@ -146,13 +145,17 @@ def send_telegram_alert(message: str):
             "text": message,
             "parse_mode": "Markdown"
         }
-        data = urllib.parse.urlencode(payload).encode("utf-8")
+        
+        if buttons:
+            payload["reply_markup"] = {"inline_keyboard": buttons}
+            
+        json_data = json.dumps(payload).encode("utf-8")
         
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
         
-        req = urllib.request.Request(url, data=data)
+        req = urllib.request.Request(url, data=json_data, headers={'Content-Type': 'application/json'})
         with urllib.request.urlopen(req, context=ctx) as response:
             pass
     except Exception as e:
@@ -183,7 +186,13 @@ def record_failed_attempt(ip: str):
             f"Reason: Excessive Login Failures ({MAX_LOGIN_ATTEMPTS} attempts)\n\n"
             f"📋 **Current Blocked IPs**:\n{blocked_list_str}"
         )
-        send_telegram_alert(msg)
+        
+        buttons = [
+            [{"text": f"✅ IP {ip} 차단 해제", "callback_data": f"unblock_ip:{ip}"}],
+            [{"text": "🧹 전체 차단 해제", "callback_data": "unblock_all"}]
+        ]
+        send_telegram_alert(msg, buttons=buttons)
+
 
 def clear_failed_attempts(ip: str):
     """Clear failed attempts on successful login"""
@@ -215,7 +224,9 @@ def verify_password(request: Request, credentials: HTTPBasicCredentials = Depend
             f"Reason: Used vulnerable password 'trading123'\n\n"
             f"📋 **Current Blocked IPs**:\n{blocked_list_str}"
         )
-        send_telegram_alert(msg)
+        
+        buttons = [[{"text": f"✅ IP {ip} 차단 해제 (Unblock)", "callback_data": f"unblock_ip:{ip}"}]]
+        send_telegram_alert(msg, buttons=buttons)
         
         # Return fake 401 to confuse or standard 401
         raise HTTPException(
@@ -290,6 +301,7 @@ class BotStatus(BaseModel):
 
 class SellRequest(BaseModel):
     price: int = 0  # 0 = Market Price
+    skip_trade: bool = False # If True, only reset local state without selling
 
 
 # Bot Manager
@@ -912,6 +924,122 @@ async def lifespan(app: FastAPI):
     status_task = asyncio.create_task(status_broadcast_task())
     log_task = asyncio.create_task(log_streamer.stream_logs())
     keepalive_task = asyncio.create_task(bot_manager.monitor_processes())
+    
+    # Start Stock Cache background refresh
+    stock_cache_task = None
+    try:
+        from stock_cache import get_stock_cache, start_cache_refresh_task
+        stock_cache_task = asyncio.create_task(start_cache_refresh_task(interval_minutes=5))
+        logger.info("📊 Stock Cache background refresh started")
+    except Exception as e:
+        logger.error(f"Failed to start stock cache: {e}")
+    
+    # Start Telegram Polling (webhooks require HTTPS, so we use long polling instead)
+    telegram_polling_task = None
+    try:
+        config_path = BASE_DIR / "kis_devlp.yaml"
+        if config_path.exists():
+            import yaml
+            with open(config_path, "r") as f:
+                config = yaml.safe_load(f)
+                tg_token = config.get("telegram_token")
+            
+            if tg_token:
+                async def telegram_polling():
+                    """Long polling to receive Telegram button callbacks"""
+                    import urllib.request
+                    import json
+                    import ssl
+                    
+                    last_update_id = 0
+                    poll_url = f"https://api.telegram.org/bot{tg_token}/getUpdates"
+                    ctx = ssl.create_default_context()
+                    ctx.check_hostname = False
+                    ctx.verify_mode = ssl.CERT_NONE
+                    
+                    def do_poll(offset):
+                        """Synchronous polling function to run in thread"""
+                        params = f"?offset={offset}&timeout=30"
+                        req = urllib.request.Request(poll_url + params)
+                        with urllib.request.urlopen(req, context=ctx, timeout=35) as response:
+                            return json.loads(response.read().decode())
+                    
+                    def answer_callback(callback_id):
+                        """Answer callback query to remove loading state"""
+                        answer_url = f"https://api.telegram.org/bot{tg_token}/answerCallbackQuery"
+                        answer_payload = json.dumps({"callback_query_id": callback_id}).encode("utf-8")
+                        answer_req = urllib.request.Request(answer_url, data=answer_payload, headers={'Content-Type': 'application/json'})
+                        urllib.request.urlopen(answer_req, context=ctx, timeout=10)
+                    
+                    logger.info("🤖 Telegram Polling started")
+                    
+                    while True:
+                        try:
+                            # Run blocking call in thread pool
+                            data = await asyncio.to_thread(do_poll, last_update_id + 1)
+                            
+                            if data.get("ok") and data.get("result"):
+                                for update in data["result"]:
+                                    last_update_id = update["update_id"]
+                                    
+                                    # Handle callback_query (button press)
+                                    if "callback_query" in update:
+                                        callback = update["callback_query"]
+                                        callback_data = callback.get("data", "")
+                                        callback_id = callback.get("id")
+                                        
+                                        # Process: Unblock IP
+                                        if callback_data.startswith("unblock_ip:"):
+                                            ip = callback_data.split(":")[1]
+                                            if ip in blocked_ips:
+                                                del blocked_ips[ip]
+                                                save_blocked_ips(blocked_ips)
+                                                if ip in login_attempts:
+                                                    del login_attempts[ip]
+                                                logger.info(f"IP {ip} unblocked via Telegram")
+                                                send_telegram_alert(f"✅ IP `{ip}` 차단 해제 완료!")
+                                            else:
+                                                send_telegram_alert(f"ℹ️ IP `{ip}` 는 이미 차단 목록에 없습니다.")
+                                        
+                                        # Process: Unblock ALL IPs
+                                        elif callback_data == "unblock_all":
+                                            count = len(blocked_ips)
+                                            blocked_ips.clear()
+                                            login_attempts.clear()
+                                            save_blocked_ips(blocked_ips)
+                                            logger.info(f"All {count} IPs unblocked via Telegram")
+                                            send_telegram_alert(f"🧹 전체 차단 해제 완료! ({count}개 IP 해제됨)")
+                                        
+                                        # Process: Stop Bot
+                                        elif callback_data.startswith("stop_bot:"):
+                                            bot_id = callback_data.split(":")[1]
+                                            if bot_manager.stop_bot(bot_id):
+                                                logger.info(f"Bot {bot_id} stopped via Telegram")
+                                                send_telegram_alert(f"🛑 봇 `{bot_id}` 정지 완료!")
+                                            else:
+                                                send_telegram_alert(f"⚠️ 봇 `{bot_id}` 를 찾을 수 없습니다.")
+
+                                        
+                                        # Answer callback in background
+                                        try:
+                                            await asyncio.to_thread(answer_callback, callback_id)
+                                        except:
+                                            pass
+                        
+                        except Exception as e:
+                            if "timed out" not in str(e).lower():
+                                logger.warning(f"Telegram polling error: {e}")
+                            await asyncio.sleep(5)
+                        
+                        await asyncio.sleep(0.1)
+
+                
+                telegram_polling_task = asyncio.create_task(telegram_polling())
+                logger.info("✅ Telegram Polling task started")
+    except Exception as e:
+        logger.error(f"Failed to start Telegram polling: {e}")
+
+
     logger.info("Trading Bot Dashboard started (Keep-Alive enabled)")
     yield
     # Shutdown
@@ -1000,7 +1128,12 @@ async def panic_sell_bot(bot_id: str, req: Optional[SellRequest] = None, _: str 
     # 2. Sell All
     qty = bot.get("total_qty", 0)
     sell_success = False
-    if qty > 0:
+    skip_trade = req.skip_trade if req else False
+    
+    if skip_trade:
+        logger.info(f"Local Reset Only requested for {bot['ticker']}. Skipping perform_sell.")
+        sell_success = True # Consider it successful as no action was needed
+    elif qty > 0:
         sell_success = bot_manager.perform_sell(bot, price)
         if sell_success:
             logger.info(f"Panic sell successful for {bot['ticker']}")
@@ -1125,44 +1258,285 @@ async def factory_reset(_: str = Depends(verify_password)):
     return {"message": "All bots stopped, holdings sold, and data reset.", "results": results}
 
 
+@app.post("/api/telegram/webhook")
+async def telegram_webhook(request: Request):
+    """Handle Telegram Callback Queries"""
+    try:
+        data = await request.json()
+        logger.info(f"Telegram Webhook received: {data}")
+        
+        # Handle Callback Query
+        if "callback_query" in data:
+            callback = data["callback_query"]
+            callback_data = callback.get("data", "")
+            callback_id = callback.get("id")
+            message = callback.get("message", {})
+            chat_id = message.get("chat", {}).get("id")
+            
+            # Action: Unblock IP
+            if callback_data.startswith("unblock_ip:"):
+                ip = callback_data.split(":")[1]
+                if ip in blocked_ips:
+                    del blocked_ips[ip]
+                    save_blocked_ips(blocked_ips)
+                    if ip in login_attempts:
+                        del login_attempts[ip]
+                    logger.info(f"IP {ip} unblocked via Telegram")
+                    
+                    # Answer callback
+                    send_telegram_alert(f"✅ IP `{ip}` has been unblocked.")
+                else:
+                    send_telegram_alert(f"ℹ️ IP `{ip}` is not in the blocked list.")
+            
+            # Action: Stop Bot
+            elif callback_data.startswith("stop_bot:"):
+                bot_id = callback_data.split(":")[1]
+                if bot_manager.stop_bot(bot_id):
+                    logger.info(f"Bot {bot_id} stopped via Telegram")
+                    send_telegram_alert(f"🛑 Bot `{bot_id}` has been stopped.")
+                else:
+                    send_telegram_alert(f"❌ Bot `{bot_id}` not found or already stopped.")
+
+            # Answer Callback Query (to remove loading state in Telegram)
+            config_path = BASE_DIR / "kis_devlp.yaml"
+            if config_path.exists():
+                import yaml
+                import urllib.request
+                import json
+                import ssl
+                
+                with open(config_path, "r") as f:
+                    config = yaml.safe_load(f)
+                    token = config.get("telegram_token")
+                
+                if token:
+                    url = f"https://api.telegram.org/bot{token}/answerCallbackQuery"
+                    payload = {"callback_query_id": callback_id, "text": "조치가 완료되었습니다."}
+                    json_payload = json.dumps(payload).encode("utf-8")
+                    ctx = ssl.create_default_context()
+                    ctx.check_hostname = False
+                    ctx.verify_mode = ssl.CERT_NONE
+                    req = urllib.request.Request(url, data=json_payload, headers={'Content-Type': 'application/json'})
+                    with urllib.request.urlopen(req, context=ctx) as response:
+                        pass
+
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Error handling Telegram webhook: {e}")
+        return {"status": "error", "message": str(e)}
+
+
 # ============ Stock Screener API Endpoints ============
 
 @app.get("/api/screener/scan")
-async def screener_scan(
-    min_volume: int = 1000000,
-    max_per: float = 20.0,
-    require_double_bottom: bool = True,
-    require_investor_flow: bool = True,
-    _: str = Depends(verify_password)
-):
-    """
-    조건 검색 실행
-    - PER 20배 이하
-    - 쌍바닥 패턴
-    - 외국인/기관 수급 3일 지속
-    - 거래량 100만건 이상
-    """
+async def screener_scan(minVolume: int = 500000,  # 50만으로 완화
+                        maxPer: float = 30.0,     # 30으로 완화
+                        requireDoubleBottom: bool = False,  # 기본 비활성화
+                        requireInvestorFlow: bool = False,  # 기본 비활성화
+                        minOpRate: float = 0.0,   # 0으로 완화 (모든 종목 포함)
+                        maxDebtRate: float = 200.0,  # 200%로 완화
+                        maxRsrvRate: float = 5000.0,  # 5000%로 완화
+                        optimalMode: bool = False,
+                        _: str = Depends(verify_password)):
+    """주식 스캔 시작"""
     if stock_screener is None:
         raise HTTPException(status_code=503, detail="Stock Screener 초기화 실패")
     
+    # Applied filter summary for UI display
+    filters_applied = {
+        "minVolume": minVolume,
+        "maxPer": maxPer,
+        "requireDoubleBottom": requireDoubleBottom,
+        "requireInvestorFlow": requireInvestorFlow,
+        "minOpRate": minOpRate,
+        "maxDebtRate": maxDebtRate,
+        "maxRsrvRate": maxRsrvRate,
+        "optimalMode": optimalMode,
+        "description": "Antigravity Optimal (RSI 30~70, 추세 OR 모멘텀)" if optimalMode else "Standard (쌍바닥/수급)"
+    }
+    
     try:
+        # 백그라운드에서 실행하지 않고 즉시 실행
         results = await asyncio.to_thread(
             stock_screener.scan_all,
-            min_volume=min_volume,
-            max_per=max_per,
-            require_double_bottom=require_double_bottom,
-            require_investor_flow=require_investor_flow
+            min_volume=minVolume,
+            max_per=maxPer,
+            require_double_bottom=requireDoubleBottom,
+            require_investor_flow=requireInvestorFlow,
+            min_op_rate=minOpRate,
+            max_debt_rate=maxDebtRate,
+            max_rsrv_rate=maxRsrvRate,
+            optimal_mode=optimalMode
         )
         return {
-            "status": "ok",
-            "scan_time": stock_screener.last_scan_time,
-            "count": len(results),
-            "stocks": results
+            "status": "success", 
+            "count": len(results), 
+            "items": results,
+            "filters": filters_applied
         }
     except Exception as e:
         logger.error(f"Screener scan failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.get("/api/screener/lookup")
+async def screener_lookup(query: str, _: str = Depends(verify_password)):
+    """수동 종목 조회 - 종목코드 또는 종목명으로 검색"""
+    if stock_screener is None:
+        raise HTTPException(status_code=503, detail="Stock Screener 초기화 실패")
+    
+    query = query.strip()
+    ticker = None
+    
+    # 숫자만 있으면 종목코드로 처리
+    if query.isdigit():
+        ticker = query.zfill(6)
+    else:
+        # 종목명으로 코드 검색
+        from stock_code_lookup import StockMaster
+        stock_master = StockMaster()
+        ticker = stock_master.get_code(query)
+        if not ticker:
+            raise HTTPException(status_code=404, detail=f"'{query}' 종목을 찾을 수 없습니다. 정확한 종목명이나 코드를 입력하세요.")
+    
+    try:
+        info = await asyncio.to_thread(stock_screener.get_stock_price_info, ticker)
+        if not info:
+            raise HTTPException(status_code=404, detail=f"종목 {ticker}를 찾을 수 없습니다")
+        
+        # 추가 정보 조회
+        per_ok, per_value = await asyncio.to_thread(stock_screener.check_per, ticker, 9999)
+        fin_ok, fin_data = await asyncio.to_thread(stock_screener.check_financials, ticker, -9999, 9999, 99999)
+        opt_ok, opt_data = await asyncio.to_thread(stock_screener.check_momentum_and_trend, ticker)
+        
+        result = {
+            "ticker": ticker,
+            "name": info.get("name", ticker),
+            "price": info.get("price", 0),
+            "volume": info.get("volume", 0),
+            "sector": info.get("sector", "-"),
+            "per": per_value,
+            **fin_data,
+            **opt_data,
+            "score": 0
+        }
+        
+        return {"status": "success", "item": result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Stock lookup failed for {query}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/screener/raw")
+async def screener_raw(minVolume: int = 0, _: str = Depends(verify_password)):
+    """필터 없이 거래량 상위 종목만 조회 (RAW 모드)"""
+    if stock_screener is None:
+        raise HTTPException(status_code=503, detail="Stock Screener 초기화 실패")
+    
+    try:
+        # 거래량 상위 종목 조회
+        volume_df = await asyncio.to_thread(stock_screener.get_high_volume_stocks, minVolume)
+        
+        if volume_df.empty:
+            return {"status": "success", "count": 0, "items": [], "message": "거래량 조건 충족 종목 없음"}
+        
+        # 종목 코드 추출
+        tickers = volume_df['mksc_shrn_iscd'].tolist() if 'mksc_shrn_iscd' in volume_df.columns else []
+        
+        results = []
+        for ticker in tickers[:30]:  # 최대 30개
+            info = await asyncio.to_thread(stock_screener.get_stock_price_info, ticker)
+            if info:
+                results.append({
+                    "ticker": ticker,
+                    "name": info.get("name", ticker),
+                    "price": info.get("price", 0),
+                    "volume": info.get("volume", 0),
+                    "sector": info.get("sector", "-"),
+                    "per": None,
+                    "op_rate": None,
+                    "debt_rate": None,
+                    "rsrv_rate": None,
+                    "rsi": None,
+                    "trend_ok": False,
+                    "score": 0
+                })
+        
+        return {
+            "status": "success", 
+            "count": len(results), 
+            "items": results,
+            "message": f"거래량 상위 {len(results)}개 종목 (필터 없음)"
+        }
+    except Exception as e:
+        logger.error(f"Raw screener failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/screener/cached")
+async def screener_cached(
+    minVolume: int = 0,
+    maxPer: float = 9999,
+    market: str = None,
+    limit: int = 100,
+    _: str = Depends(verify_password)
+):
+    """캐시된 전체 종목 데이터에서 필터링 (KOSPI + KOSDAQ ~3,700개)"""
+    try:
+        from stock_cache import get_stock_cache
+        cache = get_stock_cache()
+        
+        if not cache.stocks:
+            return {
+                "status": "error",
+                "message": "캐시가 아직 로드되지 않았습니다. 잠시 후 다시 시도하세요.",
+                "count": 0,
+                "items": []
+            }
+        
+        # 필터링
+        results = cache.filter_stocks(
+            min_volume=minVolume,
+            max_per=maxPer if maxPer < 9999 else 9999,
+            market=market,
+            limit=limit
+        )
+        
+        stats = cache.get_stats()
+        
+        return {
+            "status": "success",
+            "count": len(results),
+            "total_stocks": stats['total_stocks'],
+            "last_update": stats['last_update'],
+            "items": results,
+            "filters": {
+                "minVolume": minVolume,
+                "maxPer": maxPer,
+                "market": market,
+                "limit": limit
+            }
+        }
+    except Exception as e:
+        logger.error(f"Cached screener failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/screener/cache-stats")
+async def screener_cache_stats(_: str = Depends(verify_password)):
+    """캐시 통계 조회"""
+    try:
+        from stock_cache import get_stock_cache
+        cache = get_stock_cache()
+        return {
+            "status": "success",
+            **cache.get_stats()
+        }
+    except Exception as e:
+        logger.error(f"Cache stats failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/screener/status")
 async def screener_status(_: str = Depends(verify_password)):

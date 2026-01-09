@@ -1,19 +1,40 @@
 #!/bin/bash
 
-# Trading Bot Web Dashboard - Run Script
-# Usage: ./run_web.sh
-# Automates: Random Port, Random Password, Telegram Notification, Robust Firewall
+# Trading Bot Web Dashboard - Multi-Env Run Script
+# Usage: ./run_web.sh [prod|staging|dev]
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# 0. Environment Setup
+ENV_TYPE=${1:-prod} # Default to prod if no arg provided
+case $ENV_TYPE in
+    prod)
+        DEFAULT_PORT=30800
+        PROJECT_NAME="trading-prod"
+        ;;
+    staging)
+        DEFAULT_PORT=8080
+        PROJECT_NAME="trading-staging"
+        ;;
+    dev)
+        DEFAULT_PORT=30802
+        PROJECT_NAME="trading-dev"
+        ;;
+    *)
+        echo "❌ Invalid environment: $ENV_TYPE. Use prod, staging, or dev."
+        exit 1
+        ;;
+esac
+
+echo "🌐 Environment: $ENV_TYPE"
+echo "📂 Project Name: $PROJECT_NAME"
+
 # --- Function: Cleanup Old Firewall Rules ---
-# This removes ANY UFW rule tagged with 'TradingBot' to prevent zombies.
 cleanup_firewall() {
-    echo "🧹 Checking for stale UFW rules..."
-    # Get list of ports with our comment
-    # format of 'ufw status': 12345/tcp ALLOW Anywhere # TradingBot
-    STALE_PORTS=$(sudo ufw status | grep "TradingBot" | awk '{print $1}' | cut -d'/' -f1)
+    echo "🧹 Checking for stale UFW rules for $ENV_TYPE..."
+    # format of 'ufw status': 12345/tcp ALLOW Anywhere # TradingBot-prod
+    STALE_PORTS=$(sudo ufw status | grep "TradingBot-$ENV_TYPE" | awk '{print $1}' | cut -d'/' -f1)
     
     if [ -n "$STALE_PORTS" ]; then
         for PORT in $STALE_PORTS; do
@@ -23,22 +44,28 @@ cleanup_firewall() {
     fi
 }
 
-# 0. Cleanup Old Rules
-cleanup_firewall
+# 0.1 Cleanup Old Rules (Skip for staging to keep it static)
+if [ "$ENV_TYPE" != "staging" ]; then
+    cleanup_firewall
+fi
 
-# 1. Generate Random Credentials
-RANDOM_PORT=$(( ( RANDOM % 40000 ) + 20000 ))
+# 1. Generate Credentials
+RANDOM_PORT=$DEFAULT_PORT
 RANDOM_PASS=$(date +%s%N | sha256sum | head -c 16)
 
-# Open new port with comment for tracking
-echo "🛡️ Opening UFW port: $RANDOM_PORT"
-sudo ufw allow $RANDOM_PORT/tcp comment 'TradingBot'
+# Open new port (Only if not already open or for non-staging)
+if [ "$ENV_TYPE" != "staging" ]; then
+    echo "🛡️ Opening UFW port: $RANDOM_PORT"
+    sudo ufw allow $RANDOM_PORT/tcp comment "TradingBot-$ENV_TYPE" || true
+else
+    echo "ℹ️ Staging environment: Skipping UFW port opening (Static 8080 assumed open)"
+fi
 
-# Get Public IP (with short timeout)
+# Get Public IP
 PUBLIC_IP=$(curl -s --max-time 3 ifconfig.me || echo "External_IP_Check_Failed")
 
-echo "🎲 Generated Port: $RANDOM_PORT"
-echo "🔐 Generated Password: $RANDOM_PASS"
+echo "🎲 Port: $RANDOM_PORT"
+echo "🔐 Password: $RANDOM_PASS"
 
 # 2. Extract Credentials & Send Notification (Python)
 PYTHON_OUT=$(python3 - <<EOF
@@ -61,9 +88,10 @@ try:
     port = '$RANDOM_PORT'
     password = '$RANDOM_PASS'
     public_ip = '$PUBLIC_IP'
+    env = '$ENV_TYPE'
     
     message = (
-        f'🚀 *Trading Bot Started*\\n\\n'
+        f'🚀 *Trading Bot Started ({env.upper()})*\\n\\n'
         f'🌐 URL: http://{public_ip}:{port}\\n'
         f'🔐 PW: \`{password}\`\\n'
         f'(Local: http://localhost:{port})'
@@ -104,24 +132,28 @@ TELEGRAM_CHAT_ID=$(echo "$PYTHON_OUT" | grep "__EXPORT_CHAT_ID__" | cut -d'=' -f
 
 
 # 3. Prepare Environment & Run
-mkdir -p logs scalp_data data
+# Ensure directory isolation
+mkdir -p logs/$ENV_TYPE scalp_data/$ENV_TYPE data/$ENV_TYPE web/config/$ENV_TYPE
 
-if [ ! -f "web/bots_config.json" ]; then
-    echo "{}" > web/bots_config.json
+if [ ! -f "web/config/$ENV_TYPE/bots_config.json" ]; then
+    echo "{}" > web/config/$ENV_TYPE/bots_config.json
 fi
 
-# Stop existing container
-podman-compose down 2>/dev/null || podman stop trading-web 2>/dev/null
+if [ ! -f "web/config/$ENV_TYPE/blocked_ips.json" ]; then
+    echo "{}" > web/config/$ENV_TYPE/blocked_ips.json
+fi
 
-echo "🔨 Building trading web dashboard..."
+echo "🔨 Building trading web dashboard [$ENV_TYPE]..."
+ENV_TYPE=$ENV_TYPE \
 WEB_PORT=$RANDOM_PORT \
 DASHBOARD_PASSWORD="$RANDOM_PASS" \
 TELEGRAM_BOT_TOKEN="$TELEGRAM_BOT_TOKEN" \
 TELEGRAM_CHAT_ID="$TELEGRAM_CHAT_ID" \
-podman-compose up --build -d
+PUBLIC_IP="$PUBLIC_IP" \
+podman-compose -p "$PROJECT_NAME" up --build -d
 
 echo ""
-echo "✅ Trading Bot Dashboard started!"
+echo "✅ Trading Bot Dashboard [$ENV_TYPE] started!"
 echo ""
 echo "🌐 Global: http://$PUBLIC_IP:$RANDOM_PORT"
 echo "🌐 Local:  http://localhost:$RANDOM_PORT"
