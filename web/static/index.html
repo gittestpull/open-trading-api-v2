@@ -29,15 +29,51 @@
             <div class="header-left">
                 <h1>📈 Trading Bot Dashboard</h1>
                 <nav class="main-tabs">
-                    <button onclick="showTab('dashboard')" id="tab-dashboard" class="tab-btn active">메인 대시보드</button>
-                    <button onclick="showTab('screener')" id="tab-screener" class="tab-btn">🔍 종목 검색기</button>
+                    <span class="has-tooltip">
+                        <button onclick="showTab('dashboard')" id="tab-dashboard" class="tab-btn active">메인
+                            대시보드</button>
+                        <span class="tooltip-text" style="width:250px;">
+                            등록된 봇 목록, 실시간 상태, 수익률을 확인하고 봇을 관리하는 메인 화면입니다.
+                        </span>
+                    </span>
+                    <span class="has-tooltip">
+                        <button onclick="showTab('screener')" id="tab-screener" class="tab-btn">🔍 종목 검색기</button>
+                        <span class="tooltip-text" style="width:280px;">
+                            PER, 거래량, RSI 등 조건으로 종목을 검색하고 바로 봇을 등록할 수 있는 스크리너입니다.<br><br>
+                            📍 출처: 네이버 금융 | 🔄 갱신: 5분 캐시
+                        </span>
+                    </span>
                 </nav>
             </div>
             <div class="header-actions">
-                <span id="envBadge" class="env-badge">로컬</span>
-                <button onclick="showGuideModal()" class="btn-help">❓ 시스템 가이드</button>
-                <span id="connectionStatus" class="status-dot disconnected"></span>
-                <button onclick="showAddBotModal()" class="btn-primary">+ 봇 추가</button>
+                <span id="envBadge" class="env-badge has-tooltip">로컬
+                    <span class="tooltip-text" style="width:250px;">
+                        현재 접속한 환경을 표시합니다.<br><br>
+                        <b>Dev (8081):</b> 실시간 코드 반영 테스트용<br>
+                        <b>Staging (8080):</b> 안정성 검증된 상시 가동<br>
+                        <b>Local:</b> 로컬 개발 환경
+                    </span>
+                </span>
+                <span class="has-tooltip">
+                    <button onclick="showGuideModal()" class="btn-help">❓ 시스템 가이드</button>
+                    <span class="tooltip-text" style="width:280px;">
+                        시스템 아키텍처, 매매 로직(RSI/볼린저/물타기), 환경 정책을 한눈에 설명하는 모달을 엽니다.
+                    </span>
+                </span>
+                <span id="connectionStatus" class="status-dot disconnected has-tooltip">
+                    <span class="tooltip-text" style="width:220px;">
+                        서버 WebSocket 연결 상태<br><br>
+                        🟢 연결됨: 실시간 데이터 수신 중<br>
+                        🔴 끊김: 연결 재시도 중
+                    </span>
+                </span>
+                <span class="has-tooltip">
+                    <button onclick="showAddBotModal()" class="btn-primary">+ 봇 추가</button>
+                    <span class="tooltip-text" style="width:280px;">
+                        새로운 트레이딩 봇을 등록하는 모달을 엽니다.<br><br>
+                        종목코드, 예산, 목표수익률, 하락폭 등을 설정하고 '시작' 버튼으로 자동매매를 시작합니다.
+                    </span>
+                </span>
             </div>
         </header>
 
@@ -48,15 +84,32 @@
                 <div id="botCards" class="bot-cards">
                     <div class="empty-state" id="emptyState">
                         <p>등록된 봇이 없습니다</p>
-                        <button onclick="showAddBotModal()">첫 번째 봇 추가하기</button>
+                        <span class="has-tooltip">
+                            <button onclick="showAddBotModal()">첫 번째 봇 추가하기</button>
+                            <span class="tooltip-text" style="width:280px;">
+                                종목코드, 예산, 목표수익률 등을 설정하여 첫 번째 자동매매 봇을 등록합니다.
+                            </span>
+                        </span>
                     </div>
                 </div>
 
                 <!-- Log Viewer -->
                 <div class="log-section">
                     <div class="log-header">
-                        <h3 id="logHeaderTitle">📋 로그</h3>
-                        <button onclick="refreshLogs()" class="btn-small">새로고침</button>
+                        <span class="has-tooltip">
+                            <h3 id="logHeaderTitle">📋 로그</h3>
+                            <span class="tooltip-text" style="width:280px;">
+                                선택한 봇의 실시간 매매 활동 로그입니다.<br><br>
+                                📍 출처: 서버 프로세스 로그<br>
+                                🔄 갱신: WebSocket으로 실시간 수신
+                            </span>
+                        </span>
+                        <span class="has-tooltip">
+                            <button onclick="refreshLogs()" class="btn-small">새로고침</button>
+                            <span class="tooltip-text" style="width:220px;">
+                                서버에서 최신 로그를 다시 가져옵니다.
+                            </span>
+                        </span>
                     </div>
                     <div id="logViewer" class="log-viewer">
                         <p class="log-placeholder">봇을 시작하면 로그가 표시됩니다...</p>
@@ -359,7 +412,13 @@
         <footer>
             <div class="footer-content">
                 <p>Trading Bot Dashboard v1.2 | <span id="currentTime"></span></p>
-                <button onclick="showSecurityModal()" class="btn-text">🛡️ 보안 관리</button>
+                <span class="has-tooltip">
+                    <button onclick="showSecurityModal()" class="btn-text">🛡️ 보안 관리</button>
+                    <span class="tooltip-text" style="width:280px; bottom:150%;">
+                        IP 차단/해제, 전체 매도 및 초기화 등 보안 관련 설정을 관리합니다.<br><br>
+                        ⚠️ 위험 작업 포함 - 주의해서 사용하세요.
+                    </span>
+                </span>
             </div>
         </footer>
     </div>

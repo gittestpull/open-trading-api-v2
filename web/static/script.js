@@ -384,11 +384,13 @@ async function loadScreenerStatus() {
             cacheEl.innerText = `${updateTime} (${cache.stock_count}종목)`;
             cacheEl.title = `다음 갱신: 약 ${cache.next_update_in || '5'}분 후`;
         } else if (cacheEl) {
-            cacheEl.innerText = '갱신 대기 중...';
+            cacheEl.innerHTML = `<span style="color:#ffd54f; cursor:help;" title="📍 상태: 캐시 아직 생성되지 않음&#10;&#10;🔧 캐시 생성 방법:&#10;1. '🔍 전체 종목 검색' 버튼 클릭&#10;2. 5분 후 자동 갱신 시작&#10;&#10;📍 출처: 네이버 금융에서 수집">⏳ 대기 중 (hover)</span>`;
         }
     } catch (e) {
         const cacheEl = document.getElementById('cacheStatus');
-        if (cacheEl) cacheEl.innerText = '캐시 로드 실패';
+        if (cacheEl) {
+            cacheEl.innerHTML = `<span style="color:#ff6b6b; cursor:help;" title="📍 호출 API: /screener/cache-status&#10;❌ 오류: 서버 응답 없음 또는 캐시 미생성&#10;&#10;🔧 해결 방법:&#10;1. '🔍 전체 종목 검색' 버튼 클릭 → 캐시 자동 생성&#10;2. 페이지 새로고침 (F5)&#10;3. 서버 상태 확인 (연결 상태 점 확인)&#10;4. 5분 후 자동 갱신 대기">❌ 캐시 실패 (hover)</span>`;
+        }
     }
 }
 
@@ -436,10 +438,35 @@ async function startScan() {
 }
 
 
-function renderScreenerResults(stocks) {
+function renderScreenerResults(stocks, filterInfo = null) {
     const tbody = document.getElementById('screenerResults');
     if (!stocks || stocks.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="empty-state">조건에 맞는 종목이 없습니다.</td></tr>';
+        // 적용된 필터 정보 수집
+        const useMinVolume = document.getElementById('useMinVolume')?.checked;
+        const useMaxPer = document.getElementById('useMaxPer')?.checked;
+        const useMinOpRate = document.getElementById('useMinOpRate')?.checked;
+        const useMaxDebtRate = document.getElementById('useMaxDebtRate')?.checked;
+        const minVolume = document.getElementById('minVolume')?.value || 500000;
+        const maxPer = document.getElementById('maxPer')?.value || 30;
+
+        let filterDetails = '<div style="text-align:left; padding:15px; background:#1e2530; border-radius:8px; margin:10px;">';
+        filterDetails += '<h4 style="color:#ff9800; margin-bottom:10px;">🔍 검색 결과가 없습니다</h4>';
+        filterDetails += '<p style="color:#aaa; margin-bottom:15px;"><b>📍 API 호출:</b> /screener/scan (네이버 금융 캐시)</p>';
+        filterDetails += '<p style="color:#aaa; margin-bottom:10px;"><b>⚙️ 적용된 필터:</b></p><ul style="color:#888; font-size:0.85rem; margin-left:20px;">';
+        if (useMinVolume) filterDetails += `<li>최소 거래량: ${Number(minVolume).toLocaleString()}주 이상</li>`;
+        if (useMaxPer) filterDetails += `<li>최대 PER: ${maxPer} 이하</li>`;
+        if (useMinOpRate) filterDetails += `<li>최소 영업이익률: ${document.getElementById('minOpRate')?.value || 0}% 이상</li>`;
+        if (useMaxDebtRate) filterDetails += `<li>최대 부채비율: ${document.getElementById('maxDebtRate')?.value || 200}% 이하</li>`;
+        filterDetails += '</ul>';
+        filterDetails += '<p style="color:#ff6b6b; margin-top:15px;"><b>💡 가능한 원인:</b></p>';
+        filterDetails += '<ul style="color:#888; font-size:0.85rem; margin-left:20px;">';
+        filterDetails += '<li>거래량 조건이 너무 높음 → 값을 낮춰보세요</li>';
+        filterDetails += '<li>PER 조건이 너무 낮음 → 값을 올려보세요</li>';
+        filterDetails += '<li>캐시 갱신 중 → 잠시 후 다시 시도</li>';
+        filterDetails += '<li>장 마감 후 → 다음 거래일 확인</li>';
+        filterDetails += '</ul></div>';
+
+        tbody.innerHTML = `<tr><td colspan="10">${filterDetails}</td></tr>`;
         return;
     }
 
