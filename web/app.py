@@ -1707,6 +1707,37 @@ async def screener_collection_progress(_: str = Depends(verify_password)):
         }
 
 
+@app.get("/api/screener/cache-status")
+async def screener_cache_status(_: str = Depends(verify_password)):
+    """캐시 상태 조회 (프론트엔드 호출용)
+    
+    [누가] 스크리너 UI에서 호출
+    [무엇을] 캐시 마지막 업데이트 시간 및 종목 수
+    [언제] 페이지 로드 시 및 검색 전
+    """
+    try:
+        from stock_cache import get_stock_cache
+        cache = get_stock_cache()
+        stats = cache.get_stats()
+        progress = cache.get_progress()
+        return {
+            "status": "success",
+            "last_update": stats.get('last_update'),
+            "stock_count": stats.get('total_stocks', 0),
+            "next_update_in": 5,
+            "is_updating": progress.get('is_updating', False),
+            "progress": progress
+        }
+    except Exception as e:
+        logger.error(f"Cache status failed: {e}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "last_update": None,
+            "stock_count": 0
+        }
+
+
 @app.get("/api/screener/status")
 async def screener_status(_: str = Depends(verify_password)):
     """마지막 스캔 결과 조회"""
