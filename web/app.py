@@ -1679,6 +1679,34 @@ async def screener_cache_stats(_: str = Depends(verify_password)):
         logger.error(f"Cache stats failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.get("/api/screener/collection-progress")
+async def screener_collection_progress(_: str = Depends(verify_password)):
+    """수집 진행률 조회 (실시간 폴링용)
+    
+    [누가] UI에서 폴링
+    [무엇을] 현재 데이터 수집 진행 상황
+    [언제] 수집 중 1초마다 호출
+    [왜] 진행률 실시간 표시
+    """
+    try:
+        from stock_cache import get_stock_cache
+        cache = get_stock_cache()
+        progress = cache.get_progress()
+        return {
+            "status": "success",
+            **progress
+        }
+    except Exception as e:
+        logger.error(f"Collection progress failed: {e}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "is_updating": False,
+            "percent": 0
+        }
+
+
 @app.get("/api/screener/status")
 async def screener_status(_: str = Depends(verify_password)):
     """마지막 스캔 결과 조회"""

@@ -49,14 +49,45 @@ class StockData:
 
 
 class StockCache:
-    """전체 종목 캐시 매니저"""
+    """전체 종목 캐시 매니저
+    
+    [누가] StockCache 시스템
+    [무엇을] KOSPI+KOSDAQ 전체 종목 시세 및 재무 데이터 캐싱
+    [언제] 서버 시작 시 + 5분마다 자동 갱신
+    [어디서] 네이버 금융에서 수집
+    """
     
     def __init__(self):
         self.stocks: Dict[str, StockData] = {}
         self.last_update: Optional[datetime] = None
         self.is_updating: bool = False
         self._lock = asyncio.Lock()
-        self._executor = ThreadPoolExecutor(max_workers=10)
+        self._executor = ThreadPoolExecutor(max_workers=20)  # 병렬 수집 증가
+        
+        # 진행률 추적
+        self.collection_progress = {
+            'step': '',           # 현재 단계
+            'current': 0,         # 현재까지 수집된 수
+            'total': 0,           # 전체 대상 수
+            'message': '',        # 상세 메시지
+            'started_at': None,   # 수집 시작 시간
+            'errors': 0,          # 에러 수
+        }
+    
+    def get_progress(self) -> dict:
+        """수집 진행률 반환
+        
+        [누가] UI에서 폴링
+        [무엇을] 현재 수집 진행 상황
+        [언제] 실시간
+        """
+        progress = self.collection_progress.copy()
+        if progress['total'] > 0:
+            progress['percent'] = round(progress['current'] / progress['total'] * 100, 1)
+        else:
+            progress['percent'] = 0
+        progress['is_updating'] = self.is_updating
+        return progress
         
     def _get_naver_stock_list(self, market: str) -> List[Dict]:
         """네이버 금융에서 전체 종목 리스트 가져오기 (시가총액 페이지 활용)"""
@@ -212,6 +243,9 @@ class StockCache:
             now = datetime.now()
             
             all_stocks = kospi_stocks + kosdaq_stocks
+            self.collection_progress['step'] = '[1/3] 기본 시세 수집 완료'
+            self.collection_progress['total'] = len(all_stocks)
+            self.collection_progress['message'] = f'{len(all_stocks)}개 종목 기본 시세 수집 완료'
             logger.info(f"[수집 1/3] 기본 시세 수집 완료: {len(all_stocks)}개 종목")
             
             for stock in all_stocks:
@@ -226,57 +260,98 @@ class StockCache:
                     updated_at=now
                 )
             
-            # 상위 100개 종목에 대해 재무 데이터 수집
+            # 전체 종목에 대해 재무 데이터 수집 (진행률 추적)
             if include_financials:
                 try:
-                    # 거래량 상위 100개 선정
-                    top_stocks = sorted(all_stocks, key=lambda x: x.get('volume', 0), reverse=True)[:100]
-                    logger.info(f"[수집 2/3] 상위 {len(top_stocks)}개 종목 재무 데이터 수집 시작...")
+                    # 전체 종목 대상 (거래량 순 정렬)
+                    target_stocks = sorted(all_stocks, key=lambda x: x.get('volume', 0), reverse=True)
+                    total_count = len(target_stocks)
                     
-                    # 재무 데이터 수집 (KIS API 사용)
+                    self.collection_progress['step'] = '[2/3] 재무 데이터 수집 중'
+                    self.collection_progress['total'] = total_count
+                    self.collection_progress['current'] = 0
+                    self.collection_progress['message'] = f'0/{total_count}개 종목 재무 데이터 수집 중...'
+                    logger.info(f"[수집 2/3] 전체 {total_count}개 종목 재무 데이터 수집 시작...")
+                    
+                    # 배치 처리 (20개씩 병렬)
                     collected = 0
-                    for i, stock in enumerate(top_stocks):
-                        code = stock['code']
-                        try:
-                            # 네이버에서 PER 수집
-                            per = await loop.run_in_executor(self._executor, self._get_stock_per, code)
-                            
-                            # 네이버에서 재무 데이터 수집 (간단한 크롤링)
-                            financials = await loop.run_in_executor(self._executor, self._get_naver_financials, code)
-                            
-                            if code in new_stocks:
-                                new_stocks[code].per = per
-                                new_stocks[code].op_rate = financials.get('op_rate', 0.0)
-                                new_stocks[code].debt_rate = financials.get('debt_rate', 0.0)
-                                new_stocks[code].rsrv_rate = financials.get('rsrv_rate', 0.0)
-                                new_stocks[code].sector = financials.get('sector', '')
-                                collected += 1
-                            
-                            # 진행 상황 로그 (10개마다)
-                            if (i + 1) % 10 == 0:
-                                logger.info(f"[수집 2/3] 재무 데이터: {i+1}/{len(top_stocks)} ({collected}개 수집됨)")
-                                await asyncio.sleep(0.1)  # Rate limiting
-                        except Exception as e:
-                            logger.debug(f"재무 수집 실패 {code}: {e}")
-                            continue
+                    batch_size = 20
                     
-                    logger.info(f"[수집 2/3] 재무 데이터 수집 완료: {collected}개")
+                    for batch_start in range(0, total_count, batch_size):
+                        batch_end = min(batch_start + batch_size, total_count)
+                        batch = target_stocks[batch_start:batch_end]
+                        
+                        # 배치 병렬 처리
+                        tasks = []
+                        for stock in batch:
+                            code = stock['code']
+                            tasks.append(loop.run_in_executor(
+                                self._executor, self._collect_stock_financial, code
+                            ))
+                        
+                        results = await asyncio.gather(*tasks, return_exceptions=True)
+                        
+                        # 결과 적용
+                        for stock, result in zip(batch, results):
+                            code = stock['code']
+                            if isinstance(result, dict) and code in new_stocks:
+                                new_stocks[code].per = result.get('per', 0.0)
+                                new_stocks[code].op_rate = result.get('op_rate', 0.0)
+                                new_stocks[code].debt_rate = result.get('debt_rate', 0.0)
+                                new_stocks[code].rsrv_rate = result.get('rsrv_rate', 0.0)
+                                new_stocks[code].sector = result.get('sector', '')
+                                collected += 1
+                            else:
+                                self.collection_progress['errors'] += 1
+                        
+                        # 진행률 업데이트
+                        self.collection_progress['current'] = batch_end
+                        self.collection_progress['message'] = f'{batch_end}/{total_count}개 종목 수집됨 ({collected}개 성공)'
+                        
+                        # 로그 (100개마다)
+                        if batch_end % 100 == 0 or batch_end == total_count:
+                            elapsed_so_far = time.time() - start_time
+                            eta = (elapsed_so_far / batch_end) * (total_count - batch_end) if batch_end > 0 else 0
+                            logger.info(f"[수집 2/3] 재무 데이터: {batch_end}/{total_count} ({collected}개 성공, 예상 남은 시간: {eta:.0f}초)")
+                        
+                        # Rate limiting: 배치 간 딜레이
+                        await asyncio.sleep(0.2)
+                    
+                    self.collection_progress['step'] = '[2/3] 재무 데이터 수집 완료'
+                    self.collection_progress['message'] = f'{total_count}개 종목 중 {collected}개 재무 데이터 수집 완료'
+                    logger.info(f"[수집 2/3] 재무 데이터 수집 완료: {collected}/{total_count}개")
+                    
                 except Exception as e:
                     logger.error(f"재무 데이터 수집 실패: {e}")
+                    self.collection_progress['message'] = f'재무 데이터 수집 실패: {e}'
             
             self.stocks = new_stocks
             self.last_update = now
             
             elapsed = time.time() - start_time
+            self.collection_progress['step'] = '[3/3] 캐시 갱신 완료'
+            self.collection_progress['message'] = f'{len(self.stocks)}개 종목, {elapsed:.1f}초 소요'
             logger.info(f"[수집 3/3] 캐시 갱신 완료: {len(self.stocks)}개 종목, {elapsed:.1f}초 소요")
             
             return len(self.stocks)
             
         except Exception as e:
             logger.error(f"Cache update failed: {e}")
+            self.collection_progress['message'] = f'수집 실패: {e}'
             return 0
         finally:
             self.is_updating = False
+    
+    def _collect_stock_financial(self, code: str) -> dict:
+        """개별 종목 재무 데이터 수집 (동기)"""
+        result = {'per': 0.0, 'op_rate': 0.0, 'debt_rate': 0.0, 'rsrv_rate': 0.0, 'sector': ''}
+        try:
+            result['per'] = self._get_stock_per(code)
+            financials = self._get_naver_financials(code)
+            result.update(financials)
+        except Exception as e:
+            logger.debug(f"재무 수집 실패 {code}: {e}")
+        return result
     
     def _get_naver_financials(self, code: str) -> dict:
         """네이버 금융에서 재무 데이터 수집
