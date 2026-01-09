@@ -1224,7 +1224,7 @@ async def update_bot(bot_id: str, config: BotConfig, _: str = Depends(verify_pas
 
 
 @app.post("/api/bots/{bot_id}/sell")
-async def api_sell_bot(bot_id: str, request: SellRequest, username: str = Depends(get_current_user)):
+async def api_sell_bot(bot_id: str, request: SellRequest, _: str = Depends(verify_password)):
     bot = bot_manager.bots.get(bot_id)
     if not bot:
         raise HTTPException(status_code=404, detail="Bot not found")
@@ -1237,7 +1237,7 @@ async def api_sell_bot(bot_id: str, request: SellRequest, username: str = Depend
     return {"message": "Sell order placed"}
 
 @app.post("/api/bots/{bot_id}/buy")
-async def api_buy_bot(bot_id: str, request: SellRequest, username: str = Depends(get_current_user)):
+async def api_buy_bot(bot_id: str, request: SellRequest, _: str = Depends(verify_password)):
     # Re-use SellRequest for price field
     bot = bot_manager.bots.get(bot_id)
     if not bot:
