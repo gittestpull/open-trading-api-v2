@@ -72,9 +72,29 @@ async function api(method, endpoint, body = null) {
 // Dashboard Init
 async function initDashboard() {
     document.getElementById('dashboard').classList.remove('hidden');
+    updateEnvBadge();
     connectWebSocket();
     loadBots();
     loadScreenerStatus();
+}
+
+function updateEnvBadge() {
+    const port = window.location.port;
+    const badge = document.getElementById('envBadge');
+    if (!badge) return;
+
+    if (port === '8081') {
+        badge.innerText = 'Dev (8081)';
+        badge.className = 'env-badge dev';
+        badge.title = '개발 환경: 실시간 코드 반영용 (테스트)';
+    } else if (port === '8080') {
+        badge.innerText = 'Staging (8080)';
+        badge.className = 'env-badge staging';
+        badge.title = '스테이징 환경: 상시 운영 및 안정성 검증용';
+    } else {
+        badge.innerText = 'Local';
+        badge.className = 'env-badge';
+    }
 }
 
 // Tab Management
@@ -522,6 +542,14 @@ function showAddBotModal() {
 
 function hideAddBotModal() {
     document.getElementById('addBotModal').classList.add('hidden');
+}
+
+function showGuideModal() {
+    document.getElementById('guideModal').classList.remove('hidden');
+}
+
+function hideGuideModal() {
+    document.getElementById('guideModal').classList.add('hidden');
 }
 
 async function addBot(event) {

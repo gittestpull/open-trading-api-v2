@@ -1133,3 +1133,105 @@ footer {
         transform: rotate(360deg);
     }
 }
+/* Environment Badges */
+.env-badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.env-badge.dev {
+    background: rgba(255, 165, 0, 0.1);
+    color: #ffa500;
+    border: 1px solid rgba(255, 165, 0, 0.3);
+}
+
+.env-badge.staging {
+    background: rgba(138, 43, 226, 0.1);
+    color: #8a2be2;
+    border: 1px solid rgba(138, 43, 226, 0.3);
+}
+
+.env-badge::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 8px currentColor;
+}
+
+/* Documentation / Guide Modal */
+.guide-content {
+    max-height: 70vh;
+    overflow-y: auto;
+    padding-right: 15px;
+    line-height: 1.6;
+    color: #adbac7;
+}
+
+.guide-content h3 {
+    color: var(--accent-blue);
+    margin-top: 25px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 5px;
+}
+
+.guide-content h4 {
+    color: var(--text-primary);
+    margin-top: 20px;
+    margin-bottom: 8px;
+}
+
+.guide-content ul, .guide-content ol {
+    padding-left: 20px;
+    margin-bottom: 16px;
+}
+
+.guide-content li {
+    margin-bottom: 8px;
+}
+
+.guide-content code {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9em;
+}
+
+.guide-content .warning-box {
+    background: rgba(255, 165, 0, 0.1);
+    border-left: 4px solid #ffa500;
+    padding: 12px;
+    margin: 15px 0;
+    border-radius: 0 4px 4px 0;
+}
+
+/* Header Help Button */
+.btn-help {
+    background: rgba(88, 166, 255, 0.1);
+    border: 1px solid rgba(88, 166, 255, 0.3);
+    color: var(--accent-blue);
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+}
+
+.btn-help:hover {
+    background: rgba(88, 166, 255, 0.2);
+    border-color: var(--accent-blue);
+}
