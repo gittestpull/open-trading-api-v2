@@ -244,6 +244,10 @@ function renderBots() {
                     <span>목표가</span>
                     <span>${Math.round(bot.avg_price * (1 + bot.target)).toLocaleString()}원 <small class="target-percent">(${(bot.target * 100).toFixed(1)}%)</small></span>
                 </div>
+                <div class="detail-row">
+                    <span>추가 매수</span>
+                    <span>평단가 -${(bot.pyramiding_threshold * 100).toFixed(1)}%</span>
+                </div>
             </div>
             <div class="card-actions">
                 ${isRunning
@@ -252,6 +256,7 @@ function renderBots() {
             }
                 <button onclick="viewLogs('${bot.id}')" class="btn-log ${selectedBotId === bot.id ? 'active' : ''}">로그</button>
                 ${!isRunning ? `<button onclick="showEditBotModal('${bot.id}')" class="btn-icon" title="설정 수정">⚙️</button>` : ''}
+                <button onclick="manualBuyBot('${bot.id}', '${bot.ticker}')" class="btn-buy" title="즉시 시장가 추가 매수">⚡ 매수</button>
                 <button onclick="panicSellBot('${bot.id}', '${bot.ticker}')" class="btn-panic" title="전량매도 및 리셋">⚡ 매도</button>
                 <button onclick="deleteBot('${bot.id}')" class="btn-delete" title="삭제">🗑️</button>
             </div>
@@ -522,7 +527,8 @@ async function addBot(event) {
     const config = {
         ticker: document.getElementById('tickerInput').value,
         budget: parseInt(document.getElementById('budgetInput').value),
-        target: parseFloat(document.getElementById('targetInput').value),
+        target: parseFloat(document.getElementById('targetInput').value) / 100.0,
+        pyramiding_threshold: parseFloat(document.getElementById('pyramidingInput').value || 1.0) / 100.0,
         buy_prices: [
             parseFloat(document.getElementById('buyPriceInput1').value || 0),
             parseFloat(document.getElementById('buyPriceInput2').value || 0),
@@ -552,7 +558,8 @@ function showEditBotModal(botId) {
     document.getElementById('editBotId').value = botId;
     document.getElementById('editTickerInput').value = bot.ticker;
     document.getElementById('editBudgetInput').value = bot.budget;
-    document.getElementById('editTargetInput').value = parseFloat((bot.target * 100).toFixed(4));
+    document.getElementById('editTargetInput').value = parseFloat((bot.target * 100).toFixed(1));
+    document.getElementById('editPyramidingInput').value = parseFloat((bot.pyramiding_threshold * 100).toFixed(1));
 
     // Set buy prices
     const buyPrices = bot.buy_prices || (bot.buy_price ? [bot.buy_price] : []);
@@ -579,7 +586,8 @@ async function updateBot(event) {
     const config = {
         ticker: document.getElementById('editTickerInput').value,
         budget: parseInt(document.getElementById('editBudgetInput').value),
-        target: parseFloat(document.getElementById('editTargetInput').value),
+        target: parseFloat(document.getElementById('editTargetInput').value) / 100.0,
+        pyramiding_threshold: parseFloat(document.getElementById('editPyramidingInput').value || 1.0) / 100.0,
         buy_prices: [
             parseFloat(document.getElementById('editBuyPriceInput1').value || 0),
             parseFloat(document.getElementById('editBuyPriceInput2').value || 0),
@@ -630,6 +638,17 @@ async function deleteBot(botId) {
         loadBots();
     } catch (e) {
         alert('봇 삭제 실패: ' + e.message);
+    }
+}
+
+async function manualBuyBot(botId, ticker) {
+    if (!confirm(`[${ticker}] 즉시 시장가로 추가 매수하시겠습니까?`)) return;
+    try {
+        await api('POST', `/api/bots/${botId}/buy`, { price: 0 });
+        showToast('시장가 매수 주문이 완료되었습니다.');
+        loadBots();
+    } catch (e) {
+        showToast('매수 실패: ' + e.message, 'error');
     }
 }
 

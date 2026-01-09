@@ -271,8 +271,12 @@
                         <input type="number" id="editBudgetInput" required>
                     </div>
                     <div class="form-group">
-                        <label>목표 수익률 (%)</label>
-                        <input type="number" id="editTargetInput" step="any" required>
+                        <label>목표 수익 (%)</label>
+                        <input type="number" id="editTargetInput" step="0.1" placeholder="2.0" value="2.0">
+                    </div>
+                    <div class="form-group">
+                        <label>추가 매수 하락폭 (%)</label>
+                        <input type="number" id="editPyramidingInput" step="0.1" placeholder="1.0" value="1.0">
                     </div>
                 </div>
 

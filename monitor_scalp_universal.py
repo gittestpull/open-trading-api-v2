@@ -210,7 +210,7 @@ MAX_STEPS = 4
 WEIGHTS = [1, 2, 4, 8]
 
 class UniversalScalper:
-    def __init__(self, ticker, budget, target_profit=0.005, live_mode=False, manual_buy_price=0, use_orderbook=False, use_momentum=False, args=None):
+    def __init__(self, ticker, budget, target_profit=0.005, live_mode=False, manual_buy_price=0, use_orderbook=False, use_momentum=False, args=None, pyramiding_threshold=0.01):
         self.args = args # Store args for flag checking
         # 0. Initial guess
         self.is_domestic = ticker.isdigit() and len(ticker) == 6
@@ -228,6 +228,7 @@ class UniversalScalper:
         self.budget = budget
         self.target_profit = target_profit
         self.live_mode = live_mode
+        self.pyramiding_threshold = pyramiding_threshold
         # Support both single float (legacy) and list of floats
         if isinstance(manual_buy_price, (int, float)):
             self.manual_buy_prices = [float(manual_buy_price)] if manual_buy_price > 0 else []
@@ -1421,7 +1422,7 @@ class UniversalScalper:
                     
                     next_buy_tag = f"B1 @ " + " / ".join(parts)
                 elif self.current_step < MAX_STEPS:
-                    next_buy_price = self.avg_buy_price * (1 - PYRAMIDING_THRESHOLD)
+                    next_buy_price = self.avg_buy_price * (1 - self.pyramiding_threshold)
                     next_buy_tag = f"B{self.current_step+1} @ {next_buy_price:.2f}"
                 else:
                     next_buy_tag = "MAX STEPS"
@@ -1510,7 +1511,7 @@ class UniversalScalper:
                 if self.state == "SEARCHING":
                     next_buy_price_for_log = next_bb_price # Or next_rsi_price, or manual_buy_price
                 elif self.current_step < MAX_STEPS:
-                    next_buy_price_for_log = self.avg_buy_price * (1 - PYRAMIDING_THRESHOLD)
+                    next_buy_price_for_log = self.avg_buy_price * (1 - self.pyramiding_threshold)
                 else:
                     next_buy_price_for_log = 0 
                 
@@ -1713,8 +1714,8 @@ class UniversalScalper:
                     profit_rate = (curr_price - self.avg_buy_price) / self.avg_buy_price
                     net_profit_rate = profit_rate - self.friction
                     
-                    # Pyramiding (Averaging Down) Logic
-                    pyramiding_drop = profit_rate <= -PYRAMIDING_THRESHOLD
+                    # Pyramiding Logic: Drop from Average Price
+                    pyramiding_drop = profit_rate <= -self.pyramiding_threshold
                     pyramiding_rsi = rsi <= 25 and rsi > 10
                     
                     # Proactive Safety: 3-minute cooldown between buys
@@ -1835,6 +1836,7 @@ if __name__ == "__main__":
     parser.add_argument("--ticker", type=str, default="오리엔탈정공", help="Ticker name or code")
     parser.add_argument("--budget", type=int, default=1000000, help="Total budget in KRW")
     parser.add_argument("--target", type=float, default=0.005, help="Target profit rate (0.005 = 0.5%)")
+    parser.add_argument("--pyramiding_threshold", type=float, default=0.01, help="Pyramiding drop threshold (0.01 = 1.0%)")
     parser.add_argument("--live", action="store_true", help="Live trading mode")
     parser.add_argument("--buy_price", type=float, action="append", help="Manual buy price (can specify multiple times, 0 or empty for market/BB entry)")
     parser.add_argument("--orderbook", action="store_true", help="Use orderbook filter")
@@ -1870,7 +1872,7 @@ if __name__ == "__main__":
     if not check_log_health(log_filename):
         sys.exit(1)
     
-    scalper = UniversalScalper(args.ticker, args.budget, args.target, args.live, args.buy_price or [], args.orderbook, args.momentum, args=args)
+    scalper = UniversalScalper(args.ticker, args.budget, args.target, args.live, args.buy_price or [], args.orderbook, args.momentum, args=args, pyramiding_threshold=args.pyramiding_threshold)
     try:
         scalper.run()
     except KeyboardInterrupt:

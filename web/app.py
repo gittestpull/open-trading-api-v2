@@ -273,6 +273,7 @@ class BotConfig(BaseModel):
     live: bool = True
     buy_price: float = 0 # Deprecated, kept for backward compatibility during transition
     buy_prices: List[float] = [] # New: Support multiple prices
+    pyramiding_threshold: float = 0.01 # New: configurable drop for next buy (0.01 = 1.0%)
     orderbook: bool = False
     momentum: bool = False
     ignore_market: bool = False
@@ -293,6 +294,7 @@ class BotStatus(BaseModel):
     profit_rate: float = 0
     buy_price: float = 0 # Deprecated
     buy_prices: List[float] = [] # New
+    pyramiding_threshold: float = 0.01 # New
     orderbook: bool = False
     momentum: bool = False
     ignore_market: bool = False
@@ -354,6 +356,10 @@ class BotManager:
                         # Migrate single buy_price to list
                         old_price = bot.get("buy_price", 0)
                         bot["buy_prices"] = [old_price] if old_price > 0 else []
+                        migrated = True
+                    
+                    if "pyramiding_threshold" not in bot:
+                        bot["pyramiding_threshold"] = 0.01
                         migrated = True
                 
                 if migrated:
@@ -484,6 +490,9 @@ class BotManager:
         for bp in buy_prices:
             if bp > 0:
                 cmd.extend(["--buy_price", str(bp)])
+
+        if bot.get("pyramiding_threshold", 0.01) != 0.01:
+            cmd.extend(["--pyramiding_threshold", str(bot["pyramiding_threshold"])])
         
         if bot.get("orderbook", False):
             cmd.append("--orderbook")
@@ -607,6 +616,81 @@ class BotManager:
                 
         except Exception as e:
             logger.error(f"Emergency sell error: {e}")
+            return False
+
+    def perform_buy(self, bot: dict, price: int = 0) -> bool:
+        """Perform buy order (Market or Limit) with budget from BotConfig"""
+        try:
+            # For manual buy, we use a fixed weight or 1/4 of total budget
+            # Here we follow the WEIGHTS logic: WEIGHTS = [1, 2, 4, 8]
+            # Simple approach: Buy roughly 1 unit of weight (Budget / 15)
+            # Or just use a fixed small amount? The user requested "Market Buy Button".
+            # Let's use 20% of remaining budget or 20% of total budget.
+            total_budget = bot.get("budget", 1000000)
+            order_budget = total_budget // 4 # Buy in 4 steps normally, so 1/4 per manual click
+            
+            code = bot.get("ticker_code")
+            if not code:
+                return False
+
+            current_exch = bot.get("current_exchange", "KRX")
+            
+            # Construct Order Payload
+            tr_id = "VTTC0802U" if not bot["live"] else "TTTC0802U"
+            
+            with open(BASE_DIR / "kis_devlp.yaml", "r") as f:
+                import yaml
+                cfg = yaml.safe_load(f)
+                
+            account_num = cfg.get("my_paper_stock") if not bot["live"] else cfg.get("my_acct_stock")
+            if not account_num: 
+                logger.error("Account number missing for buy")
+                return False
+
+            # API Endpoint
+            url = "/uapi/domestic-stock/v1/trading/order-cash"
+            
+            # Calculate Qty based on price
+            curr_price = bot.get("current_price", 0)
+            if curr_price <= 0:
+                logger.error(f"Cannot buy {code}: Current price is 0")
+                return False
+                
+            qty = int(order_budget // curr_price)
+            if qty <= 0:
+                logger.error(f"Cannot buy {code}: Order budget ({order_budget:,}) too small for price {curr_price:,}")
+                return False
+
+            # NXT only supports Limit Order (00)
+            if current_exch == "NXT":
+                ord_dvsn = "00"
+                ord_unpr = str(int(price)) if price > 0 else str(int(curr_price))
+            else:
+                ord_dvsn = "01" if price == 0 else "00"
+                ord_unpr = "0" if price == 0 else str(price)
+            
+            params = {
+                "CANO": account_num,
+                "ACNT_PRDT_CD": "01",
+                "PDNO": code,
+                "ORD_DVSN": ord_dvsn,
+                "ORD_QTY": str(qty),
+                "ORD_UNPR": ord_unpr,
+                "EXCG_ID_DVSN_CD": current_exch
+            }
+            
+            res = kis_auth._url_fetch(url, tr_id, "", params, postFlag=True)
+            
+            if res.isOK():
+                type_str = "Market" if ord_dvsn == "01" else f"Limit({ord_unpr})"
+                logger.info(f"✅ Manual Buy Success [{current_exch}]: {code} {qty}ea [{type_str}]")
+                return True
+            else:
+                logger.error(f"❌ Manual Buy Failed [{current_exch}]: {res.getBody()}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Manual buy error: {e}")
             return False
 
 
@@ -1138,6 +1222,33 @@ async def update_bot(bot_id: str, config: BotConfig, _: str = Depends(verify_pas
         return {"message": "Bot updated successfully"}
     raise HTTPException(status_code=404, detail="Bot not found")
 
+
+@app.post("/api/bots/{bot_id}/sell")
+async def api_sell_bot(bot_id: str, request: SellRequest, username: str = Depends(get_current_user)):
+    bot = bot_manager.bots.get(bot_id)
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    
+    success = bot_manager.perform_sell(bot, request.price)
+    if not success:
+        raise HTTPException(status_code=500, detail="Sell order failed")
+        
+    # Reset bot state after panic/manual sell if requested (handled in frontend usually)
+    return {"message": "Sell order placed"}
+
+@app.post("/api/bots/{bot_id}/buy")
+async def api_buy_bot(bot_id: str, request: SellRequest, username: str = Depends(get_current_user)):
+    # Re-use SellRequest for price field
+    bot = bot_manager.bots.get(bot_id)
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    
+    success = bot_manager.perform_buy(bot, request.price)
+    if not success:
+        raise HTTPException(status_code=500, detail="Buy order failed")
+        
+    return {"message": "Buy order placed"}
+    
 
 @app.post("/api/bots/{bot_id}/panic-sell")
 async def panic_sell_bot(bot_id: str, req: Optional[SellRequest] = None, _: str = Depends(verify_password)):

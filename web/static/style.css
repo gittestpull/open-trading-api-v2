@@ -472,6 +472,21 @@ main {
     box-shadow: 0 0 10px rgba(255, 68, 68, 0.2);
 }
 
+.btn-buy {
+    flex: 0 0 auto;
+    padding: 0 10px;
+    background: rgba(88, 166, 255, 0.15);
+    border: 1px solid rgba(88, 166, 255, 0.4) !important;
+    color: #58a6ff !important;
+    font-weight: 600;
+}
+
+.btn-buy:hover {
+    background: rgba(88, 166, 255, 0.3);
+    border-color: #58a6ff !important;
+    box-shadow: 0 0 10px rgba(88, 166, 255, 0.2);
+}
+
 /* Log Section */
 .log-section {
     background: var(--bg-secondary);
