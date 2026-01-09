@@ -644,7 +644,7 @@ async function deleteBot(botId) {
 async function manualBuyBot(botId, ticker) {
     if (!confirm(`[${ticker}] 즉시 시장가로 추가 매수하시겠습니까?`)) return;
     try {
-        await api('POST', `/api/bots/${botId}/buy`, { price: 0 });
+        await api('POST', `/bots/${botId}/buy`, { price: 0 });
         showToast('시장가 매수 주문이 완료되었습니다.');
         loadBots();
     } catch (e) {
