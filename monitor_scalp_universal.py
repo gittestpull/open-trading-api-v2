@@ -2,7 +2,15 @@ import sys
 import os
 import time
 import logging
+import warnings
 from datetime import datetime
+
+warnings.warn(
+    "monitor_scalp_universal.py is deprecated. "
+    "Use 'from src.scalper import UniversalScalper' or 'python run_scalper.py' instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 # 1. Absolute First: Setup Logging before ANY other imports
 LOG_DIR = os.path.join(os.getcwd(), 'logs')

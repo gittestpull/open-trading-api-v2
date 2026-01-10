@@ -2,6 +2,7 @@ import sys
 import os
 import time
 import logging
+import warnings
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -9,6 +10,13 @@ import argparse
 from openai import OpenAI
 from dotenv import load_dotenv
 import json
+
+warnings.warn(
+    "monitor_scalp_llm.py is deprecated. "
+    "Use 'from src.scalper import LLMScalper' or 'python run_scalper.py --llm' instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 # Load OpenAI API Key
 load_dotenv()
