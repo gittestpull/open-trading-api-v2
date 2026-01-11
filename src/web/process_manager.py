@@ -216,6 +216,24 @@ class ProcessManager:
         
         return states
     
+    def reset_state(self, ticker: str) -> dict:
+        ticker_key = ticker.upper()
+        
+        # 실행 중이면 먼저 중지
+        with self._lock:
+            if ticker_key in self.processes:
+                return {"error": f"Cannot reset state while scalper is running. Stop {ticker_key} first."}
+        
+        state_file = os.path.join(self.base_dir, "scalp_data", f"state_{ticker_key}.json")
+        if os.path.exists(state_file):
+            try:
+                os.remove(state_file)
+                return {"success": True, "message": f"Reset state for {ticker_key}"}
+            except Exception as e:
+                return {"error": f"Failed to delete state file: {str(e)}"}
+        else:
+            return {"error": f"No state file found for {ticker_key}"}
+    
     def cleanup(self):
         with self._lock:
             for ticker_key, proc in list(self.processes.items()):

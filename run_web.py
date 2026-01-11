@@ -14,12 +14,12 @@ def main():
     app = create_app(base_dir)
     
     print("=" * 50)
-    print("  Scalper Dashboard")
+    print("  Deep Dive Investment Platform")
     print("=" * 50)
-    print(f"  URL: http://localhost:8000")
+    print(f"  URL: http://localhost:8001")
     print("=" * 50)
     
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=8001, log_level="info")
 
 
 if __name__ == "__main__":

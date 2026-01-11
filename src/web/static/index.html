@@ -1,325 +1,2026 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scalper Dashboard</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0d1117; color: #c9d1d9; padding: 20px; }
-        .container { max-width: 1400px; margin: 0 auto; }
-        h1 { color: #58a6ff; margin-bottom: 20px; font-size: 24px; }
-        h2 { color: #8b949e; font-size: 16px; margin-bottom: 10px; border-bottom: 1px solid #21262d; padding-bottom: 8px; }
-        
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
-        
-        .card { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 16px; }
-        
-        .form-group { margin-bottom: 12px; }
-        .form-group label { display: block; font-size: 12px; color: #8b949e; margin-bottom: 4px; }
-        .form-group input[type="text"], .form-group input[type="number"] {
-            width: 100%; padding: 8px 12px; background: #0d1117; border: 1px solid #30363d;
-            border-radius: 6px; color: #c9d1d9; font-size: 14px;
+    <title>Deep Dive - Investment Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: { 900: '#0d1117', 800: '#161b22', 700: '#21262d', 600: '#30363d' },
+                        accent: { blue: '#58a6ff', green: '#3fb950', red: '#f85149', yellow: '#d29922', purple: '#a371f7' }
+                    }
+                }
+            }
         }
-        .form-group input:focus { outline: none; border-color: #58a6ff; }
-        
-        .checkbox-group { display: flex; gap: 16px; flex-wrap: wrap; margin: 12px 0; }
-        .checkbox-group label { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
-        .checkbox-group input[type="checkbox"] { width: 16px; height: 16px; }
-        
-        .btn { padding: 8px 16px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: 500; }
-        .btn-primary { background: #238636; color: white; }
-        .btn-primary:hover { background: #2ea043; }
-        .btn-danger { background: #da3633; color: white; }
-        .btn-danger:hover { background: #f85149; }
-        .btn-secondary { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
-        .btn-secondary:hover { background: #30363d; }
-        
-        .process-list { margin-top: 10px; }
-        .process-item { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-        .process-info { flex: 1; }
-        .process-ticker { font-weight: 600; color: #58a6ff; font-size: 16px; }
-        .process-meta { font-size: 12px; color: #8b949e; margin-top: 4px; }
-        .process-actions { display: flex; gap: 8px; }
-        
-        .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
-        .badge-live { background: #da3633; color: white; }
-        .badge-dry { background: #388bfd; color: white; }
-        .badge-llm { background: #a371f7; color: white; }
-        
-        .log-container { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; height: 400px; overflow-y: auto; font-family: 'SF Mono', Consolas, monospace; font-size: 12px; padding: 12px; }
-        .log-line { padding: 2px 0; white-space: pre-wrap; word-break: break-all; }
-        .log-line:nth-child(odd) { background: rgba(255,255,255,0.02); }
-        
-        .state-list { margin-top: 10px; }
-        .state-item { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 12px; margin-bottom: 8px; }
-        .state-ticker { font-weight: 600; color: #f0883e; }
-        .state-detail { font-size: 12px; color: #8b949e; margin-top: 4px; }
-        .state-profit { color: #3fb950; }
-        .state-loss { color: #f85149; }
-        
-        .empty-state { color: #484f58; font-size: 13px; padding: 20px; text-align: center; }
-        
-        .refresh-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-        .refresh-bar span { font-size: 11px; color: #484f58; }
+    </script>
+    <style>
+        .glass { background: rgba(22, 27, 34, 0.8); backdrop-filter: blur(10px); }
+        .tab-active { border-bottom: 2px solid #58a6ff; color: #58a6ff; }
+        .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+        .heatmap-hot { background: linear-gradient(135deg, #f85149 0%, #ff6b6b 100%); }
+        .heatmap-warm { background: linear-gradient(135deg, #d29922 0%, #ffc107 100%); }
+        .heatmap-cool { background: linear-gradient(135deg, #3fb950 0%, #58a6ff 100%); }
+        /* Modal Animation */
+        .modal-enter { opacity: 0; transform: scale(0.95); }
+        .modal-enter-active { opacity: 1; transform: scale(1); transition: opacity 0.2s, transform 0.2s; }
+        .modal-exit { opacity: 1; transform: scale(1); }
+        .modal-exit-active { opacity: 0; transform: scale(0.95); transition: opacity 0.2s, transform 0.2s; }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1>Scalper Dashboard</h1>
-        
-        <div class="grid">
-            <div class="card">
-                <h2>New Scalper</h2>
-                <form id="startForm">
-                    <div class="form-group">
-                        <label>Ticker (종목코드 or 종목명)</label>
-                        <input type="text" id="ticker" placeholder="014940 or 삼성전자" required>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                        <div class="form-group">
-                            <label>Budget (원)</label>
-                            <input type="number" id="budget" value="1000000" min="10000">
-                        </div>
-                        <div class="form-group">
-                            <label>Target Profit (%)</label>
-                            <input type="number" id="target" value="0.5" step="0.1" min="0.1">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Manual Buy Price (optional)</label>
-                        <input type="number" id="buyPrice" value="0" min="0">
-                    </div>
-                    <div class="checkbox-group">
-                        <label><input type="checkbox" id="liveMode"> Live Mode</label>
-                        <label><input type="checkbox" id="llmMode"> LLM (GPT)</label>
-                        <label><input type="checkbox" id="orderbook"> Orderbook Filter</label>
-                        <label><input type="checkbox" id="momentum"> Momentum Mode</label>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Start Scalper</button>
-                </form>
+<body class="bg-dark-900 text-gray-300 min-h-screen">
+    <div class="max-w-7xl mx-auto px-4 py-6">
+        <header class="mb-6 flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold text-accent-blue">Deep Dive</h1>
+                <p class="text-sm text-gray-500" data-i18n="subtitle">AI-Powered Investment Analysis Platform</p>
             </div>
-            
-            <div class="card">
-                <div class="refresh-bar">
-                    <h2>Running Processes</h2>
-                    <span id="lastUpdate">-</span>
+            <button onclick="toggleLanguage()" class="px-3 py-1.5 bg-dark-700 hover:bg-dark-600 rounded-md text-sm font-medium transition flex items-center gap-2">
+                <span id="langIcon">🌐</span>
+                <span id="langLabel">한국어</span>
+            </button>
+        </header>
+
+        <nav class="flex flex-wrap gap-1 border-b border-dark-600 mb-6">
+            <button onclick="showTab('scalper')" id="tab-scalper" class="px-4 py-2 text-sm font-medium tab-active" data-i18n="tab_scalper">Scalper</button>
+            <button onclick="showTab('screener')" id="tab-screener" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300" data-i18n="tab_screener">Screener</button>
+            <button onclick="showTab('deepdive')" id="tab-deepdive" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300" data-i18n="tab_deepdive">Deep Dive</button>
+            <button onclick="showTab('human')" id="tab-human" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300" data-i18n="tab_human">Human Index</button>
+            <button onclick="showTab('backtest')" id="tab-backtest" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300" data-i18n="tab_backtest">Backtest</button>
+            <button onclick="showTab('global')" id="tab-global" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300" data-i18n="tab_global">Global</button>
+            <button onclick="showTab('journal')" id="tab-journal" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300" data-i18n="tab_journal">Journal</button>
+            <button onclick="showTab('simulator')" id="tab-simulator" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300" data-i18n="tab_simulator">Simulator</button>
+            <button onclick="showTab('admin')" id="tab-admin" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300" data-i18n="tab_admin">Admin</button>
+        </nav>
+
+        <!-- Scalper Panel -->
+        <div id="panel-scalper">
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <h2 class="text-sm font-semibold text-gray-400 mb-4 pb-2 border-b border-dark-600" data-i18n="new_scalper">New Scalper</h2>
+                    <form id="startForm" class="space-y-4">
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1" data-i18n="ticker">Ticker</label>
+                            <div class="relative flex items-center">
+                                <input type="text" id="ticker" placeholder="014940 or 삼성전자" required class="w-full pl-3 pr-8 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm focus:border-accent-blue focus:outline-none">
+                                <button type="button" onclick="openStockSearch('ticker')" class="absolute right-2 text-gray-400 hover:text-white">🔍</button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1" data-i18n="budget">Budget (원)</label>
+                                <input type="number" id="budget" value="1000000" class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm focus:border-accent-blue focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1" data-i18n="target">Target (%)</label>
+                                <input type="number" id="target" value="0.5" step="0.1" class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm focus:border-accent-blue focus:outline-none">
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-4 text-sm">
+                            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="liveMode" class="w-4 h-4 rounded"> Live</label>
+                            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="llmMode" class="w-4 h-4 rounded"> LLM</label>
+                            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="orderbook" class="w-4 h-4 rounded"> Orderbook</label>
+                            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="momentum" class="w-4 h-4 rounded"> Momentum</label>
+                        </div>
+                        <button type="submit" class="w-full py-2 bg-accent-green hover:bg-green-600 text-white font-medium rounded-md transition" data-i18n="start_scalper">Start Scalper</button>
+                    </form>
                 </div>
-                <div id="processList" class="process-list">
-                    <div class="empty-state">No running processes</div>
+
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <div class="flex justify-between items-center mb-4 pb-2 border-b border-dark-600">
+                        <h2 class="text-sm font-semibold text-gray-400" data-i18n="running_processes">Running Processes</h2>
+                        <span id="lastUpdate" class="text-xs text-gray-600">-</span>
+                    </div>
+                    <div id="processList" class="space-y-2 max-h-64 overflow-y-auto scrollbar-thin">
+                        <div class="text-center text-gray-600 py-8" data-i18n="no_running">No running processes</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-6 mt-6">
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <h2 class="text-sm font-semibold text-gray-400 mb-4 pb-2 border-b border-dark-600" data-i18n="saved_states">Saved States</h2>
+                    <div id="stateList" class="space-y-2 max-h-64 overflow-y-auto scrollbar-thin">
+                        <div class="text-center text-gray-600 py-8" data-i18n="no_saved">No saved states</div>
+                    </div>
+                </div>
+
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <div class="flex justify-between items-center mb-4 pb-2 border-b border-dark-600">
+                        <h2 class="text-sm font-semibold text-gray-400" data-i18n="live_logs">Live Logs</h2>
+                        <select id="logTicker" class="px-2 py-1 bg-dark-700 border border-dark-600 rounded text-xs">
+                            <option value="" data-i18n="select_ticker">Select ticker...</option>
+                        </select>
+                    </div>
+                    <div id="logContainer" class="h-64 overflow-y-auto scrollbar-thin bg-dark-900 rounded p-3 font-mono text-xs">
+                        <div class="text-gray-600" data-i18n="select_process">Select a process to view logs</div>
+                    </div>
                 </div>
             </div>
         </div>
-        
-        <div class="grid" style="margin-top: 20px;">
-            <div class="card">
-                <h2>Saved States (Positions)</h2>
-                <div id="stateList" class="state-list">
-                    <div class="empty-state">No saved states</div>
+
+        <!-- Screener Panel -->
+        <div id="panel-screener" class="hidden">
+            <div class="glass rounded-lg p-5 border border-dark-600 mb-6">
+                <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="filter_stocks">Filter Stocks</h2>
+                <form id="screenerForm" class="grid md:grid-cols-6 gap-3">
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="per_max">PER ≤</label>
+                        <input type="number" id="perMax" placeholder="20" class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="pbr_max">PBR ≤</label>
+                        <input type="number" id="pbrMax" placeholder="3" step="0.1" class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="foreign_net">Foreign Net ≥</label>
+                        <input type="number" id="foreignMin" placeholder="0" class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="market">Market</label>
+                        <select id="market" class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
+                            <option value="" data-i18n="all">All</option>
+                            <option value="KOSPI">KOSPI</option>
+                            <option value="KOSDAQ">KOSDAQ</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="sort_by">Sort By</label>
+                        <select id="sortBy" class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
+                            <option value="market_cap" data-i18n="market_cap">Market Cap</option>
+                            <option value="change_rate" data-i18n="change_pct">Change %</option>
+                            <option value="volume" data-i18n="volume">Volume</option>
+                            <option value="foreign_net" data-i18n="foreign_net_opt">Foreign Net</option>
+                        </select>
+                    </div>
+                    <div class="flex items-end">
+                        <button type="submit" class="w-full py-2 bg-accent-blue hover:bg-blue-600 text-white font-medium rounded-md transition" data-i18n="search">Search</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="glass rounded-lg border border-dark-600 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-dark-700 text-gray-400">
+                            <tr>
+                                <th class="px-4 py-3 text-left" data-i18n="ticker">Ticker</th>
+                                <th class="px-4 py-3 text-left" data-i18n="name">Name</th>
+                                <th class="px-4 py-3 text-right" data-i18n="price">Price</th>
+                                <th class="px-4 py-3 text-right" data-i18n="change">Change</th>
+                                <th class="px-4 py-3 text-right">PER</th>
+                                <th class="px-4 py-3 text-right">PBR</th>
+                                <th class="px-4 py-3 text-right" data-i18n="foreign">Foreign</th>
+                                <th class="px-4 py-3 text-right" data-i18n="institution">Institution</th>
+                                <th class="px-4 py-3 text-right" data-i18n="short_ratio">Short(%)</th>
+                                <th class="px-4 py-3 text-right" data-i18n="credit_ratio">Credit(%)</th>
+                                <th class="px-4 py-3 text-center" data-i18n="action">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="screenerResults" class="divide-y divide-dark-600">
+                            <tr><td colspan="11" class="px-4 py-8 text-center text-gray-600" data-i18n="enter_filters">Enter filters and click Search</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
-            
-            <div class="card">
-                <div class="refresh-bar">
-                    <h2>Live Logs</h2>
-                    <select id="logTicker" class="btn btn-secondary" style="padding: 4px 8px;">
-                        <option value="">Select ticker...</option>
-                    </select>
+        </div>
+
+        <!-- Deep Dive Panel -->
+        <div id="panel-deepdive" class="hidden">
+            <div class="glass rounded-lg p-5 border border-dark-600 mb-6">
+                <div class="flex gap-3">
+                    <div class="relative flex-1 flex items-center">
+                        <input type="text" id="deepdiveSearch" data-i18n-placeholder="enter_ticker_placeholder" placeholder="Enter ticker or company name..." class="w-full pl-4 pr-10 py-2 bg-dark-900 border border-dark-600 rounded-md focus:border-accent-blue focus:outline-none">
+                        <button type="button" onclick="openStockSearch('deepdiveSearch')" class="absolute right-3 text-gray-400 hover:text-white">🔍</button>
+                    </div>
+                    <button onclick="loadDeepDive()" class="px-6 py-2 bg-accent-purple hover:bg-purple-600 text-white font-medium rounded-md transition" data-i18n="analyze">Analyze</button>
+                    <button onclick="loadAIDeepDive()" class="px-6 py-2 bg-accent-green hover:bg-green-600 text-white font-medium rounded-md transition" data-i18n="ai_report">AI Report</button>
                 </div>
-                <div id="logContainer" class="log-container">
-                    <div class="empty-state">Select a running process to view logs</div>
+            </div>
+
+            <div id="deepdiveContent" class="grid md:grid-cols-3 gap-6">
+                <div class="md:col-span-2 glass rounded-lg p-5 border border-dark-600">
+                    <h3 class="text-lg font-semibold text-gray-300 mb-4" data-i18n="stock_analysis">Stock Analysis</h3>
+                    <div id="stockInfo" class="text-gray-500 text-center py-12" data-i18n="enter_ticker">Enter a ticker to see analysis</div>
+                </div>
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <h3 class="text-lg font-semibold text-gray-300 mb-4" data-i18n="key_metrics">Key Metrics</h3>
+                    <div id="keyMetrics" class="space-y-3 text-gray-500 text-center py-12">-</div>
+                </div>
+            </div>
+            <div id="aiReportContent" class="mt-6 hidden">
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <h3 class="text-lg font-semibold text-gray-300 mb-4" data-i18n="ai_analysis_report">AI Analysis Report</h3>
+                    <div id="aiReport" class="space-y-4"></div>
+                </div>
+            </div>
+
+            <div id="investorTrendSection" class="mt-6 hidden">
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="glass rounded-lg p-5 border border-dark-600">
+                        <h3 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="investor_trend_chart">Foreign/Institutional Trend</h3>
+                        <div class="h-64">
+                            <canvas id="investorTrendChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="glass rounded-lg p-5 border border-dark-600">
+                        <h3 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="investor_trend_table">Daily Details</h3>
+                        <div id="investorTrendTable" class="max-h-64 overflow-y-auto scrollbar-thin">
+                            <table class="w-full text-xs">
+                                <thead class="text-gray-500 border-b border-dark-600">
+                                    <tr>
+                                        <th class="py-2 text-left" data-i18n="date">Date</th>
+                                        <th class="py-2 text-right" data-i18n="foreign">Foreign</th>
+                                        <th class="py-2 text-right" data-i18n="institution">Institution</th>
+                                        <th class="py-2 text-right" data-i18n="retail">Retail</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="investorTrendBody" class="divide-y divide-dark-700"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Human Index Panel -->
+        <div id="panel-human" class="hidden">
+            <div class="grid md:grid-cols-2 gap-6 mb-6">
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-sm font-semibold text-accent-red" data-i18n="fomo_alerts">FOMO Alerts (Overheated)</h2>
+                        <button onclick="loadFomoAlerts()" class="px-3 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded" data-i18n="refresh">Refresh</button>
+                    </div>
+                    <div id="fomoAlerts" class="space-y-2 max-h-80 overflow-y-auto scrollbar-thin">
+                        <div class="text-center text-gray-600 py-8" data-i18n="click_refresh">Click Refresh to load</div>
+                    </div>
+                </div>
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-sm font-semibold text-accent-green" data-i18n="bottom_signals">Bottom Signals (Opportunity)</h2>
+                        <button onclick="loadBottomSignals()" class="px-3 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded" data-i18n="refresh">Refresh</button>
+                    </div>
+                    <div id="bottomSignals" class="space-y-2 max-h-80 overflow-y-auto scrollbar-thin">
+                        <div class="text-center text-gray-600 py-8" data-i18n="click_refresh">Click Refresh to load</div>
+                    </div>
+                </div>
+            </div>
+            <div class="glass rounded-lg p-5 border border-dark-600">
+                <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="individual_human">Individual Stock Human Index</h2>
+                <div class="flex gap-3 mb-4">
+                    <div class="relative flex-1 flex items-center">
+                        <input type="text" id="humanIndexTicker" placeholder="Enter ticker..." class="w-full pl-4 pr-10 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
+                        <button type="button" onclick="openStockSearch('humanIndexTicker')" class="absolute right-3 text-gray-400 hover:text-white">🔍</button>
+                    </div>
+                    <button onclick="loadHumanIndex()" class="px-6 py-2 bg-accent-blue hover:bg-blue-600 text-white font-medium rounded-md transition" data-i18n="check">Check</button>
+                </div>
+                <div id="humanIndexResult" class="grid grid-cols-3 gap-4">
+                    <div class="p-4 bg-dark-900 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-accent-blue" id="hiAttention">-</div>
+                        <div class="text-xs text-gray-500" data-i18n="attention_score">Attention Score</div>
+                    </div>
+                    <div class="p-4 bg-dark-900 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-accent-red" id="hiFomo">-</div>
+                        <div class="text-xs text-gray-500" data-i18n="fomo_level">FOMO Level</div>
+                    </div>
+                    <div class="p-4 bg-dark-900 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-accent-purple" id="hiSentiment">-</div>
+                        <div class="text-xs text-gray-500" data-i18n="crowd_sentiment">Crowd Sentiment</div>
+                    </div>
+                </div>
+                <div id="humanIndexDetails" class="mt-6 hidden space-y-4"></div>
+                <div id="humanIndexChartSection" class="mt-6 hidden">
+                    <div class="glass rounded-lg p-5 border border-dark-600">
+                        <h3 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="human_index_trend">Human Index Trend (30 days)</h3>
+                        <div class="h-64">
+                            <canvas id="humanIndexChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div id="youtubeNaverChartSection" class="mt-6 hidden">
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div class="glass rounded-lg p-5 border border-dark-600">
+                            <h3 class="text-sm font-semibold text-accent-red mb-4 flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
+                                <span data-i18n="youtube_trend">YouTube Trend</span>
+                            </h3>
+                            <div class="h-48">
+                                <canvas id="youtubeChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="glass rounded-lg p-5 border border-dark-600">
+                            <h3 class="text-sm font-semibold text-accent-green mb-4 flex items-center gap-2">
+                                <span class="font-bold text-lg">N</span>
+                                <span data-i18n="naver_trend">Naver Trend</span>
+                            </h3>
+                            <div class="h-48">
+                                <canvas id="naverChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Backtest Panel -->
+        <div id="panel-backtest" class="hidden">
+            <div class="glass rounded-lg p-5 border border-dark-600 mb-6">
+                <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="run_backtest">Run Backtest</h2>
+                <form id="backtestForm" class="grid md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="ticker">Ticker</label>
+                        <div class="relative flex items-center">
+                            <input type="text" id="btTicker" placeholder="005930" required class="w-full pl-3 pr-8 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
+                            <button type="button" onclick="openStockSearch('btTicker')" class="absolute right-2 text-gray-400 hover:text-white">🔍</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="start_date">Start Date</label>
+                        <input type="date" id="btStartDate" required class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="end_date">End Date</label>
+                        <input type="date" id="btEndDate" required class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="strategy">Strategy</label>
+                        <select id="btStrategy" class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
+                            <option value="ma">Moving Average (5/20)</option>
+                            <option value="rsi">RSI (14)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="initial_capital">Initial Capital</label>
+                        <input type="number" id="btCapital" value="10000000" class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
+                    </div>
+                    <div class="md:col-span-3 flex items-end">
+                        <button type="submit" class="px-8 py-2 bg-accent-yellow hover:bg-yellow-600 text-black font-medium rounded-md transition" data-i18n="run_backtest_btn">Run Backtest</button>
+                    </div>
+                </form>
+            </div>
+            <div id="backtestResult" class="glass rounded-lg p-5 border border-dark-600 hidden">
+                <h3 class="text-lg font-semibold text-gray-300 mb-4" data-i18n="backtest_result">Backtest Result</h3>
+                <div class="grid grid-cols-4 gap-4 mb-6">
+                    <div class="p-4 bg-dark-900 rounded-lg text-center">
+                        <div class="text-2xl font-bold" id="btReturn">-</div>
+                        <div class="text-xs text-gray-500" data-i18n="total_return">Total Return</div>
+                    </div>
+                    <div class="p-4 bg-dark-900 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-accent-green" id="btWinRate">-</div>
+                        <div class="text-xs text-gray-500" data-i18n="win_rate">Win Rate</div>
+                    </div>
+                    <div class="p-4 bg-dark-900 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-accent-red" id="btMDD">-</div>
+                        <div class="text-xs text-gray-500" data-i18n="max_drawdown">Max Drawdown</div>
+                    </div>
+                    <div class="p-4 bg-dark-900 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-accent-purple" id="btSharpe">-</div>
+                        <div class="text-xs text-gray-500" data-i18n="sharpe_ratio">Sharpe Ratio</div>
+                    </div>
+                </div>
+                <div id="btTrades" class="max-h-64 overflow-y-auto scrollbar-thin"></div>
+            </div>
+            <div class="glass rounded-lg p-5 border border-dark-600 mt-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-sm font-semibold text-gray-400" data-i18n="past_results">Past Results</h3>
+                    <button onclick="loadBacktestHistory()" class="px-3 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded" data-i18n="refresh">Refresh</button>
+                </div>
+                <div id="backtestHistory" class="space-y-2 max-h-48 overflow-y-auto scrollbar-thin">
+                    <div class="text-center text-gray-600 py-4" data-i18n="no_past_results">No past results</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Global Panel -->
+        <div id="panel-global" class="hidden">
+            <div class="grid md:grid-cols-4 gap-4 mb-6">
+                <div class="glass rounded-lg p-5 border border-dark-600 text-center">
+                    <div class="text-xs text-gray-500 mb-2">S&P 500</div>
+                    <div class="text-2xl font-bold" id="globalSPY">-</div>
+                    <div class="text-sm" id="globalSPYChange">-</div>
+                </div>
+                <div class="glass rounded-lg p-5 border border-dark-600 text-center">
+                    <div class="text-xs text-gray-500 mb-2">Nasdaq 100</div>
+                    <div class="text-2xl font-bold" id="globalQQQ">-</div>
+                    <div class="text-sm" id="globalQQQChange">-</div>
+                </div>
+                <div class="glass rounded-lg p-5 border border-dark-600 text-center">
+                    <div class="text-xs text-gray-500 mb-2" data-i18n="vix_fear">VIX (Fear)</div>
+                    <div class="text-2xl font-bold" id="globalVIX">-</div>
+                    <div class="text-sm" id="globalVIXChange">-</div>
+                </div>
+                <div class="glass rounded-lg p-5 border border-dark-600 text-center">
+                    <div class="text-xs text-gray-500 mb-2" data-i18n="market_sentiment">Market Sentiment</div>
+                    <div class="text-2xl font-bold" id="globalSentiment">-</div>
+                </div>
+            </div>
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-sm font-semibold text-gray-400" data-i18n="commodities_bonds">Commodities & Bonds</h2>
+                        <button onclick="loadGlobalMarket()" class="px-3 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded" data-i18n="refresh">Refresh</button>
+                    </div>
+                    <div id="globalOther" class="space-y-2">
+                        <div class="text-center text-gray-600 py-4" data-i18n="click_refresh">Click Refresh to load</div>
+                    </div>
+                </div>
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="analysis">Analysis</h2>
+                    <div id="globalAnalysis" class="text-gray-500" data-i18n="market_data_refresh">
+                        Market data will appear after refresh
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Journal Panel -->
+        <div id="panel-journal" class="hidden">
+            <div class="grid md:grid-cols-3 gap-6 mb-6">
+                <div class="glass rounded-lg p-5 border border-dark-600 col-span-2">
+                    <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="add_trade">Add Trade Entry</h2>
+                    <form id="journalForm" class="grid grid-cols-5 gap-3">
+                        <!-- Ticker input with search button -->
+                        <div class="relative flex items-center">
+                            <input type="text" id="jTicker" placeholder="Ticker" required class="w-full pl-3 pr-8 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm" data-i18n-placeholder="ticker">
+                            <button type="button" onclick="openStockSearch('jTicker')" class="absolute right-2 text-gray-400 hover:text-white">🔍</button>
+                        </div>
+                        <select id="jSide" class="px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
+                            <option value="BUY" data-i18n="buy">BUY</option>
+                            <option value="SELL" data-i18n="sell">SELL</option>
+                        </select>
+                        <input type="number" id="jPrice" placeholder="Price" required class="px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm" data-i18n-placeholder="price">
+                        <input type="number" id="jQty" placeholder="Qty" required class="px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm" data-i18n-placeholder="qty">
+                        <button type="submit" class="bg-accent-green hover:bg-green-600 text-white font-medium rounded-md transition" data-i18n="add">Add</button>
+                        <input type="text" id="jThesis" placeholder="Thesis (optional)" class="col-span-4 px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm" data-i18n-placeholder="thesis">
+                        <input type="number" id="jPnl" placeholder="P&L" class="px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm" data-i18n-placeholder="pnl">
+                    </form>
+                </div>
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="statistics">Statistics</h2>
+                    <div id="journalStats" class="space-y-2 text-sm">
+                        <div class="flex justify-between"><span class="text-gray-500" data-i18n="total_trades">Total Trades</span><span id="jsTotal">-</span></div>
+                        <div class="flex justify-between"><span class="text-gray-500" data-i18n="win_rate">Win Rate</span><span id="jsWinRate">-</span></div>
+                        <div class="flex justify-between"><span class="text-gray-500" data-i18n="total_pnl">Total P&L</span><span id="jsPnl">-</span></div>
+                        <div class="flex justify-between"><span class="text-gray-500" data-i18n="best_trade">Best Trade</span><span id="jsBest" class="text-accent-green">-</span></div>
+                        <div class="flex justify-between"><span class="text-gray-500" data-i18n="worst_trade">Worst Trade</span><span id="jsWorst" class="text-accent-red">-</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="glass rounded-lg p-5 border border-dark-600">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-sm font-semibold text-gray-400" data-i18n="trade_history">Trade History</h2>
+                    <button onclick="loadJournalEntries()" class="px-3 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded" data-i18n="refresh">Refresh</button>
+                </div>
+                <div id="journalEntries" class="space-y-2 max-h-80 overflow-y-auto scrollbar-thin">
+                    <div class="text-center text-gray-600 py-8" data-i18n="no_entries">No entries yet</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Simulator Panel -->
+        <div id="panel-simulator" class="hidden">
+            <div class="grid md:grid-cols-4 gap-4 mb-6">
+                <div class="glass rounded-lg p-5 border border-dark-600 text-center">
+                    <div class="text-xs text-gray-500 mb-2" data-i18n="total_value">Total Value</div>
+                    <div class="text-2xl font-bold text-accent-blue" id="simValue">-</div>
+                </div>
+                <div class="glass rounded-lg p-5 border border-dark-600 text-center">
+                    <div class="text-xs text-gray-500 mb-2" data-i18n="total_pnl">Total P&L</div>
+                    <div class="text-2xl font-bold" id="simPnl">-</div>
+                </div>
+                <div class="glass rounded-lg p-5 border border-dark-600 text-center">
+                    <div class="text-xs text-gray-500 mb-2" data-i18n="return_pct">Return %</div>
+                    <div class="text-2xl font-bold" id="simReturn">-</div>
+                </div>
+                <div class="glass rounded-lg p-5 border border-dark-600 text-center">
+                    <div class="text-xs text-gray-500 mb-2" data-i18n="win_rate">Win Rate</div>
+                    <div class="text-2xl font-bold text-accent-green" id="simWinRate">-</div>
+                </div>
+            </div>
+            <div class="grid md:grid-cols-2 gap-6 mb-6">
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="trade">Trade</h2>
+                    <form id="simTradeForm" class="space-y-3">
+                        <div class="grid grid-cols-3 gap-3">
+                            <div class="relative flex items-center">
+                                <input type="text" id="simTicker" placeholder="Ticker" required class="w-full pl-3 pr-8 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm" data-i18n-placeholder="ticker">
+                                <button type="button" onclick="openStockSearch('simTicker')" class="absolute right-2 text-gray-400 hover:text-white">🔍</button>
+                            </div>
+                            <input type="number" id="simPrice" placeholder="Price" required class="px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm" data-i18n-placeholder="price">
+                            <input type="number" id="simQty" placeholder="Qty (optional)" class="px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm" data-i18n-placeholder="qty_optional">
+                        </div>
+                        <div class="flex gap-3">
+                            <button type="button" onclick="simBuy()" class="flex-1 py-2 bg-accent-green hover:bg-green-600 text-white font-medium rounded-md transition" data-i18n="buy">BUY</button>
+                            <button type="button" onclick="simSell()" class="flex-1 py-2 bg-accent-red hover:bg-red-600 text-white font-medium rounded-md transition" data-i18n="sell">SELL</button>
+                        </div>
+                    </form>
+                    <div class="mt-4 pt-4 border-t border-dark-600">
+                        <button onclick="resetSimulator()" class="w-full py-2 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-md transition text-sm" data-i18n="reset_simulator">Reset Simulator</button>
+                    </div>
+                </div>
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-sm font-semibold text-gray-400" data-i18n="positions">Positions</h2>
+                        <button onclick="loadSimulatorPortfolio()" class="px-3 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded" data-i18n="refresh">Refresh</button>
+                    </div>
+                    <div id="simPositions" class="space-y-2 max-h-48 overflow-y-auto scrollbar-thin">
+                        <div class="text-center text-gray-600 py-4" data-i18n="no_positions">No positions</div>
+                    </div>
+                </div>
+            </div>
+            <div class="glass rounded-lg p-5 border border-dark-600">
+                <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="recent_trades">Recent Trades</h2>
+                <div id="simTrades" class="space-y-2 max-h-48 overflow-y-auto scrollbar-thin">
+                    <div class="text-center text-gray-600 py-4" data-i18n="no_trades">No trades yet</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Panel -->
+        <div id="panel-admin" class="hidden">
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <h2 class="text-sm font-semibold text-gray-400 mb-4 pb-2 border-b border-dark-600" data-i18n="data_collection">Data Collection</h2>
+                    <div class="space-y-4">
+                        <div id="schedulerStatus" class="p-3 bg-dark-900 rounded-md text-sm">
+                            <div class="text-gray-500" data-i18n="loading">Loading scheduler status...</div>
+                        </div>
+                        <div class="flex gap-3">
+                            <button onclick="loadStocks()" class="flex-1 py-2 bg-dark-700 hover:bg-dark-600 text-white rounded-md transition" data-i18n="load_stocks">Load Stocks</button>
+                            <button onclick="triggerCollection()" class="flex-1 py-2 bg-accent-yellow hover:bg-yellow-600 text-black font-medium rounded-md transition" data-i18n="collect_data">Collect Data</button>
+                        </div>
+                        <div class="flex gap-3">
+                            <button onclick="startScheduler()" class="flex-1 py-2 bg-accent-green hover:bg-green-600 text-white rounded-md transition" data-i18n="start_scheduler">Start Scheduler</button>
+                            <button onclick="stopScheduler()" class="flex-1 py-2 bg-accent-red hover:bg-red-600 text-white rounded-md transition" data-i18n="stop_scheduler">Stop Scheduler</button>
+                        </div>
+                        <div class="flex gap-3">
+                            <button onclick="collectGlobalMarket()" class="flex-1 py-2 bg-accent-purple hover:bg-purple-600 text-white rounded-md transition" data-i18n="collect_global">Collect Global Market</button>
+                            <button onclick="testTelegram()" class="flex-1 py-2 bg-accent-blue hover:bg-blue-600 text-white rounded-md transition" data-i18n="test_telegram">Test Telegram</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <div class="flex justify-between items-center mb-4 pb-2 border-b border-dark-600">
+                        <h2 class="text-sm font-semibold text-gray-400" data-i18n="realtime_logs">Real-time Logs</h2>
+                        <div class="flex gap-2">
+                            <span id="logConnectionStatus" class="px-2 py-1 text-xs rounded bg-dark-700 text-gray-500">Disconnected</span>
+                            <button onclick="toggleCollectionLogStream()" id="btnToggleLogStream" class="px-3 py-1 text-xs bg-accent-green hover:bg-green-600 text-white rounded" data-i18n="connect">Connect</button>
+                            <button onclick="clearCollectionLogs()" class="px-3 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded" data-i18n="clear">Clear</button>
+                        </div>
+                    </div>
+                    <div id="realtimeLogs" class="h-64 overflow-y-auto scrollbar-thin bg-dark-900 rounded p-3 font-mono text-xs">
+                        <div class="text-gray-600" data-i18n="click_connect">Click Connect to start streaming logs</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass rounded-lg p-5 border border-dark-600 mt-6">
+                <h2 class="text-sm font-semibold text-gray-400 mb-4 pb-2 border-b border-dark-600" data-i18n="db_stats">Database Stats</h2>
+                <div id="dbStats" class="grid grid-cols-4 gap-4">
+                    <div class="p-4 bg-dark-900 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-accent-blue" id="statTotal">-</div>
+                        <div class="text-xs text-gray-500" data-i18n="total_stocks">Total Stocks</div>
+                    </div>
+                    <div class="p-4 bg-dark-900 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-accent-green" id="statKospi">-</div>
+                        <div class="text-xs text-gray-500">KOSPI</div>
+                    </div>
+                    <div class="p-4 bg-dark-900 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-accent-purple" id="statKosdaq">-</div>
+                        <div class="text-xs text-gray-500">KOSDAQ</div>
+                    </div>
+                    <div class="p-4 bg-dark-900 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-accent-yellow" id="statScheduler">-</div>
+                        <div class="text-xs text-gray-500" data-i18n="scheduler">Scheduler</div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-    
+
+    <!-- Stock Search Modal -->
+    <div id="modal-stock-search" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div class="glass w-full max-w-lg p-6 rounded-xl border border-dark-600 shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-white" data-i18n="search_stock">Search Stock</h3>
+                <button onclick="closeStockSearch()" class="text-gray-400 hover:text-white transition">✕</button>
+            </div>
+            <div class="relative mb-4">
+                <input type="text" id="stockSearchInput" placeholder="Enter name or code..." class="w-full pl-10 pr-4 py-3 bg-dark-900 border border-dark-600 rounded-lg focus:border-accent-blue focus:outline-none text-white placeholder-gray-500" data-i18n-placeholder="search_stock_placeholder">
+                <span class="absolute left-3 top-3.5 text-gray-500">🔍</span>
+            </div>
+            <div id="stockSearchResults" class="h-64 overflow-y-auto scrollbar-thin space-y-1">
+                <div class="text-center text-gray-600 py-8" data-i18n="enter_search_term">Enter search term...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Journal Modal -->
+    <div id="modal-journal-edit" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div class="glass w-full max-w-lg p-6 rounded-xl border border-dark-600 shadow-2xl">
+            <h3 class="text-lg font-bold text-white mb-6" data-i18n="edit_trade">Edit Trade Entry</h3>
+            <form id="journalEditForm" class="space-y-4">
+                <input type="hidden" id="editId">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="ticker">Ticker</label>
+                        <input type="text" id="editTicker" readonly class="w-full px-3 py-2 bg-dark-800 border border-dark-600 rounded-md text-gray-400 cursor-not-allowed">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="side">Side</label>
+                        <select id="editSide" class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white">
+                            <option value="BUY">BUY</option>
+                            <option value="SELL">SELL</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="price">Price</label>
+                        <input type="number" id="editPrice" step="any" required class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="qty">Qty</label>
+                        <input type="number" id="editQty" required class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1" data-i18n="pnl">P&L</label>
+                    <input type="number" id="editPnl" step="any" class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1" data-i18n="thesis">Thesis</label>
+                    <input type="text" id="editThesis" class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none">
+                </div>
+                <div class="flex gap-3 mt-6">
+                    <button type="button" onclick="closeEditJournalModal()" class="flex-1 py-2 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-md transition" data-i18n="cancel">Cancel</button>
+                    <button type="submit" class="flex-1 py-2 bg-accent-blue hover:bg-blue-600 text-white font-medium rounded-md transition" data-i18n="save">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         let ws = null;
-        
+        let currentTab = 'scalper';
+        let currentLang = localStorage.getItem('lang') || 'en';
+
+        const translations = {
+            en: {
+                subtitle: 'AI-Powered Investment Analysis Platform',
+                tab_scalper: 'Scalper', tab_screener: 'Screener', tab_deepdive: 'Deep Dive',
+                tab_human: 'Human Index', tab_backtest: 'Backtest', tab_global: 'Global',
+                tab_journal: 'Journal', tab_simulator: 'Simulator', tab_admin: 'Admin',
+                new_scalper: 'New Scalper', ticker: 'Ticker', budget: 'Budget (₩)',
+                target: 'Target (%)', start_scalper: 'Start Scalper',
+                running_processes: 'Running Processes', saved_states: 'Saved States',
+                live_logs: 'Live Logs', select_ticker: 'Select ticker...',
+                select_process: 'Select a process to view logs',
+                no_running: 'No running processes', no_saved: 'No saved states',
+                filter_stocks: 'Filter Stocks', search: 'Search', analyze: 'Analyze',
+                ai_report: 'AI Report', stock_analysis: 'Stock Analysis',
+                key_metrics: 'Key Metrics', enter_ticker: 'Enter a ticker to see analysis',
+                fomo_alerts: 'FOMO Alerts (Overheated)', bottom_signals: 'Bottom Signals (Opportunity)',
+                refresh: 'Refresh', individual_human: 'Individual Stock Human Index',
+                check: 'Check', attention_score: 'Attention Score', fomo_level: 'FOMO Level',
+                crowd_sentiment: 'Crowd Sentiment', run_backtest: 'Run Backtest',
+                start_date: 'Start Date', end_date: 'End Date', strategy: 'Strategy',
+                initial_capital: 'Initial Capital', total_return: 'Total Return',
+                win_rate: 'Win Rate', max_drawdown: 'Max Drawdown', sharpe_ratio: 'Sharpe Ratio',
+                past_results: 'Past Results', commodities_bonds: 'Commodities & Bonds',
+                analysis: 'Analysis', market_sentiment: 'Market Sentiment',
+                add_trade: 'Add Trade Entry', statistics: 'Statistics', trade_history: 'Trade History',
+                total_trades: 'Total Trades', total_pnl: 'Total P&L', best_trade: 'Best Trade',
+                worst_trade: 'Worst Trade', total_value: 'Total Value', return_pct: 'Return %',
+                trade: 'Trade', positions: 'Positions', recent_trades: 'Recent Trades',
+                reset_simulator: 'Reset Simulator', data_collection: 'Data Collection',
+                load_stocks: 'Load Stocks', collect_data: 'Collect Data',
+                start_scheduler: 'Start Scheduler', stop_scheduler: 'Stop Scheduler',
+                collect_global: 'Collect Global Market', test_telegram: 'Test Telegram',
+                collection_logs: 'Collection Logs', db_stats: 'Database Stats',
+                total_stocks: 'Total Stocks', scheduler: 'Scheduler',
+                foreign_net: 'Foreign Net ≥', per_max: 'PER ≤', pbr_max: 'PBR ≤',
+                market: 'Market', sort_by: 'Sort By', price: 'Price', change: 'Change',
+                foreign: 'Foreign', action: 'Action', short_ratio: 'Short(%)', credit_ratio: 'Credit(%)', enter_ticker_placeholder: 'Enter ticker or company name...',
+                no_positions: 'No positions', no_trades: 'No trades yet',
+                no_entries: 'No entries yet', no_results: 'No results', no_alerts: 'No FOMO alerts',
+                no_signals: 'No bottom signals', loading: 'Loading...',
+                click_refresh: 'Click Refresh to load', no_past_results: 'No past results',
+                all: 'All', market_cap: 'Market Cap', change_pct: 'Change %', volume: 'Volume',
+                foreign_net_opt: 'Foreign Net', name: 'Name', enter_filters: 'Enter filters and click Search',
+                ai_analysis_report: 'AI Analysis Report', run_backtest_btn: 'Run Backtest',
+                backtest_result: 'Backtest Result', vix_fear: 'VIX (Fear)',
+                market_data_refresh: 'Market data will appear after refresh',
+                buy: 'BUY', sell: 'SELL', qty: 'Qty', thesis: 'Thesis (optional)', pnl: 'P&L', add: 'Add',
+                qty_optional: 'Qty (optional)', no_collection_logs: 'No collection logs', unit_100m: '00M',
+                edit_trade: 'Edit Trade Entry', search_stock: 'Search Stock',
+                search_stock_placeholder: 'Enter name or code...', enter_search_term: 'Enter search term...',
+                cancel: 'Cancel', save: 'Save', delete_confirm: 'Delete this entry?', side: 'Side',
+                realtime_logs: 'Real-time Logs', connect: 'Connect', disconnect: 'Disconnect',
+                clear: 'Clear', click_connect: 'Click Connect to start streaming logs',
+                investor_trend_chart: 'Foreign/Institutional Trend', investor_trend_table: 'Daily Details',
+                date: 'Date', retail: 'Retail', institution: 'Institution',
+                human_index_trend: 'Human Index Trend (30 days)',
+                youtube_trend: 'YouTube Trend', naver_trend: 'Naver Trend',
+            },
+            ko: {
+                subtitle: 'AI 기반 투자 분석 플랫폼',
+                tab_scalper: '스캘퍼', tab_screener: '종목검색', tab_deepdive: '딥다이브',
+                tab_human: '인간지표', tab_backtest: '백테스트', tab_global: '글로벌',
+                tab_journal: '매매일지', tab_simulator: '시뮬레이터', tab_admin: '관리자',
+                new_scalper: '새 스캘퍼', ticker: '종목코드', budget: '예산 (원)',
+                target: '목표 (%)', start_scalper: '스캘퍼 시작',
+                running_processes: '실행 중', saved_states: '저장된 상태',
+                live_logs: '실시간 로그', select_ticker: '종목 선택...',
+                select_process: '로그를 볼 프로세스를 선택하세요',
+                no_running: '실행 중인 프로세스 없음', no_saved: '저장된 상태 없음',
+                filter_stocks: '종목 필터', search: '검색', analyze: '분석',
+                ai_report: 'AI 리포트', stock_analysis: '종목 분석',
+                key_metrics: '핵심 지표', enter_ticker: '분석할 종목을 입력하세요',
+                fomo_alerts: 'FOMO 경보 (과열)', bottom_signals: '바닥 신호 (기회)',
+                refresh: '새로고침', individual_human: '개별 종목 인간지표',
+                check: '확인', attention_score: '관심도', fomo_level: 'FOMO 지수',
+                crowd_sentiment: '군중 감성', run_backtest: '백테스트 실행',
+                start_date: '시작일', end_date: '종료일', strategy: '전략',
+                initial_capital: '초기 자본', total_return: '총 수익률',
+                win_rate: '승률', max_drawdown: '최대 낙폭', sharpe_ratio: '샤프 비율',
+                past_results: '과거 결과', commodities_bonds: '원자재 & 채권',
+                analysis: '분석', market_sentiment: '시장 심리',
+                add_trade: '거래 기록 추가', statistics: '통계', trade_history: '거래 내역',
+                total_trades: '총 거래', total_pnl: '총 손익', best_trade: '최고 수익',
+                worst_trade: '최대 손실', total_value: '총 가치', return_pct: '수익률 %',
+                trade: '거래', positions: '포지션', recent_trades: '최근 거래',
+                reset_simulator: '시뮬레이터 초기화', data_collection: '데이터 수집',
+                load_stocks: '종목 로드', collect_data: '데이터 수집',
+                start_scheduler: '스케줄러 시작', stop_scheduler: '스케줄러 중지',
+                collect_global: '글로벌 시장 수집', test_telegram: '텔레그램 테스트',
+                collection_logs: '수집 로그', db_stats: '데이터베이스 현황',
+                total_stocks: '전체 종목', scheduler: '스케줄러',
+                foreign_net: '외인순매수 ≥', per_max: 'PER ≤', pbr_max: 'PBR ≤',
+                market: '시장', sort_by: '정렬', price: '가격', change: '등락률',
+                foreign: '외인', action: '액션', short_ratio: '공매도(%)', credit_ratio: '신용(%)', enter_ticker_placeholder: '종목코드 또는 회사명 입력...',
+                no_positions: '포지션 없음', no_trades: '거래 내역 없음',
+                no_entries: '기록 없음', no_results: '결과 없음', no_alerts: 'FOMO 경보 없음',
+                no_signals: '바닥 신호 없음', loading: '로딩 중...',
+                click_refresh: '새로고침을 클릭하세요', no_past_results: '과거 결과 없음',
+                all: '전체', market_cap: '시가총액', change_pct: '등락률 %', volume: '거래량',
+                foreign_net_opt: '외인순매수', name: '종목명', enter_filters: '필터를 입력하고 검색을 클릭하세요',
+                ai_analysis_report: 'AI 분석 리포트', run_backtest_btn: '백테스트 실행',
+                backtest_result: '백테스트 결과', vix_fear: 'VIX (공포지수)',
+                market_data_refresh: '새로고침 후 시장 데이터가 표시됩니다',
+                buy: '매수', sell: '매도', qty: '수량', thesis: '투자 논거 (선택)', pnl: '손익', add: '추가',
+                qty_optional: '수량 (선택)', no_collection_logs: '수집 로그 없음', unit_100m: '억',
+                edit_trade: '거래 기록 수정', search_stock: '종목 검색',
+                search_stock_placeholder: '종목명 또는 코드 입력...', enter_search_term: '검색어를 입력하세요...',
+                cancel: '취소', save: '저장', delete_confirm: '이 항목을 삭제하시겠습니까?', side: '방향',
+                realtime_logs: '실시간 로그', connect: '연결', disconnect: '연결 해제',
+                clear: '지우기', click_connect: '연결을 클릭하여 로그 스트리밍 시작',
+                investor_trend_chart: '외인/기관 동향', investor_trend_table: '일별 상세',
+                date: '날짜', retail: '개인', institution: '기관',
+                human_index_trend: '인간지표 추이 (30일)',
+                youtube_trend: '유튜브 추이', naver_trend: '네이버 추이',
+            }
+        };
+
+        function t(key) {
+            return translations[currentLang][key] || translations['en'][key] || key;
+        }
+
+        function applyTranslations() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                el.textContent = t(key);
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                el.placeholder = t(key);
+            });
+            document.getElementById('langLabel').textContent = currentLang === 'ko' ? 'English' : '한국어';
+        }
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'en' ? 'ko' : 'en';
+            localStorage.setItem('lang', currentLang);
+            applyTranslations();
+        }
+
+        function showTab(tab) {
+            document.querySelectorAll('[id^="panel-"]').forEach(p => p.classList.add('hidden'));
+            document.querySelectorAll('[id^="tab-"]').forEach(t => { t.classList.remove('tab-active'); t.classList.add('text-gray-500'); });
+            document.getElementById(`panel-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-${tab}`).classList.add('tab-active');
+            document.getElementById(`tab-${tab}`).classList.remove('text-gray-500');
+            currentTab = tab;
+            if (tab === 'screener') loadScreenerData();
+            if (tab === 'admin') loadAdminData();
+            if (tab === 'global') loadGlobalMarket();
+            if (tab === 'journal') { loadJournalEntries(); loadJournalStats(); }
+            if (tab === 'simulator') loadSimulatorPortfolio();
+            if (tab === 'backtest') loadBacktestHistory();
+        }
+
         async function fetchStatus() {
             try {
                 const res = await fetch('/api/scalper/status');
                 const data = await res.json();
                 renderProcesses(data.processes);
                 document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
-            } catch (e) {
-                console.error('Failed to fetch status:', e);
-            }
+            } catch (e) { console.error(e); }
         }
-        
+
         async function fetchStates() {
             try {
                 const res = await fetch('/api/scalper/states');
                 const data = await res.json();
                 renderStates(data.states);
-            } catch (e) {
-                console.error('Failed to fetch states:', e);
-            }
+            } catch (e) { console.error(e); }
         }
-        
+
         function renderProcesses(processes) {
             const container = document.getElementById('processList');
             const select = document.getElementById('logTicker');
-            
             if (!processes.length) {
-                container.innerHTML = '<div class="empty-state">No running processes</div>';
+                container.innerHTML = '<div class="text-center text-gray-600 py-8">No running processes</div>';
                 select.innerHTML = '<option value="">Select ticker...</option>';
                 return;
             }
-            
             container.innerHTML = processes.map(p => `
-                <div class="process-item">
-                    <div class="process-info">
-                        <div class="process-ticker">
-                            ${p.ticker}
-                            ${p.live_mode ? '<span class="badge badge-live">LIVE</span>' : '<span class="badge badge-dry">DRY</span>'}
-                            ${p.llm_mode ? '<span class="badge badge-llm">LLM</span>' : ''}
+                <div class="flex justify-between items-center p-3 bg-dark-900 rounded-lg">
+                    <div>
+                        <div class="font-medium text-accent-blue">${p.ticker}
+                            <span class="ml-2 px-2 py-0.5 text-xs rounded ${p.live_mode ? 'bg-accent-red' : 'bg-accent-blue'}">${p.live_mode ? 'LIVE' : 'DRY'}</span>
+                            ${p.llm_mode ? '<span class="ml-1 px-2 py-0.5 text-xs rounded bg-accent-purple">LLM</span>' : ''}
                         </div>
-                        <div class="process-meta">
-                            PID: ${p.pid} | Budget: ${p.budget.toLocaleString()}원 | Uptime: ${formatUptime(p.uptime_seconds)}
-                        </div>
+                        <div class="text-xs text-gray-500 mt-1">PID: ${p.pid} | Budget: ${p.budget.toLocaleString()} | ${formatUptime(p.uptime_seconds)}</div>
                     </div>
-                    <div class="process-actions">
-                        <button class="btn btn-secondary" onclick="viewLogs('${p.ticker}')">Logs</button>
-                        <button class="btn btn-danger" onclick="stopScalper('${p.ticker}')">Stop</button>
+                    <div class="flex gap-2">
+                        <button onclick="viewLogs('${p.ticker}')" class="px-3 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded">Logs</button>
+                        <button onclick="resetScalper('${p.ticker}')" class="px-3 py-1 text-xs bg-accent-yellow hover:bg-yellow-600 text-black rounded">Reset</button>
+                        <button onclick="stopScalper('${p.ticker}')" class="px-3 py-1 text-xs bg-accent-red hover:bg-red-600 rounded">Stop</button>
                     </div>
                 </div>
             `).join('');
-            
-            select.innerHTML = '<option value="">Select ticker...</option>' + 
-                processes.map(p => `<option value="${p.ticker}">${p.ticker}</option>`).join('');
+            select.innerHTML = '<option value="">Select ticker...</option>' + processes.map(p => `<option value="${p.ticker}">${p.ticker}</option>`).join('');
         }
-        
+
         function renderStates(states) {
             const container = document.getElementById('stateList');
-            
-            if (!states.length) {
-                container.innerHTML = '<div class="empty-state">No saved states</div>';
-                return;
-            }
-            
-            container.innerHTML = states.map(s => {
-                const profitClass = s.daily_realized_profit >= 0 ? 'state-profit' : 'state-loss';
-                return `
-                    <div class="state-item">
-                        <div class="state-ticker">${s.ticker} - ${s.state}</div>
-                        <div class="state-detail">
-                            Avg: ${s.avg_buy_price?.toLocaleString() || 0}원 | 
-                            Qty: ${s.total_qty || 0}주 | 
-                            Step: ${s.current_step || 0} |
-                            <span class="${profitClass}">Daily P&L: ${(s.daily_realized_profit || 0).toLocaleString()}원</span>
-                        </div>
+            if (!states.length) { container.innerHTML = '<div class="text-center text-gray-600 py-8">No saved states</div>'; return; }
+            container.innerHTML = states.map(s => `
+                <div class="p-3 bg-dark-900 rounded-lg">
+                    <div class="font-medium text-accent-yellow">${s.ticker} - ${s.state}</div>
+                    <div class="text-xs text-gray-500 mt-1">
+                        Avg: ${s.avg_buy_price?.toLocaleString() || 0} | Qty: ${s.total_qty || 0} | Step: ${s.current_step || 0}
+                        <span class="${(s.daily_realized_profit || 0) >= 0 ? 'text-accent-green' : 'text-accent-red'}">
+                            P&L: ${(s.daily_realized_profit || 0).toLocaleString()}
+                        </span>
                     </div>
-                `;
-            }).join('');
+                </div>
+            `).join('');
         }
-        
-        function formatUptime(seconds) {
-            const h = Math.floor(seconds / 3600);
-            const m = Math.floor((seconds % 3600) / 60);
-            const s = Math.floor(seconds % 60);
-            if (h > 0) return `${h}h ${m}m`;
-            if (m > 0) return `${m}m ${s}s`;
-            return `${s}s`;
-        }
-        
+
+        function formatUptime(s) { const h = Math.floor(s/3600), m = Math.floor((s%3600)/60); return h > 0 ? `${h}h ${m}m` : `${m}m`; }
+
         async function stopScalper(ticker) {
-            if (!confirm(`Stop scalper for ${ticker}?`)) return;
-            
+            if (!confirm(`Stop ${ticker}?`)) return;
             try {
-                const res = await fetch(`/api/scalper/stop/${ticker}`, { method: 'POST' });
-                if (!res.ok) {
-                    const err = await res.json();
-                    alert(err.detail || 'Failed to stop');
-                    return;
-                }
+                await fetch(`/api/scalper/stop/${ticker}`, { method: 'POST' });
                 fetchStatus();
-            } catch (e) {
-                alert('Error: ' + e.message);
-            }
+            } catch (e) { alert(e.message); }
         }
-        
+
+        async function resetScalper(ticker) {
+            if (!confirm(`Reset state for ${ticker}? This will clear internal state/positions.`)) return;
+            try {
+                await fetch(`/api/scalper/reset/${ticker}`, { method: 'POST' });
+                alert(`Reset ${ticker} successfully`);
+                fetchStatus();
+            } catch (e) { alert(e.message); }
+        }
+
         function viewLogs(ticker) {
             document.getElementById('logTicker').value = ticker;
             connectWebSocket(ticker);
         }
-        
+
         function connectWebSocket(ticker) {
-            if (ws) {
-                ws.close();
-            }
-            
+            if (ws) ws.close();
             const container = document.getElementById('logContainer');
             container.innerHTML = '';
-            
-            if (!ticker) {
-                container.innerHTML = '<div class="empty-state">Select a running process to view logs</div>';
-                return;
-            }
-            
-            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-            ws = new WebSocket(`${protocol}//${location.host}/ws/logs/${ticker}`);
-            
-            ws.onmessage = (event) => {
+            if (!ticker) { container.innerHTML = '<div class="text-gray-600">Select a process</div>'; return; }
+            ws = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws/logs/${ticker}`);
+            ws.onmessage = e => {
                 const line = document.createElement('div');
-                line.className = 'log-line';
-                line.textContent = event.data;
+                line.textContent = e.data;
+                line.className = 'py-0.5';
                 container.appendChild(line);
                 container.scrollTop = container.scrollHeight;
             };
-            
-            ws.onclose = () => {
-                const line = document.createElement('div');
-                line.className = 'log-line';
-                line.textContent = '[WebSocket disconnected]';
-                line.style.color = '#f85149';
-                container.appendChild(line);
-            };
+            ws.onclose = () => { container.innerHTML += '<div class="text-accent-red">[Disconnected]</div>'; };
         }
-        
-        document.getElementById('startForm').addEventListener('submit', async (e) => {
+
+        document.getElementById('startForm').addEventListener('submit', async e => {
             e.preventDefault();
-            
             const data = {
                 ticker: document.getElementById('ticker').value,
                 budget: parseFloat(document.getElementById('budget').value),
                 target: parseFloat(document.getElementById('target').value) / 100,
-                buy_price: parseFloat(document.getElementById('buyPrice').value) || 0,
                 live_mode: document.getElementById('liveMode').checked,
                 llm_mode: document.getElementById('llmMode').checked,
                 orderbook: document.getElementById('orderbook').checked,
                 momentum: document.getElementById('momentum').checked,
             };
-            
             try {
-                const res = await fetch('/api/scalper/start', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data),
-                });
-                
-                if (!res.ok) {
-                    const err = await res.json();
-                    alert(err.detail || 'Failed to start');
-                    return;
-                }
-                
+                const res = await fetch('/api/scalper/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+                if (!res.ok) { const err = await res.json(); alert(err.detail); return; }
                 document.getElementById('ticker').value = '';
                 fetchStatus();
-            } catch (e) {
-                alert('Error: ' + e.message);
+            } catch (e) { alert(e.message); }
+        });
+
+        document.getElementById('logTicker').addEventListener('change', e => connectWebSocket(e.target.value));
+
+        document.getElementById('screenerForm').addEventListener('submit', async e => {
+            e.preventDefault();
+            loadScreenerData();
+        });
+
+        async function loadScreenerData() {
+            const data = {
+                per_max: document.getElementById('perMax').value ? parseFloat(document.getElementById('perMax').value) : null,
+                pbr_max: document.getElementById('pbrMax').value ? parseFloat(document.getElementById('pbrMax').value) : null,
+                foreign_net_min: document.getElementById('foreignMin').value ? parseInt(document.getElementById('foreignMin').value) : null,
+                market: document.getElementById('market').value || null,
+                sort_by: document.getElementById('sortBy').value,
+                limit: 50
+            };
+            try {
+                const tbody = document.getElementById('screenerResults');
+                tbody.innerHTML = '<tr><td colspan="11" class="px-4 py-8 text-center text-gray-600" data-i18n="loading">Loading...</td></tr>';
+                applyTranslations();
+                const res = await fetch('/api/screener', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+                const result = await res.json();
+                renderScreenerResults(result.stocks);
+            } catch (e) { 
+                document.getElementById('screenerResults').innerHTML = `<tr><td colspan="11" class="px-4 py-8 text-center text-accent-red">Error: ${e.message}</td></tr>`;
             }
+        }
+
+        function renderScreenerResults(stocks) {
+            const tbody = document.getElementById('screenerResults');
+            if (!stocks || !stocks.length) { 
+                tbody.innerHTML = '<tr><td colspan="11" class="px-4 py-8 text-center text-gray-600" data-i18n="no_results">No results</td></tr>'; 
+                applyTranslations(); 
+                return; 
+            }
+            const unit = t('unit_100m');
+            tbody.innerHTML = stocks.map(s => `
+                <tr class="hover:bg-dark-700">
+                    <td class="px-4 py-3 text-accent-blue">${s.ticker}</td>
+                    <td class="px-4 py-3">${s.name}</td>
+                    <td class="px-4 py-3 text-right">${(s.close || 0).toLocaleString()}</td>
+                    <td class="px-4 py-3 text-right ${(s.change_rate || 0) >= 0 ? 'text-accent-green' : 'text-accent-red'}">${(s.change_rate || 0).toFixed(2)}%</td>
+                    <td class="px-4 py-3 text-right">${s.per ? s.per.toFixed(1) : '-'}</td>
+                    <td class="px-4 py-3 text-right">${s.pbr ? s.pbr.toFixed(2) : '-'}</td>
+                    <td class="px-4 py-3 text-right ${(s.foreign_net || 0) >= 0 ? 'text-accent-green' : 'text-accent-red'}">${s.foreign_net ? (s.foreign_net_amt || 0).toFixed(1) + unit : '-'}</td>
+                    <td class="px-4 py-3 text-right ${(s.inst_net || 0) >= 0 ? 'text-accent-green' : 'text-accent-red'}">${s.inst_net ? (s.inst_net_amt || 0).toFixed(1) + unit : '-'}</td>
+                    <td class="px-4 py-3 text-right">${s.short_ratio ? s.short_ratio.toFixed(2) + '%' : '-'}</td>
+                    <td class="px-4 py-3 text-right">${s.credit_ratio ? s.credit_ratio.toFixed(2) + '%' : '-'}</td>
+                    <td class="px-4 py-3 text-center">
+                        <button onclick="analyzeStock('${s.ticker}')" class="px-2 py-1 text-xs bg-accent-purple hover:bg-purple-600 rounded" data-i18n="analyze">Analyze</button>
+                    </td>
+                </tr>
+            `).join('');
+            document.querySelectorAll('#screenerResults [data-i18n]').forEach(el => el.textContent = t(el.getAttribute('data-i18n')));
+        }
+
+        function analyzeStock(ticker) {
+            document.getElementById('deepdiveSearch').value = ticker;
+            showTab('deepdive');
+            loadDeepDive();
+        }
+
+        async function loadDeepDive() {
+            const ticker = document.getElementById('deepdiveSearch').value.trim();
+            if (!ticker) return;
+            document.getElementById('aiReportContent').classList.add('hidden');
+            try {
+                const res = await fetch(`/api/deepdive/${ticker}`);
+                if (!res.ok) { throw new Error('Stock not found'); }
+                const data = await res.json();
+                renderDeepDive(data);
+            } catch (e) {
+                document.getElementById('stockInfo').innerHTML = `<div class="text-accent-red">${e.message}</div>`;
+            }
+        }
+
+        async function loadAIDeepDive() {
+            const ticker = document.getElementById('deepdiveSearch').value.trim();
+            if (!ticker) return;
+            document.getElementById('aiReportContent').classList.remove('hidden');
+            document.getElementById('aiReport').innerHTML = '<div class="text-gray-500">Generating AI report...</div>';
+            try {
+                const res = await fetch(`/api/ai/deepdive/${ticker}`);
+                if (!res.ok) throw new Error('Failed to generate report');
+                const data = await res.json();
+                renderAIReport(data);
+            } catch (e) {
+                document.getElementById('aiReport').innerHTML = `<div class="text-accent-red">${e.message}</div>`;
+            }
+        }
+
+        function renderAIReport(data) {
+            const a = data.analysis || {};
+            const rec = a.recommendation || 'HOLD';
+            const recClass = rec === 'BUY' ? 'text-accent-green' : rec === 'SELL' ? 'text-accent-red' : 'text-accent-yellow';
+            document.getElementById('aiReport').innerHTML = `
+                <div class="flex items-center gap-4 mb-4">
+                    <span class="text-2xl font-bold ${recClass}">${rec}</span>
+                    <span class="px-3 py-1 rounded text-sm ${a.risk_level === 'HIGH' ? 'bg-accent-red' : a.risk_level === 'LOW' ? 'bg-accent-green' : 'bg-accent-yellow'} text-black">Risk: ${a.risk_level || '-'}</span>
+                    ${a.target_price ? `<span class="text-gray-400">Target: ${a.target_price.toLocaleString()}원</span>` : ''}
+                </div>
+                <div class="grid md:grid-cols-2 gap-4 text-sm">
+                    <div class="p-3 bg-dark-900 rounded"><div class="text-xs text-gray-500 mb-1">Technical</div>${a.technical || '-'}</div>
+                    <div class="p-3 bg-dark-900 rounded"><div class="text-xs text-gray-500 mb-1">Fundamental</div>${a.fundamental || '-'}</div>
+                    <div class="p-3 bg-dark-900 rounded"><div class="text-xs text-gray-500 mb-1">Flow</div>${a.flow || '-'}</div>
+                    <div class="p-3 bg-dark-900 rounded"><div class="text-xs text-gray-500 mb-1">Human Indicator</div>${a.human_indicator || '-'}</div>
+                </div>
+                <div class="mt-4 p-3 bg-dark-900 rounded">
+                    <div class="text-xs text-gray-500 mb-1">Summary</div>
+                    <div>${a.summary || '-'}</div>
+                </div>
+                ${a.key_points?.length ? `<div class="mt-4"><div class="text-xs text-gray-500 mb-2">Key Points</div><ul class="list-disc list-inside space-y-1">${a.key_points.map(p => `<li>${p}</li>`).join('')}</ul></div>` : ''}
+            `;
+        }
+
+        function renderDeepDive(data) {
+            const stock = data.stock;
+            const latestPrice = data.price_history[0] || {};
+            const latestStats = data.stats_history[0] || {};
+            const latestInvestor = data.investor_history[0] || {};
+
+            document.getElementById('stockInfo').innerHTML = `
+                <div class="space-y-4">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h2 class="text-2xl font-bold text-white">${stock.name}</h2>
+                            <div class="text-gray-500">${stock.ticker} · ${stock.market}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-3xl font-bold">${(latestPrice.close || 0).toLocaleString()}</div>
+                            <div class="${(latestPrice.change_rate || 0) >= 0 ? 'text-accent-green' : 'text-accent-red'}">
+                                ${(latestPrice.change_rate || 0) >= 0 ? '+' : ''}${(latestPrice.change_rate || 0).toFixed(2)}%
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-4 gap-4 pt-4 border-t border-dark-600">
+                        <div><div class="text-xs text-gray-500">Volume</div><div class="font-medium">${((latestPrice.volume || 0) / 1000).toFixed(0)}K</div></div>
+                        <div><div class="text-xs text-gray-500">Market Cap</div><div class="font-medium">${((latestPrice.market_cap || 0) / 100000000).toFixed(0)}억</div></div>
+                        <div><div class="text-xs text-gray-500">Foreign</div><div class="font-medium ${(latestInvestor.foreign_net || 0) >= 0 ? 'text-accent-green' : 'text-accent-red'}">${((latestInvestor.foreign_net || 0) / 100000000).toFixed(1)}억</div></div>
+                        <div><div class="text-xs text-gray-500">Institution</div><div class="font-medium ${(latestInvestor.inst_net || 0) >= 0 ? 'text-accent-green' : 'text-accent-red'}">${((latestInvestor.inst_net || 0) / 100000000).toFixed(1)}억</div></div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('keyMetrics').innerHTML = `
+                <div class="space-y-3">
+                    <div class="flex justify-between"><span class="text-gray-500">PER</span><span>${latestStats.per ? latestStats.per.toFixed(1) : '-'}</span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">PBR</span><span>${latestStats.pbr ? latestStats.pbr.toFixed(2) : '-'}</span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">EPS</span><span>${latestStats.eps ? latestStats.eps.toLocaleString() : '-'}</span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">BPS</span><span>${latestStats.bps ? latestStats.bps.toLocaleString() : '-'}</span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Foreign Ratio</span><span>${latestInvestor.foreign_ratio ? latestInvestor.foreign_ratio.toFixed(1) + '%' : '-'}</span></div>
+                </div>
+            `;
+
+            renderInvestorTrend(data.investor_history || []);
+        }
+
+        let investorChart = null;
+
+        function renderInvestorTrend(investorHistory) {
+            const section = document.getElementById('investorTrendSection');
+            
+            if (!investorHistory || investorHistory.length === 0) {
+                section.classList.add('hidden');
+                return;
+            }
+            
+            section.classList.remove('hidden');
+            
+            const sorted = [...investorHistory].sort((a, b) => a.date.localeCompare(b.date));
+            
+            const labels = sorted.map(d => d.date.slice(5));
+            const foreignData = sorted.map(d => (d.foreign_net || 0) / 100000000);
+            const instData = sorted.map(d => (d.inst_net || 0) / 100000000);
+            const retailData = sorted.map(d => (d.retail_net || 0) / 100000000);
+            
+            const ctx = document.getElementById('investorTrendChart').getContext('2d');
+            
+            if (investorChart) {
+                investorChart.destroy();
+            }
+            
+            investorChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: t('foreign') || 'Foreign',
+                            data: foreignData,
+                            backgroundColor: foreignData.map(v => v >= 0 ? 'rgba(88, 166, 255, 0.8)' : 'rgba(248, 81, 73, 0.8)'),
+                            borderColor: foreignData.map(v => v >= 0 ? '#58a6ff' : '#f85149'),
+                            borderWidth: 1
+                        },
+                        {
+                            label: t('institution') || 'Institution',
+                            data: instData,
+                            backgroundColor: instData.map(v => v >= 0 ? 'rgba(163, 113, 247, 0.8)' : 'rgba(210, 153, 34, 0.8)'),
+                            borderColor: instData.map(v => v >= 0 ? '#a371f7' : '#d29922'),
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: { color: '#9ca3af', font: { size: 11 } }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `${ctx.dataset.label}: ${ctx.raw >= 0 ? '+' : ''}${ctx.raw.toFixed(1)}억`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#6b7280', font: { size: 10 } },
+                            grid: { color: '#30363d' }
+                        },
+                        y: {
+                            ticks: { 
+                                color: '#6b7280', 
+                                font: { size: 10 },
+                                callback: v => v + '억'
+                            },
+                            grid: { color: '#30363d' }
+                        }
+                    }
+                }
+            });
+            
+            const tbody = document.getElementById('investorTrendBody');
+            const reversed = [...sorted].reverse();
+            tbody.innerHTML = reversed.map(d => {
+                const fNet = (d.foreign_net || 0) / 100000000;
+                const iNet = (d.inst_net || 0) / 100000000;
+                const rNet = (d.retail_net || 0) / 100000000;
+                return `
+                    <tr>
+                        <td class="py-2 text-gray-400">${d.date}</td>
+                        <td class="py-2 text-right ${fNet >= 0 ? 'text-accent-blue' : 'text-accent-red'}">${fNet >= 0 ? '+' : ''}${fNet.toFixed(1)}억</td>
+                        <td class="py-2 text-right ${iNet >= 0 ? 'text-accent-purple' : 'text-accent-yellow'}">${iNet >= 0 ? '+' : ''}${iNet.toFixed(1)}억</td>
+                        <td class="py-2 text-right ${rNet >= 0 ? 'text-accent-green' : 'text-accent-red'}">${rNet >= 0 ? '+' : ''}${rNet.toFixed(1)}억</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function loadFomoAlerts() {
+            try {
+                const res = await fetch('/api/human-index/fomo-alerts?threshold=70');
+                const data = await res.json();
+                const container = document.getElementById('fomoAlerts');
+                if (!data.stocks?.length) { container.innerHTML = '<div class="text-center text-gray-600 py-4">No FOMO alerts</div>'; return; }
+                container.innerHTML = data.stocks.map(s => `
+                    <div class="p-3 bg-dark-900 rounded-lg heatmap-hot text-white">
+                        <div class="font-medium">${s.name || s.ticker} <span class="text-xs opacity-75">${s.ticker}</span></div>
+                        <div class="text-sm mt-1">FOMO: ${s.fomo_level?.toFixed(0) || 0} | Attention: ${s.attention_score?.toFixed(0) || 0}</div>
+                    </div>
+                `).join('');
+            } catch (e) { console.error(e); }
+        }
+
+        async function loadBottomSignals() {
+            try {
+                const res = await fetch('/api/human-index/bottom-signals?threshold=20');
+                const data = await res.json();
+                const container = document.getElementById('bottomSignals');
+                if (!data.stocks?.length) { container.innerHTML = '<div class="text-center text-gray-600 py-4">No bottom signals</div>'; return; }
+                container.innerHTML = data.stocks.map(s => `
+                    <div class="p-3 bg-dark-900 rounded-lg heatmap-cool text-white">
+                        <div class="font-medium">${s.name || s.ticker} <span class="text-xs opacity-75">${s.ticker}</span></div>
+                        <div class="text-sm mt-1">Attention: ${s.attention_score?.toFixed(0) || 0} | Sentiment: ${s.crowd_sentiment?.toFixed(2) || 0}</div>
+                    </div>
+                `).join('');
+            } catch (e) { console.error(e); }
+        }
+
+        async function loadHumanIndex() {
+            const ticker = document.getElementById('humanIndexTicker').value.trim();
+            if (!ticker) return;
+            try {
+                const [res, historyRes, youtubeRes, naverRes] = await Promise.all([
+                    fetch(`/api/human-index/${ticker}`),
+                    fetch(`/api/human-index/${ticker}/history?days=30`),
+                    fetch(`/api/human-index/${ticker}/youtube-history?days=30`),
+                    fetch(`/api/human-index/${ticker}/naver-history?days=30`)
+                ]);
+                const data = await res.json();
+                const historyData = await historyRes.json();
+                const youtubeData = await youtubeRes.json();
+                const naverData = await naverRes.json();
+                
+                document.getElementById('hiAttention').textContent = data.attention_score?.toFixed(1) || '-';
+                document.getElementById('hiFomo').textContent = data.fomo_level?.toFixed(1) || '-';
+                document.getElementById('hiSentiment').textContent = data.crowd_sentiment?.toFixed(2) || '-';
+
+                const details = document.getElementById('humanIndexDetails');
+                details.innerHTML = '';
+                if (data.youtube || data.naver) {
+                    details.classList.remove('hidden');
+                    
+                    if (data.youtube) {
+                        details.innerHTML += `
+                            <div class="bg-dark-900 rounded p-4 border border-dark-600">
+                                <div class="text-accent-red font-semibold mb-3 flex items-center gap-2">
+                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
+                                    <span>YouTube Stats</span>
+                                </div>
+                                <div class="grid grid-cols-3 gap-2 text-sm text-center">
+                                    <div class="p-2 bg-dark-800 rounded"><div class="text-xs text-gray-500 mb-1">Videos</div><div class="font-bold">${data.youtube.video_count?.toLocaleString() || 0}</div></div>
+                                    <div class="p-2 bg-dark-800 rounded"><div class="text-xs text-gray-500 mb-1">Total Views</div><div class="font-bold">${data.youtube.total_views ? (data.youtube.total_views/10000).toFixed(0)+'만' : '-'}</div></div>
+                                    <div class="p-2 bg-dark-800 rounded"><div class="text-xs text-gray-500 mb-1">Avg Likes</div><div class="font-bold">${data.youtube.avg_likes?.toLocaleString() || '-'}</div></div>
+                                </div>
+                            </div>`;
+                    }
+
+                    if (data.naver) {
+                        details.innerHTML += `
+                            <div class="bg-dark-900 rounded p-4 border border-dark-600">
+                                <div class="text-accent-green font-semibold mb-3 flex items-center gap-2">
+                                    <span class="font-bold text-lg">N</span>
+                                    <span>Naver Stats</span>
+                                </div>
+                                <div class="grid grid-cols-3 gap-2 text-sm text-center">
+                                    <div class="p-2 bg-dark-800 rounded"><div class="text-xs text-gray-500 mb-1">Posts</div><div class="font-bold">${data.naver.post_count?.toLocaleString() || 0}</div></div>
+                                    <div class="p-2 bg-dark-800 rounded"><div class="text-xs text-gray-500 mb-1">Avg Views</div><div class="font-bold">${data.naver.avg_views?.toLocaleString() || '-'}</div></div>
+                                    <div class="p-2 bg-dark-800 rounded"><div class="text-xs text-gray-500 mb-1">Like Ratio</div><div class="font-bold">${(data.naver.like_ratio || 0).toFixed(1)}%</div></div>
+                                </div>
+                            </div>`;
+                    }
+                } else {
+                    details.classList.add('hidden');
+                }
+                
+                renderHumanIndexChart(historyData.history || []);
+                renderYoutubeNaverCharts(youtubeData.history || [], naverData.history || []);
+            } catch (e) { console.error(e); }
+        }
+
+        let humanIndexChart = null;
+
+        function renderHumanIndexChart(history) {
+            const section = document.getElementById('humanIndexChartSection');
+            
+            if (!history || history.length === 0) {
+                section.classList.add('hidden');
+                return;
+            }
+            
+            section.classList.remove('hidden');
+            
+            const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date));
+            
+            const labels = sorted.map(d => d.date.slice(5));
+            const attentionData = sorted.map(d => d.attention_score || 0);
+            const fomoData = sorted.map(d => d.fomo_level || 0);
+            const sentimentData = sorted.map(d => (d.crowd_sentiment || 0) * 100);
+            
+            const ctx = document.getElementById('humanIndexChart').getContext('2d');
+            
+            if (humanIndexChart) {
+                humanIndexChart.destroy();
+            }
+            
+            humanIndexChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: t('attention_score') || 'Attention',
+                            data: attentionData,
+                            borderColor: '#58a6ff',
+                            backgroundColor: 'rgba(88, 166, 255, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            fill: false
+                        },
+                        {
+                            label: t('fomo_level') || 'FOMO',
+                            data: fomoData,
+                            borderColor: '#f85149',
+                            backgroundColor: 'rgba(248, 81, 73, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            fill: false
+                        },
+                        {
+                            label: t('crowd_sentiment') || 'Sentiment',
+                            data: sentimentData,
+                            borderColor: '#a371f7',
+                            backgroundColor: 'rgba(163, 113, 247, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: { color: '#9ca3af', font: { size: 11 } }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `${ctx.dataset.label}: ${ctx.raw.toFixed(1)}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#6b7280', font: { size: 10 } },
+                            grid: { color: '#30363d' }
+                        },
+                        y: {
+                            min: 0,
+                            max: 100,
+                            ticks: { color: '#6b7280', font: { size: 10 } },
+                            grid: { color: '#30363d' }
+                        }
+                    }
+                }
+            });
+        }
+
+        let youtubeChart = null;
+        let naverChart = null;
+
+        function renderYoutubeNaverCharts(youtubeHistory, naverHistory) {
+            const section = document.getElementById('youtubeNaverChartSection');
+            
+            if ((!youtubeHistory || youtubeHistory.length === 0) && (!naverHistory || naverHistory.length === 0)) {
+                section.classList.add('hidden');
+                return;
+            }
+            
+            section.classList.remove('hidden');
+            
+            if (youtubeHistory && youtubeHistory.length > 0) {
+                const sorted = [...youtubeHistory].sort((a, b) => a.date.localeCompare(b.date));
+                const labels = sorted.map(d => d.date.slice(5));
+                const videoData = sorted.map(d => d.video_count || 0);
+                const viewsData = sorted.map(d => (d.total_views || 0) / 10000);
+                
+                const ctx = document.getElementById('youtubeChart').getContext('2d');
+                if (youtubeChart) youtubeChart.destroy();
+                
+                youtubeChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Videos',
+                                data: videoData,
+                                backgroundColor: 'rgba(248, 81, 73, 0.7)',
+                                borderColor: '#f85149',
+                                borderWidth: 1,
+                                yAxisID: 'y'
+                            },
+                            {
+                                label: 'Views (만)',
+                                data: viewsData,
+                                type: 'line',
+                                borderColor: '#58a6ff',
+                                backgroundColor: 'rgba(88, 166, 255, 0.1)',
+                                borderWidth: 2,
+                                tension: 0.3,
+                                yAxisID: 'y1'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'top', labels: { color: '#9ca3af', font: { size: 10 } } }
+                        },
+                        scales: {
+                            x: { ticks: { color: '#6b7280', font: { size: 9 } }, grid: { color: '#30363d' } },
+                            y: { position: 'left', ticks: { color: '#f85149', font: { size: 9 } }, grid: { color: '#30363d' } },
+                            y1: { position: 'right', ticks: { color: '#58a6ff', font: { size: 9 } }, grid: { display: false } }
+                        }
+                    }
+                });
+            }
+            
+            if (naverHistory && naverHistory.length > 0) {
+                const sorted = [...naverHistory].sort((a, b) => a.date.localeCompare(b.date));
+                const labels = sorted.map(d => d.date.slice(5));
+                const postData = sorted.map(d => d.post_count || 0);
+                const likeData = sorted.map(d => (d.like_ratio || 0) * 100);
+                
+                const ctx = document.getElementById('naverChart').getContext('2d');
+                if (naverChart) naverChart.destroy();
+                
+                naverChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Posts',
+                                data: postData,
+                                backgroundColor: 'rgba(63, 185, 80, 0.7)',
+                                borderColor: '#3fb950',
+                                borderWidth: 1,
+                                yAxisID: 'y'
+                            },
+                            {
+                                label: 'Like %',
+                                data: likeData,
+                                type: 'line',
+                                borderColor: '#a371f7',
+                                backgroundColor: 'rgba(163, 113, 247, 0.1)',
+                                borderWidth: 2,
+                                tension: 0.3,
+                                yAxisID: 'y1'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'top', labels: { color: '#9ca3af', font: { size: 10 } } }
+                        },
+                        scales: {
+                            x: { ticks: { color: '#6b7280', font: { size: 9 } }, grid: { color: '#30363d' } },
+                            y: { position: 'left', ticks: { color: '#3fb950', font: { size: 9 } }, grid: { color: '#30363d' } },
+                            y1: { position: 'right', min: 0, max: 100, ticks: { color: '#a371f7', font: { size: 9 } }, grid: { display: false } }
+                        }
+                    }
+                });
+            }
+        }
+
+        document.getElementById('backtestForm').addEventListener('submit', async e => {
+            e.preventDefault();
+            const data = {
+                ticker: document.getElementById('btTicker').value,
+                start_date: document.getElementById('btStartDate').value,
+                end_date: document.getElementById('btEndDate').value,
+                strategy: document.getElementById('btStrategy').value,
+                initial_capital: parseFloat(document.getElementById('btCapital').value)
+            };
+            try {
+                const res = await fetch('/api/backtest/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+                const result = await res.json();
+                renderBacktestResult(result);
+            } catch (e) { alert(e.message); }
         });
+
+        function renderBacktestResult(r) {
+            document.getElementById('backtestResult').classList.remove('hidden');
+            document.getElementById('btReturn').textContent = `${r.total_return >= 0 ? '+' : ''}${r.total_return}%`;
+            document.getElementById('btReturn').className = `text-2xl font-bold ${r.total_return >= 0 ? 'text-accent-green' : 'text-accent-red'}`;
+            document.getElementById('btWinRate').textContent = `${r.win_rate}%`;
+            document.getElementById('btMDD').textContent = `-${r.max_drawdown}%`;
+            document.getElementById('btSharpe').textContent = r.sharpe_ratio.toFixed(2);
+
+            if (r.trades?.length) {
+                document.getElementById('btTrades').innerHTML = r.trades.slice(-20).reverse().map(t => `
+                    <div class="flex justify-between items-center p-2 bg-dark-900 rounded text-xs">
+                        <span class="${t.action === 'BUY' ? 'text-accent-green' : 'text-accent-red'}">${t.action}</span>
+                        <span>${t.date}</span>
+                        <span>${t.price?.toLocaleString()}</span>
+                        <span>${t.quantity}주</span>
+                        ${t.pnl !== undefined ? `<span class="${t.pnl >= 0 ? 'text-accent-green' : 'text-accent-red'}">${t.pnl >= 0 ? '+' : ''}${t.pnl.toLocaleString()}</span>` : '<span>-</span>'}
+                    </div>
+                `).join('');
+            }
+        }
+
+        async function loadBacktestHistory() {
+            try {
+                const res = await fetch('/api/backtest/results?limit=10');
+                const data = await res.json();
+                const container = document.getElementById('backtestHistory');
+                if (!data.results?.length) { container.innerHTML = '<div class="text-center text-gray-600 py-4">No past results</div>'; return; }
+                container.innerHTML = data.results.map(r => `
+                    <div class="flex justify-between items-center p-2 bg-dark-900 rounded text-sm">
+                        <span class="text-accent-blue">${r.strategy_name}</span>
+                        <span class="${r.total_return >= 0 ? 'text-accent-green' : 'text-accent-red'}">${r.total_return >= 0 ? '+' : ''}${r.total_return}%</span>
+                        <span class="text-gray-500 text-xs">${r.start_date} ~ ${r.end_date}</span>
+                    </div>
+                `).join('');
+            } catch (e) { console.error(e); }
+        }
+
+        async function loadGlobalMarket() {
+            try {
+                const res = await fetch('/api/global-market');
+                const data = await res.json();
+                const us = data.us_stocks || {};
+                const vol = data.volatility || {};
+                
+                if (us.SPY) {
+                    document.getElementById('globalSPY').textContent = us.SPY.price;
+                    document.getElementById('globalSPYChange').textContent = `${us.SPY.change >= 0 ? '+' : ''}${us.SPY.change}%`;
+                    document.getElementById('globalSPYChange').className = `text-sm ${us.SPY.change >= 0 ? 'text-accent-green' : 'text-accent-red'}`;
+                }
+                if (us.QQQ) {
+                    document.getElementById('globalQQQ').textContent = us.QQQ.price;
+                    document.getElementById('globalQQQChange').textContent = `${us.QQQ.change >= 0 ? '+' : ''}${us.QQQ.change}%`;
+                    document.getElementById('globalQQQChange').className = `text-sm ${us.QQQ.change >= 0 ? 'text-accent-green' : 'text-accent-red'}`;
+                }
+                if (vol.VIX) {
+                    document.getElementById('globalVIX').textContent = vol.VIX.price;
+                    document.getElementById('globalVIXChange').textContent = `${vol.VIX.change >= 0 ? '+' : ''}${vol.VIX.change}%`;
+                    document.getElementById('globalVIXChange').className = `text-sm ${vol.VIX.change >= 0 ? 'text-accent-red' : 'text-accent-green'}`;
+                }
+                
+                const sentiment = data.sentiment || 'neutral';
+                const sentEl = document.getElementById('globalSentiment');
+                sentEl.textContent = sentiment.toUpperCase();
+                sentEl.className = `text-2xl font-bold ${sentiment === 'bullish' ? 'text-accent-green' : sentiment === 'bearish' ? 'text-accent-red' : 'text-accent-yellow'}`;
+
+                const comm = data.commodities || {};
+                const bonds = data.bonds || {};
+                const other = document.getElementById('globalOther');
+                other.innerHTML = Object.entries({...comm, ...bonds}).map(([k, v]) => `
+                    <div class="flex justify-between p-2 bg-dark-900 rounded">
+                        <span class="text-gray-400">${k}</span>
+                        <span>${v.price}</span>
+                        <span class="${v.change >= 0 ? 'text-accent-green' : 'text-accent-red'}">${v.change >= 0 ? '+' : ''}${v.change}%</span>
+                    </div>
+                `).join('');
+
+                document.getElementById('globalAnalysis').innerHTML = `
+                    <p class="mb-2">Market sentiment: <span class="font-bold ${sentiment === 'bullish' ? 'text-accent-green' : sentiment === 'bearish' ? 'text-accent-red' : 'text-accent-yellow'}">${sentiment}</span></p>
+                    <p class="text-sm text-gray-400">Updated: ${data.updated_at || '-'}</p>
+                `;
+            } catch (e) { console.error(e); }
+        }
+
+        // --- Journal & Stock Search Logic ---
+
+        let currentSearchInputId = 'jTicker';
+
+        // Stock Search
+        function openStockSearch(inputId) {
+            if (inputId) currentSearchInputId = inputId;
+            document.getElementById('modal-stock-search').classList.remove('hidden');
+            const input = document.getElementById('stockSearchInput');
+            input.focus();
+            input.select();
+        }
+
+        function closeStockSearch() {
+            document.getElementById('modal-stock-search').classList.add('hidden');
+            document.getElementById('stockSearchInput').value = '';
+            document.getElementById('stockSearchResults').innerHTML = '<div class="text-center text-gray-600 py-8" data-i18n="enter_search_term">Enter search term...</div>';
+            applyTranslations();
+        }
+
+        let searchTimeout;
+        const stockInput = document.getElementById('stockSearchInput');
         
-        document.getElementById('logTicker').addEventListener('change', (e) => {
-            connectWebSocket(e.target.value);
+        stockInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const first = document.querySelector('#stockSearchResults > div');
+                if (first && !first.dataset.i18n) first.click(); // Avoid clicking 'No results' message
+            }
+            if (e.key === 'Escape') closeStockSearch();
         });
-        
+
+        stockInput.addEventListener('input', e => {
+            clearTimeout(searchTimeout);
+            const q = e.target.value.trim();
+            if (q.length < 2) return;
+            searchTimeout = setTimeout(() => searchStocks(q), 300);
+        });
+
+        async function searchStocks(query) {
+            try {
+                const res = await fetch(`/api/stocks/search?q=${encodeURIComponent(query)}`);
+                const data = await res.json();
+                const container = document.getElementById('stockSearchResults');
+                if (!data.stocks?.length) {
+                    container.innerHTML = '<div class="text-center text-gray-600 py-8" data-i18n="no_results">No results</div>';
+                    applyTranslations();
+                    return;
+                }
+                container.innerHTML = data.stocks.map(s => `
+                    <div onclick="selectStock('${s.ticker}')" class="flex justify-between items-center p-3 bg-dark-800 hover:bg-dark-700 rounded-lg cursor-pointer transition">
+                        <div>
+                            <div class="font-bold text-white">${s.name}</div>
+                            <div class="text-xs text-gray-500">${s.ticker} · ${s.market}</div>
+                        </div>
+                        <div class="text-accent-blue text-sm">Select</div>
+                    </div>
+                `).join('');
+            } catch (e) { console.error(e); }
+        }
+
+        function selectStock(ticker) {
+            const target = document.getElementById(currentSearchInputId);
+            if (target) target.value = ticker;
+            closeStockSearch();
+        }
+
+        // Journal Edit/Delete
+        function openEditJournalModal(id, ticker, side, price, qty, thesis, pnl) {
+            document.getElementById('editId').value = id;
+            document.getElementById('editTicker').value = ticker;
+            document.getElementById('editSide').value = side;
+            document.getElementById('editPrice').value = price;
+            document.getElementById('editQty').value = qty;
+            document.getElementById('editThesis').value = thesis === 'null' ? '' : thesis;
+            document.getElementById('editPnl').value = pnl === 'null' ? '' : pnl;
+            document.getElementById('modal-journal-edit').classList.remove('hidden');
+        }
+
+        function closeEditJournalModal() {
+            document.getElementById('modal-journal-edit').classList.add('hidden');
+        }
+
+        document.getElementById('journalEditForm').addEventListener('submit', async e => {
+            e.preventDefault();
+            const id = document.getElementById('editId').value;
+            const data = {
+                ticker: document.getElementById('editTicker').value,
+                side: document.getElementById('editSide').value,
+                price: parseFloat(document.getElementById('editPrice').value),
+                qty: parseInt(document.getElementById('editQty').value),
+                thesis: document.getElementById('editThesis').value || null,
+                pnl: document.getElementById('editPnl').value ? parseFloat(document.getElementById('editPnl').value) : null
+            };
+            try {
+                await fetch(`/api/journal/entry/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+                closeEditJournalModal();
+                loadJournalEntries();
+                loadJournalStats();
+            } catch (e) { alert(e.message); }
+        });
+
+        async function deleteJournalEntry(id) {
+            if (!confirm(t('delete_confirm'))) return;
+            try {
+                await fetch(`/api/journal/entry/${id}`, { method: 'DELETE' });
+                loadJournalEntries();
+                loadJournalStats();
+            } catch (e) { alert(e.message); }
+        }
+
+        // Modified Journal Add & List
+        document.getElementById('journalForm').addEventListener('submit', async e => {
+            e.preventDefault();
+            const data = {
+                ticker: document.getElementById('jTicker').value,
+                side: document.getElementById('jSide').value,
+                price: parseFloat(document.getElementById('jPrice').value),
+                qty: parseInt(document.getElementById('jQty').value),
+                thesis: document.getElementById('jThesis').value || null,
+                pnl: document.getElementById('jPnl').value ? parseFloat(document.getElementById('jPnl').value) : null
+            };
+            try {
+                await fetch('/api/journal/entry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+                document.getElementById('jTicker').value = '';
+                document.getElementById('jPrice').value = '';
+                document.getElementById('jQty').value = '';
+                document.getElementById('jThesis').value = '';
+                document.getElementById('jPnl').value = '';
+                loadJournalEntries();
+                loadJournalStats();
+            } catch (e) { alert(e.message); }
+        });
+
+        async function loadJournalEntries() {
+            try {
+                const res = await fetch('/api/journal/entries?limit=30');
+                const data = await res.json();
+                const container = document.getElementById('journalEntries');
+                if (!data.entries?.length) { container.innerHTML = '<div class="text-center text-gray-600 py-8" data-i18n="no_entries">No entries yet</div>'; applyTranslations(); return; }
+                container.innerHTML = data.entries.map(e => `
+                    <div class="flex justify-between items-center p-3 bg-dark-900 rounded-lg group hover:bg-dark-800 transition">
+                        <div>
+                            <span class="${e.side === 'BUY' ? 'text-accent-green' : 'text-accent-red'}">${e.side}</span>
+                            <span class="text-accent-blue ml-2 font-medium">${e.stock_name || e.ticker}</span>
+                            <div class="text-xs text-gray-500 mt-1">${e.date}</div>
+                        </div>
+                        <div class="text-right text-sm">
+                            <div>${e.price?.toLocaleString()}원 × ${e.qty}주</div>
+                            ${e.pnl !== null ? `<div class="${e.pnl >= 0 ? 'text-accent-green' : 'text-accent-red'}">${e.pnl >= 0 ? '+' : ''}${e.pnl.toLocaleString()}</div>` : ''}
+                        </div>
+                        <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition">
+                            <button onclick="openEditJournalModal('${e.id}', '${e.ticker}', '${e.side}', ${e.price}, ${e.qty}, '${e.thesis || 'null'}', '${e.pnl || 'null'}')" class="p-1.5 bg-dark-700 hover:bg-accent-blue hover:text-white rounded text-gray-400 transition">✏️</button>
+                            <button onclick="deleteJournalEntry('${e.id}')" class="p-1.5 bg-dark-700 hover:bg-accent-red hover:text-white rounded text-gray-400 transition">🗑️</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) { console.error(e); }
+        }
+
+        async function loadJournalStats() {
+            try {
+                const res = await fetch('/api/journal/statistics');
+                const s = await res.json();
+                document.getElementById('jsTotal').textContent = s.total_trades || 0;
+                document.getElementById('jsWinRate').textContent = `${s.win_rate || 0}%`;
+                document.getElementById('jsPnl').textContent = `${s.total_pnl >= 0 ? '+' : ''}${(s.total_pnl || 0).toLocaleString()}`;
+                document.getElementById('jsPnl').className = s.total_pnl >= 0 ? 'text-accent-green' : 'text-accent-red';
+                document.getElementById('jsBest').textContent = `+${(s.max_profit || 0).toLocaleString()}`;
+                document.getElementById('jsWorst').textContent = (s.max_loss || 0).toLocaleString();
+            } catch (e) { console.error(e); }
+        }
+
+        async function loadSimulatorPortfolio() {
+            try {
+                const res = await fetch('/api/simulator/portfolio');
+                const p = await res.json();
+                document.getElementById('simValue').textContent = (p.total_value || 0).toLocaleString();
+                document.getElementById('simPnl').textContent = `${p.total_pnl >= 0 ? '+' : ''}${(p.total_pnl || 0).toLocaleString()}`;
+                document.getElementById('simPnl').className = `text-2xl font-bold ${p.total_pnl >= 0 ? 'text-accent-green' : 'text-accent-red'}`;
+                document.getElementById('simReturn').textContent = `${p.total_return_pct >= 0 ? '+' : ''}${p.total_return_pct || 0}%`;
+                document.getElementById('simReturn').className = `text-2xl font-bold ${p.total_return_pct >= 0 ? 'text-accent-green' : 'text-accent-red'}`;
+                document.getElementById('simWinRate').textContent = `${p.win_rate || 0}%`;
+
+                const posContainer = document.getElementById('simPositions');
+                if (!p.positions?.length) { posContainer.innerHTML = '<div class="text-center text-gray-600 py-4">No positions</div>'; }
+                else {
+                    posContainer.innerHTML = p.positions.map(pos => `
+                        <div class="flex justify-between items-center p-2 bg-dark-900 rounded text-sm">
+                            <span class="text-accent-blue">${pos.name || pos.ticker}</span>
+                            <span>${pos.quantity}주</span>
+                            <span>${pos.current_price?.toLocaleString()}</span>
+                            <span class="${pos.unrealized_pnl >= 0 ? 'text-accent-green' : 'text-accent-red'}">${pos.unrealized_pnl >= 0 ? '+' : ''}${pos.unrealized_pnl?.toLocaleString()}</span>
+                        </div>
+                    `).join('');
+                }
+
+                const trRes = await fetch('/api/simulator/trades?limit=20');
+                const trData = await trRes.json();
+                const trContainer = document.getElementById('simTrades');
+                if (!trData.trades?.length) { trContainer.innerHTML = '<div class="text-center text-gray-600 py-4">No trades yet</div>'; }
+                else {
+                    trContainer.innerHTML = trData.trades.map(t => `
+                        <div class="flex justify-between items-center p-2 bg-dark-900 rounded text-xs">
+                            <span class="${t.side === 'BUY' ? 'text-accent-green' : 'text-accent-red'}">${t.side}</span>
+                            <span class="text-accent-blue">${t.ticker}</span>
+                            <span>${t.price?.toLocaleString()}</span>
+                            <span>${t.quantity}주</span>
+                            ${t.pnl !== undefined ? `<span class="${t.pnl >= 0 ? 'text-accent-green' : 'text-accent-red'}">${t.pnl >= 0 ? '+' : ''}${t.pnl?.toLocaleString()}</span>` : '<span>-</span>'}
+                        </div>
+                    `).join('');
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        async function simBuy() {
+            const ticker = document.getElementById('simTicker').value;
+            const price = parseFloat(document.getElementById('simPrice').value);
+            const qty = document.getElementById('simQty').value ? parseInt(document.getElementById('simQty').value) : null;
+            if (!ticker || !price) { alert('Ticker and price required'); return; }
+            try {
+                await fetch('/api/simulator/buy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticker, price, quantity: qty }) });
+                loadSimulatorPortfolio();
+            } catch (e) { alert(e.message); }
+        }
+
+        async function simSell() {
+            const ticker = document.getElementById('simTicker').value;
+            const price = parseFloat(document.getElementById('simPrice').value);
+            const qty = document.getElementById('simQty').value ? parseInt(document.getElementById('simQty').value) : null;
+            if (!ticker || !price) { alert('Ticker and price required'); return; }
+            try {
+                await fetch('/api/simulator/sell', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticker, price, quantity: qty }) });
+                loadSimulatorPortfolio();
+            } catch (e) { alert(e.message); }
+        }
+
+        async function resetSimulator() {
+            if (!confirm('Reset simulator? All positions and trades will be cleared.')) return;
+            try {
+                await fetch('/api/simulator/reset', { method: 'POST' });
+                loadSimulatorPortfolio();
+            } catch (e) { alert(e.message); }
+        }
+
+        async function loadAdminData() {
+            try {
+                const [statsRes, schedulerRes, logsRes] = await Promise.all([
+                    fetch('/api/stocks/count'),
+                    fetch('/api/admin/scheduler/status'),
+                    fetch('/api/admin/collection-logs?limit=10')
+                ]);
+                const stats = await statsRes.json();
+                const scheduler = await schedulerRes.json();
+                const logs = await logsRes.json();
+
+                document.getElementById('statTotal').textContent = stats.total?.toLocaleString() || '0';
+                document.getElementById('statKospi').textContent = stats.kospi?.toLocaleString() || '0';
+                document.getElementById('statKosdaq').textContent = stats.kosdaq?.toLocaleString() || '0';
+                document.getElementById('statScheduler').textContent = scheduler.is_running ? 'ON' : 'OFF';
+
+                document.getElementById('schedulerStatus').innerHTML = `
+                    <div class="flex justify-between"><span class="text-gray-500">Status</span><span class="${scheduler.is_running ? 'text-accent-green' : 'text-gray-500'}">${scheduler.is_running ? 'Running' : 'Stopped'}</span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Mode</span><span>${scheduler.is_live ? 'LIVE' : 'Demo'}</span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Last Collection</span><span>${scheduler.last_collection || 'Never'}</span></div>
+                `;
+
+                if (logs.logs?.length) {
+                    document.getElementById('collectionLogs').innerHTML = logs.logs.map(l => `
+                        <div class="p-2 bg-dark-900 rounded text-xs">
+                            <div class="flex justify-between">
+                                <span class="text-accent-blue">${l.collection_type}</span>
+                                <span class="text-gray-500">${l.date}</span>
+                            </div>
+                            <div class="text-gray-400 mt-1">${l.success_count}/${l.total_count} success (${l.duration_seconds?.toFixed(1)}s)</div>
+                        </div>
+                    `).join('');
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        async function loadStocks() {
+            try {
+                const res = await fetch('/api/admin/load-stocks', { method: 'POST' });
+                const data = await res.json();
+                alert(`Loaded ${data.count} stocks`);
+                loadAdminData();
+            } catch (e) { alert(e.message); }
+        }
+
+        async function triggerCollection() {
+            if (!confirm('Start data collection? This may take 10-15 minutes.')) return;
+            try {
+                const res = await fetch('/api/admin/collect', { method: 'POST' });
+                const data = await res.json();
+                alert(data.message);
+            } catch (e) { alert(e.message); }
+        }
+
+        async function startScheduler() {
+            try {
+                await fetch('/api/admin/scheduler/start', { method: 'POST' });
+                loadAdminData();
+            } catch (e) { alert(e.message); }
+        }
+
+        async function stopScheduler() {
+            try {
+                await fetch('/api/admin/scheduler/stop', { method: 'POST' });
+                loadAdminData();
+            } catch (e) { alert(e.message); }
+        }
+
+        async function collectGlobalMarket() {
+            try {
+                await fetch('/api/global-market/collect', { method: 'POST' });
+                alert('Global market collection started');
+            } catch (e) { alert(e.message); }
+        }
+
+        async function testTelegram() {
+            try {
+                const res = await fetch('/api/telegram/test', { method: 'POST' });
+                const data = await res.json();
+                alert(data.success ? 'Telegram test sent!' : 'Telegram test failed');
+            } catch (e) { alert(e.message); }
+        }
+
+        let collectionLogWs = null;
+        let collectionLogConnected = false;
+
+        function toggleCollectionLogStream() {
+            if (collectionLogConnected) {
+                disconnectCollectionLogStream();
+            } else {
+                connectCollectionLogStream();
+            }
+        }
+
+        function connectCollectionLogStream() {
+            if (collectionLogWs) collectionLogWs.close();
+            
+            const container = document.getElementById('realtimeLogs');
+            container.innerHTML = '<div class="text-gray-500">Connecting...</div>';
+            
+            const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            collectionLogWs = new WebSocket(`${wsProtocol}//${location.host}/ws/collection-logs`);
+            
+            collectionLogWs.onopen = () => {
+                collectionLogConnected = true;
+                updateLogConnectionUI(true);
+                container.innerHTML = '<div class="text-accent-green">Connected. Waiting for logs...</div>';
+            };
+            
+            collectionLogWs.onmessage = e => {
+                try {
+                    const log = JSON.parse(e.data);
+                    const line = document.createElement('div');
+                    line.className = `py-0.5 ${log.level === 'ERROR' ? 'text-accent-red' : 'text-gray-300'}`;
+                    line.textContent = `[${log.timestamp}] ${log.message}`;
+                    
+                    const firstChild = container.firstElementChild;
+                    if (firstChild && firstChild.textContent.includes('Connected. Waiting')) {
+                        container.innerHTML = '';
+                    }
+                    
+                    container.appendChild(line);
+                    container.scrollTop = container.scrollHeight;
+                    
+                    while (container.children.length > 200) {
+                        container.removeChild(container.firstChild);
+                    }
+                } catch (err) {
+                    console.error('Failed to parse log:', err);
+                }
+            };
+            
+            collectionLogWs.onclose = () => {
+                collectionLogConnected = false;
+                updateLogConnectionUI(false);
+                const disc = document.createElement('div');
+                disc.className = 'text-accent-red py-0.5';
+                disc.textContent = '[Disconnected]';
+                container.appendChild(disc);
+            };
+            
+            collectionLogWs.onerror = () => {
+                collectionLogConnected = false;
+                updateLogConnectionUI(false);
+            };
+        }
+
+        function disconnectCollectionLogStream() {
+            if (collectionLogWs) {
+                collectionLogWs.close();
+                collectionLogWs = null;
+            }
+            collectionLogConnected = false;
+            updateLogConnectionUI(false);
+        }
+
+        function updateLogConnectionUI(connected) {
+            const statusEl = document.getElementById('logConnectionStatus');
+            const btnEl = document.getElementById('btnToggleLogStream');
+            
+            if (connected) {
+                statusEl.textContent = 'Connected';
+                statusEl.className = 'px-2 py-1 text-xs rounded bg-accent-green text-white';
+                btnEl.textContent = t('disconnect') || 'Disconnect';
+                btnEl.className = 'px-3 py-1 text-xs bg-accent-red hover:bg-red-600 text-white rounded';
+            } else {
+                statusEl.textContent = 'Disconnected';
+                statusEl.className = 'px-2 py-1 text-xs rounded bg-dark-700 text-gray-500';
+                btnEl.textContent = t('connect') || 'Connect';
+                btnEl.className = 'px-3 py-1 text-xs bg-accent-green hover:bg-green-600 text-white rounded';
+            }
+        }
+
+        function clearCollectionLogs() {
+            const container = document.getElementById('realtimeLogs');
+            if (collectionLogConnected) {
+                container.innerHTML = '<div class="text-accent-green">Connected. Waiting for logs...</div>';
+            } else {
+                container.innerHTML = '<div class="text-gray-600" data-i18n="click_connect">Click Connect to start streaming logs</div>';
+                applyTranslations();
+            }
+        }
+
         fetchStatus();
         fetchStates();
         setInterval(fetchStatus, 5000);
         setInterval(fetchStates, 10000);
+        applyTranslations();
     </script>
 </body>
 </html>
