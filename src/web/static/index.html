@@ -574,6 +574,10 @@
                             </div>
                         </div>
                         <div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1" data-i18n="base_time">Base Time (for 1m)</label>
+                            <input type="text" id="histTime" value="153000" class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none placeholder-gray-600" placeholder="HHMMSS">
+                        </div>
                             <label class="block text-xs text-gray-500 mb-1" data-i18n="timeframe">Timeframe</label>
                             <div class="grid grid-cols-3 gap-2">
                                 <label class="cursor-pointer">
@@ -2224,7 +2228,8 @@
         const ticker = document.getElementById('histTicker').value;
         const start = document.getElementById('histStart').value;
         const end = document.getElementById('histEnd').value;
-        const timeframe = document.querySelector('input[name="histTimeframe"]:checked').value;
+        const time = document.getElementById("histTime").value;
+            const timeframe = document.querySelector('input[name="histTimeframe"]:checked').value;
 
         if (!ticker || !start || !end) {
             alert('Please fill in all fields');
@@ -2238,7 +2243,7 @@
             const res = await fetch('/api/history/collect', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ ticker, start_date: start, end_date: end, timeframe })
+                body: JSON.stringify({ ticker, start_date: start, end_date: end, timeframe, time })
             });
             
             if (!res.ok) {
@@ -2304,6 +2309,7 @@
                 <button onclick="switchHistTab('D')" id="tab-hist-D" class="px-4 py-2 text-sm text-accent-blue border-b-2 border-accent-blue font-medium">Daily</button>
                 <button onclick="switchHistTab('W')" id="tab-hist-W" class="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors border-b-2 border-transparent">Weekly</button>
                 <button onclick="switchHistTab('M')" id="tab-hist-M" class="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors border-b-2 border-transparent">Monthly</button>
+                <button onclick="switchHistTab('C')" id="tab-hist-C" class="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors border-b-2 border-transparent">Coverage Map</button>
             </div>
 
             <!-- Actions -->
@@ -2314,6 +2320,17 @@
             </div>
 
             <!-- Data Table -->
+            <!-- Coverage View (Hidden by default) -->
+            <div id="histCoverageView" class="hidden h-[500px] overflow-y-auto">
+                <div class="mb-4 text-center">
+                    <h4 class="text-sm font-medium text-gray-300">Data Availability Heatmap (Last 1 Year)</h4>
+                    <div class="flex justify-center gap-4 text-xs text-gray-500 mt-2">
+                        <span class="flex items-center"><span class="w-3 h-3 bg-dark-700 rounded-sm mr-1"></span> No Data</span>
+                        <span class="flex items-center"><span class="w-3 h-3 bg-accent-green/50 rounded-sm mr-1"></span> Collected</span>
+                    </div>
+                </div>
+                <div id="coverageCalendar" class="grid grid-cols-1 gap-4 p-2"></div>
+            </div>
             <div class="overflow-y-auto max-h-[500px] scrollbar-thin">
                 <table class="w-full text-sm text-left">
                     <thead class="text-xs text-gray-500 uppercase bg-dark-800 sticky top-0">
@@ -2443,7 +2460,7 @@
         // or we modify the HTML file to update the function.
         // For robustness, let's update the original renderSearchResults in the file.
     </script>
-        // Override renderSearchResults to add History Button and Fix Credit/Short Data
+<script>        // Override renderSearchResults to add History Button and Fix Credit/Short Data
         function renderScreenerResults(stocks) {
             const tbody = document.getElementById('screenerResults');
             if (!stocks || !stocks.length) { 
@@ -2472,3 +2489,170 @@
             `).join('');
             // Re-apply translations for static elements if any (mostly dynamic here)
         }
+</script>
+    <!-- Scheduler Time Picker Modal -->
+    <div id="modal-scheduler-time" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div class="glass w-full max-w-sm p-6 rounded-xl border border-dark-600 shadow-2xl relative">
+            <h3 class="text-lg font-bold text-white mb-4" data-i18n="scheduler_time_title">Set Schedule Time</h3>
+            <p class="text-sm text-gray-400 mb-6" data-i18n="scheduler_time_desc">Select the daily execution time (24h format).</p>
+            
+            <div class="flex gap-2 justify-center mb-8">
+                <div class="flex flex-col items-center">
+                    <label class="text-xs text-gray-500 mb-1">Hour</label>
+                    <input type="number" id="schedHour" min="0" max="23" value="15" class="w-16 p-2 bg-dark-900 border border-dark-600 rounded text-center text-white focus:border-accent-blue focus:outline-none">
+                </div>
+                <span class="text-2xl text-gray-400 mt-5">:</span>
+                <div class="flex flex-col items-center">
+                    <label class="text-xs text-gray-500 mb-1">Minute</label>
+                    <input type="number" id="schedMinute" min="0" max="59" value="50" class="w-16 p-2 bg-dark-900 border border-dark-600 rounded text-center text-white focus:border-accent-blue focus:outline-none">
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3">
+                <button onclick="document.getElementById('modal-scheduler-time').classList.add('hidden')" class="px-4 py-2 text-sm text-gray-400 hover:text-white transition" data-i18n="cancel">Cancel</button>
+                <button onclick="confirmSchedulerStart()" class="px-4 py-2 bg-accent-blue hover:bg-blue-600 text-white text-sm font-medium rounded-md transition" data-i18n="start">Start</button>
+            </div>
+        </div>
+    </div>
+<script>
+    // Scheduler Logic Override
+    function startScheduler() {
+        // Open Modal instead of direct call
+        document.getElementById('modal-scheduler-time').classList.remove('hidden');
+    }
+
+    async function confirmSchedulerStart() {
+        const hour = parseInt(document.getElementById('schedHour').value);
+        const minute = parseInt(document.getElementById('schedMinute').value);
+        
+        if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+            alert('Invalid time');
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/admin/scheduler/start?hour=${hour}&minute=${minute}`, { method: 'POST' });
+            if (res.ok) {
+                document.getElementById('modal-scheduler-time').classList.add('hidden');
+                loadSchedulerStatus();
+            } else {
+                alert('Failed to start scheduler');
+            }
+        } catch (e) {
+            console.error(e);
+            alert(e.message);
+        }
+    }
+</script>
+<script>
+    // Coverage Map Logic
+    async function loadCoverageData() {
+        const container = document.getElementById('coverageCalendar');
+        container.innerHTML = '<div class="text-center text-gray-500 py-10">Loading map...</div>';
+        
+        try {
+            const res = await fetch(`/api/history/coverage/${currentHistTicker}?timeframe=${currentHistTimeframe}`);
+            const data = await res.json();
+            const dateSet = new Set(data.dates);
+            
+            renderCalendarHeatmap(dateSet);
+        } catch (e) {
+            container.innerHTML = `<div class="text-center text-accent-red py-10">${e.message}</div>`;
+        }
+    }
+
+    function renderCalendarHeatmap(dateSet) {
+        const container = document.getElementById('coverageCalendar');
+        container.innerHTML = '';
+        
+        const today = new Date();
+        const yearAgo = new Date(today);
+        yearAgo.setFullYear(today.getFullYear() - 1);
+        
+        // Group by month
+        let currentMonth = new Date(yearAgo.getFullYear(), yearAgo.getMonth(), 1);
+        const endMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        
+        const grid = document.createElement('div');
+        grid.className = 'grid grid-cols-3 md:grid-cols-4 gap-4';
+        
+        while (currentMonth <= endMonth) {
+            const monthDiv = document.createElement('div');
+            monthDiv.className = 'bg-dark-800/50 p-3 rounded-lg border border-dark-700';
+            
+            const monthName = currentMonth.toLocaleString('default', { month: 'short', year: 'numeric' });
+            monthDiv.innerHTML = `<div class="text-xs font-bold text-gray-400 mb-2">${monthName}</div>`;
+            
+            const daysGrid = document.createElement('div');
+            daysGrid.className = 'grid grid-cols-7 gap-1 text-[10px] text-center';
+            
+            // Weekday headers
+            ['S','M','T','W','T','F','S'].forEach(d => {
+                daysGrid.innerHTML += `<div class="text-gray-600">${d}</div>`;
+            });
+            
+            // Days
+            const year = currentMonth.getFullYear();
+            const month = currentMonth.getMonth();
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            // Padding
+            for(let i=0; i<firstDay; i++) {
+                daysGrid.innerHTML += `<div></div>`;
+            }
+            
+            for(let d=1; d<=daysInMonth; d++) {
+                const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const hasData = dateSet.has(dateStr);
+                const isToday = (dateStr === today.toISOString().slice(0,10));
+                
+                let bgClass = hasData ? 'bg-accent-green hover:bg-green-400' : 'bg-dark-700 hover:bg-dark-600';
+                if (isToday) bgClass += ' ring-1 ring-white';
+                
+                daysGrid.innerHTML += `
+                    <div class="w-full aspect-square rounded-sm ${bgClass} cursor-pointer transition-colors" 
+                         title="${dateStr}: ${hasData ? 'Collected' : 'No Data'}">
+                    </div>`;
+            }
+            
+            monthDiv.appendChild(daysGrid);
+            grid.appendChild(monthDiv);
+            
+            currentMonth.setMonth(currentMonth.getMonth() + 1);
+        }
+        
+        container.appendChild(grid);
+    }
+
+    // Hook into tab switching
+    const originalSwitchHistTab = window.switchHistTab; // Save original function if possible or overwrite smart
+    window.switchHistTab = function(tf) {
+        currentHistTimeframe = tf === 'C' ? 'D' : tf; // Default to Daily for coverage view logic if 'C' selected
+        
+        // Tab Styles
+        ['1m', 'D', 'W', 'M', 'C'].forEach(t => {
+            const tab = document.getElementById(`tab-hist-${t}`);
+            if (tab) {
+                if (t === tf) {
+                    tab.className = "px-4 py-2 text-sm text-accent-blue border-b-2 border-accent-blue font-medium";
+                } else {
+                    tab.className = "px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors border-b-2 border-transparent";
+                }
+            }
+        });
+
+        const tableView = document.querySelector('#modal-history-viewer table').parentNode; // The scrollable div
+        const coverageView = document.getElementById('histCoverageView');
+
+        if (tf === 'C') {
+            tableView.classList.add('hidden');
+            coverageView.classList.remove('hidden');
+            loadCoverageData();
+        } else {
+            tableView.classList.remove('hidden');
+            coverageView.classList.add('hidden');
+            loadHistoryViewData();
+        }
+    };
+</script>

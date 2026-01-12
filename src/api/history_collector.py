@@ -31,7 +31,7 @@ class HistoryCollector:
             );
         """)
 
-    async def collect_minute_history(self, ticker: str):
+    async def collect_minute_history(self, ticker: str, base_time: str = "153000"):
         """Collects intraday minute data (today) from KIS API."""
         url = "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice"
         tr_id = "FHKST03010200"
@@ -39,7 +39,7 @@ class HistoryCollector:
         params = {
             "FID_COND_MRKT_DIV_CODE": "J",
             "FID_INPUT_ISCD": ticker,
-            "FID_INPUT_HOUR_1": "153000", 
+            "FID_INPUT_HOUR_1": base_time, 
             "FID_PW_DATA_INCU_YN": "Y",
             "FID_ETC_CLS_CODE": ""
         }
@@ -75,7 +75,7 @@ class HistoryCollector:
             return {"status": "success", "count": count, "ticker": ticker, "type": "1m"}
         return {"error": res.getErrorMessage()}
 
-    async def collect_history(self, ticker: str, start_date: str, end_date: str, timeframe: str = 'D'):
+    async def collect_history(self, ticker: str, start_date: str, end_date: str, timeframe: str = "D", time: str = "153000"):
         """Collect historical data (D/W/M/1m)."""
         # Ensure ticker is resolved
         stock = await self.stock_service.get_stock_info(ticker)
@@ -87,7 +87,7 @@ class HistoryCollector:
                 return {"error": "Stock not found"}
 
         if timeframe == '1m':
-            return await self.collect_minute_history(ticker)
+            return await self.collect_minute_history(ticker, time)
 
         period_code = {'D': 'D', 'W': 'W', 'M': 'M'}.get(timeframe, 'D')
         url = "/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
@@ -147,3 +147,22 @@ def get_history_collector() -> HistoryCollector:
     if _history_collector is None:
         _history_collector = HistoryCollector()
     return _history_collector
+
+    async def get_coverage_stats(self, ticker: str, timeframe: str = 'D'):
+        """Returns a list of dates that have data for the given ticker."""
+        rows = await self.db.fetch_all("""
+            SELECT datetime FROM price_history 
+            WHERE ticker = ? AND timeframe = ?
+            ORDER BY datetime ASC
+        """, (ticker, timeframe))
+        
+        # Extract just the date part (YYYY-MM-DD) for grouping
+        dates = []
+        for r in rows:
+            dt = r['datetime']
+            # If datetime includes time (YYYY-MM-DD HH:MM:SS), take just date
+            if ' ' in dt:
+                dt = dt.split(' ')[0]
+            dates.append(dt)
+            
+        return {"ticker": ticker, "timeframe": timeframe, "dates": sorted(list(set(dates)))}

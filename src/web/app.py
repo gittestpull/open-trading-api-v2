@@ -615,11 +615,15 @@ def create_app(base_dir: str) -> FastAPI:
     from ..api import get_history_collector
     history_collector = get_history_collector()
 
+    @app.get("/api/history/coverage/{ticker}")
+    async def get_coverage(ticker: str, timeframe: str = "D"):
+        return await history_collector.get_coverage_stats(ticker, timeframe)
     class HistoryCollectRequest(BaseModel):
         ticker: str
         start_date: str # YYYYMMDD
         end_date: str # YYYYMMDD
         timeframe: str = "D" # D, W, M
+        time: str = "153000" # HHMMSS
 
     @app.post("/api/history/collect")
     async def collect_history(req: HistoryCollectRequest):
@@ -630,7 +634,8 @@ def create_app(base_dir: str) -> FastAPI:
             ticker=req.ticker,
             start_date=req.start_date,
             end_date=req.end_date,
-            timeframe=req.timeframe
+            timeframe=req.timeframe,
+            time=req.time
         )
         if "error" in result:
             raise HTTPException(status_code=400, detail=result["error"])
