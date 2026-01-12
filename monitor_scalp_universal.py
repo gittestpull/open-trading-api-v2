@@ -588,7 +588,17 @@ class UniversalScalper:
 
     def is_holiday_today(self):
         """Checks if today is a holiday using KIS API."""
-        now_date = datetime.now().strftime("%Y%m%d")
+        now = datetime.now()
+        now_date = now.strftime("%Y%m%d")
+        
+        # Weekend check FIRST (Saturday=5, Sunday=6)
+        weekday = now.weekday()
+        if weekday >= 5:
+            day_name = "Saturday" if weekday == 5 else "Sunday"
+            logger.info(f"Market Status Check: Today is {day_name} (WEEKEND CLOSED)")
+            self.cached_holiday_status = True
+            self.last_holiday_check_date = now_date
+            return True
         
         # Use cache if already checked today
         if self.last_holiday_check_date == now_date and self.cached_holiday_status is not None:
@@ -596,10 +606,8 @@ class UniversalScalper:
         
         try:
             logger.info(f"Checking holiday status for {now_date}...")
-            # Use max_depth=1 to prevent excessive recursion in holiday check
             df = d_func.chk_holiday(bass_dt=now_date, max_depth=1)
             if not df.empty:
-                # opnd_yn: 개장일 여부 (Y/N)
                 row = df.iloc[0]
                 is_holiday = row.get('opnd_yn') == 'N'
                 self.cached_holiday_status = is_holiday
@@ -611,7 +619,7 @@ class UniversalScalper:
         except Exception as e:
             logger.error(f"Failed to check holiday status: {e}")
             
-        return False # Default to business day on failure to avoid blocking
+        return False
 
     def calculate_support_level(self, df, window=60):
         """

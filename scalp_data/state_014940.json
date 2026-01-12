@@ -1,27 +1,14 @@
 {
     "state": "HOLDING",
-    "avg_buy_price": 8065.177818155905,
-    "total_qty": 127,
-    "current_step": 3,
+    "avg_buy_price": 8520.0,
+    "total_qty": 7,
+    "current_step": 1,
     "buy_history": [
         [
-            8132.5012374,
-            67
-        ],
-        [
-            8010.0,
-            20
-        ],
-        [
-            7980.0,
-            40
+            8520.0,
+            7
         ]
     ],
-    "pending_sell": {
-        "odno": "0011668500",
-        "qty": 28,
-        "price": 8190,
-        "reason": "BB Upper (>=0.5% \uc775\uc808)",
-        "avg_buy_price": 8146.428571428572
-    }
+    "pending_sell": null,
+    "daily_realized_profit": 0.0
 }

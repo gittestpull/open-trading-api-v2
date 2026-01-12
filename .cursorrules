@@ -1,0 +1,160 @@
+# PROJECT CONTEXT
+
+Project: Korean Stock Trading Platform (Deep Dive)
+Path: /Users/seungkwangyang/myrepo/oh-my-opencode/open-trading-api/
+Server: http://localhost:8001
+Database: data/deep_dive.db (SQLite)
+
+## Sub-Agents (서브 에이전트)
+
+### PD (Project Director) - 총괄
+- **Agent**: Sisyphus (Claude Opus 4.5)
+- **Role**: 업무 분배, 진행 상황 관리, 의사결정
+- **Tasks**:
+  - 요청 분석 후 적절한 에이전트에 할당
+  - 에이전트 간 협업 조율
+  - 최종 결과물 검토 및 통합
+
+### Data Collector - 데이터 수집/분석
+- **Agent**: oracle (GPT-5.2)
+- **Role**: 데이터 수집 로직 및 아키텍처
+- **Tasks**:
+  - 수집 로직 디버깅 및 최적화
+  - 데이터 파이프라인 아키텍처
+  - 복잡한 쿼리 설계
+- **Files**: src/api/collector.py, scheduler.py, youtube.py, naver.py
+
+### Chart Analyst - 차트 분석
+- **Agent**: oracle (GPT-5.2)
+- **Role**: 차트 데이터 분석 및 시각화 로직
+- **Tasks**:
+  - 외인/기관 동향 분석 알고리즘
+  - Human Index 계산 로직
+  - 차트 데이터 구조 설계
+- **Files**: src/api/human_index.py
+
+### UX/UI Designer - 디자인
+- **Agent**: frontend-ui-ux-engineer (Gemini 3 Pro)
+- **Role**: 사용자 경험 및 인터페이스 디자인
+- **Tasks**:
+  - 대시보드 레이아웃 개선
+  - 차트 스타일링 및 색상
+  - 반응형 디자인
+  - 사용자 플로우 최적화
+- **Files**: src/web/static/index.html (HTML/CSS/Tailwind)
+
+### Fullstack Developer - 풀스택 개발
+- **Agent**: oracle (GPT-5.2)
+- **Role**: 백엔드 API 및 프론트엔드 개발
+- **Tasks**:
+  - FastAPI 엔드포인트 개발
+  - 데이터베이스 스키마 설계
+  - WebSocket 구현
+  - JavaScript 로직
+- **Files**: src/web/app.py, src/api/*.py, src/web/static/index.html (JS)
+
+### Researcher - 리서치
+- **Agent**: librarian (Claude Sonnet 4.5)
+- **Role**: 외부 문서, 라이브러리 조사
+- **Tasks**:
+  - KIS API 문서 조사
+  - Chart.js 사용법 조사
+  - 베스트 프랙티스 검색
+- **Files**: 필요시 참조
+
+### Code Explorer - 코드 탐색
+- **Agent**: explore (Grok Code)
+- **Role**: 빠른 코드베이스 검색
+- **Tasks**:
+  - 기존 코드 패턴 찾기
+  - 함수/클래스 위치 파악
+  - 의존성 추적
+
+## Agent Invocation (에이전트 호출)
+
+Task tool 사용:
+```javascript
+task({
+  subagent_type: "frontend-ui-ux-engineer",
+  description: "차트 색상 개선",
+  prompt: "Human Index 차트 색상을 더 직관적으로 변경..."
+})
+
+task({
+  subagent_type: "oracle",
+  description: "수집 로직 디버깅",
+  prompt: "collector.py의 중복 방지 로직 검토..."
+})
+
+task({
+  subagent_type: "librarian",
+  description: "KIS API 조사",
+  prompt: "KIS Open API 실시간 시세 조회 방법..."
+})
+```
+
+## Server Start Command
+```bash
+cd /Users/seungkwangyang/myrepo/oh-my-opencode/open-trading-api
+pkill -f "run_web.py"; nohup uv run python run_web.py > /tmp/trading_web.log 2>&1 &
+```
+
+## Completed Features (2026-01-11)
+
+### Data Collection
+- Price, Investor, Short/Credit, Human Index collectors
+- YouTube/Naver social data collection
+- Duplicate prevention: skip already collected tickers by date
+- Force collection option: `POST /api/admin/collect?force=true`
+- Time:minutes + progress percentage in logs
+
+### Real-time Log Streaming
+- WebSocket endpoint: `/ws/collection-logs`
+- LogBuffer module: `src/api/log_buffer.py`
+- Admin panel: Real-time Logs section with Connect/Disconnect
+
+### Charts (Chart.js)
+- Deep Dive: Foreign/Institutional trend (bar + table)
+- Human Index: Attention/FOMO/Sentiment (line chart)
+- YouTube/Naver: Daily trend charts (bar + line)
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| src/api/collector.py | Data collectors with progress logging |
+| src/api/scheduler.py | Daily collection scheduler |
+| src/api/human_index.py | Human index + YouTube/Naver history |
+| src/api/log_buffer.py | Real-time log buffer for WebSocket |
+| src/web/app.py | FastAPI endpoints |
+| src/web/static/index.html | Frontend UI with charts |
+
+## API Endpoints
+
+### Collection
+- `POST /api/admin/collect?force=true` - Trigger collection
+- `GET /api/admin/scheduler/status` - Scheduler status
+
+### Human Index
+- `GET /api/human-index/{ticker}` - Current values
+- `GET /api/human-index/{ticker}/history?days=30` - History
+- `GET /api/human-index/{ticker}/youtube-history?days=30`
+- `GET /api/human-index/{ticker}/naver-history?days=30`
+
+### WebSocket
+- `/ws/collection-logs` - Real-time log streaming
+
+## Git Status
+- Last commit: a09282f (local only, push failed due to permission)
+- Remote: https://github.com/gittestpull/open-trading-api-v2.git
+
+## Git Push (IMPORTANT)
+Push할 때 gittestpull 계정으로 전환 필요:
+```bash
+gh auth switch -u gittestpull && git push origin main
+```
+
+## Code Style
+- No comments unless absolutely necessary
+- Korean comments for complex business logic only
+- Use existing patterns in codebase

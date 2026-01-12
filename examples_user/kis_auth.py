@@ -14,6 +14,7 @@ from collections.abc import Callable
 from datetime import datetime
 from io import StringIO
 import os
+from typing import Union
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -625,7 +626,7 @@ open_map: dict = {}
 def add_open_map(
         name: str,
         request: Callable[[str, str, ...], (dict, list[str])],
-        data: str | list[str],
+        data: Union[str, list[str]],
         kwargs: dict = None,
 ):
     if open_map.get(name, None) is None:
@@ -776,7 +777,7 @@ class KISWebSocket:
             ws: websockets.ClientConnection,
             request: Callable[[str, str, ...], (dict, list[str])],
             tr_type: str,
-            data: list | str,
+            data: Union[list, str],
             kwargs: dict = None,
     ):
         if type(data) is str:
@@ -791,7 +792,7 @@ class KISWebSocket:
     def subscribe(
             cls,
             request: Callable[[str, str, ...], (dict, list[str])],
-            data: list | str,
+            data: Union[list, str],
             kwargs: dict = None,
     ):
         add_open_map(request.__name__, request, data, kwargs)
@@ -800,7 +801,7 @@ class KISWebSocket:
             self,
             ws: websockets.ClientConnection,
             request: Callable[[str, str, ...], (dict, list[str])],
-            data: list | str,
+            data: Union[list, str],
     ):
         self.send_multiple(ws, request, "2", data)
 
