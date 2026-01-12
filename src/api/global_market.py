@@ -28,6 +28,11 @@ class GlobalMarketCollector:
             'TLT': '20+ Year Treasury',
             'USO': 'Oil ETF',
         }
+        # Mapping for Yahoo Finance specific symbols
+        self.yahoo_symbols = {
+            'VIX': '^VIX',
+            'DXY': 'DX-Y.NYB'
+        }
     
     def fetch_quote(self, symbol: str) -> Optional[Dict]:
         try:
@@ -48,11 +53,24 @@ class GlobalMarketCollector:
             quote = result[0].get('indicators', {}).get('quote', [{}])[0]
             
             closes = quote.get('close', [])
-            if not closes or len(closes) < 2:
+            # Filter out None values which can happen with Yahoo data
+            valid_closes = [c for c in closes if c is not None]
+            
+            if not valid_closes or len(valid_closes) < 2:
+                # Retry logic or check if we have at least one current price
+                if valid_closes:
+                    current_price = valid_closes[-1]
+                    return {
+                        'symbol': symbol,
+                        'name': self.symbols.get(symbol, symbol),
+                        'close_price': round(current_price, 2),
+                        'change_rate': 0.0,
+                        'currency': meta.get('currency', 'USD')
+                    }
                 return None
             
-            current_price = closes[-1] if closes[-1] else closes[-2]
-            prev_price = closes[-2] if len(closes) > 1 and closes[-2] else current_price
+            current_price = valid_closes[-1]
+            prev_price = valid_closes[-2]
             change_rate = ((current_price - prev_price) / prev_price * 100) if prev_price else 0
             
             return {
@@ -70,9 +88,15 @@ class GlobalMarketCollector:
         results = []
         today = datetime.now().strftime("%Y-%m-%d")
         
-        for symbol in self.symbols.keys():
-            data = self.fetch_quote(symbol)
+        for internal_symbol, name in self.symbols.items():
+            # Use mapped symbol if available, otherwise use internal symbol
+            query_symbol = self.yahoo_symbols.get(internal_symbol, internal_symbol)
+            
+            data = self.fetch_quote(query_symbol)
             if data:
+                # Restore internal symbol for database consistency
+                data['symbol'] = internal_symbol
+                data['name'] = name
                 results.append(data)
                 
                 await self.db.execute("""
@@ -81,7 +105,7 @@ class GlobalMarketCollector:
                     ON CONFLICT(date, symbol) DO UPDATE SET
                         close_price = excluded.close_price,
                         change_rate = excluded.change_rate
-                """, (today, data['symbol'], data['close_price'], data['change_rate']))
+                """, (today, internal_symbol, data['close_price'], data['change_rate']))
             
             await asyncio.sleep(0.3)
         
