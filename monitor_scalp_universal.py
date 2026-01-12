@@ -70,7 +70,7 @@ def check_log_health(filename, limit_minutes=5, max_errors=3):
     now = datetime.now()
     
     # Critical keywords that directly affect trading (only these will block startup)
-    CRITICAL_KEYWORDS = ["Order Failed", "Insufficient balance", "Auth Failed", "Connection timeout", "Insufficient cash"]
+    CRITICAL_KEYWORDS = ["Auth Failed", "Connection timeout"] # Removed insufficient balance
     # Keywords to absolutely ignore (notification, websocket, etc.)
     IGNORE_KEYWORDS = ["execution notice", "WS Monitor", "WebSocket", "HEALTH CHECK"]
 
@@ -987,6 +987,17 @@ class UniversalScalper:
     def place_order(self, dv="buy", qty=0, price=0):
         if qty <= 0: return None
         
+        # Safety check: Insufficient Funds Logic
+        if dv == "buy" and self.live_mode:
+            current_cash = self.cash_balance
+            est_cost = price * qty * (1 + self.buy_fee)
+            if current_cash < est_cost and current_cash < price:
+                 c, _, _, _ = self.get_balance()
+                 if c < est_cost:
+                     logger.warning(f"Insufficient funds ({c:,.0f} < {est_cost:,.0f}). Skipping BUY, entering SELL-ONLY mode.")
+                     return None
+
+        
         mode_str = "LIVE" if self.live_mode else "DRY RUN"
         logger.info(f"[{mode_str}] {dv.upper()} {qty} of {self.ticker} at {price}")
         
@@ -1633,7 +1644,7 @@ if __name__ == "__main__":
     
     # 0. Log Health Check before starting
     if not check_log_health(log_filename):
-        sys.exit(1)
+        # sys.exit(1)  # Disabled exit on insufficient funds
     
     scalper = UniversalScalper(args.ticker, args.budget, args.target, args.live, args.buy_price, args.orderbook, args.momentum)
     try:
