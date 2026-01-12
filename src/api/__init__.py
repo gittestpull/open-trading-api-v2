@@ -22,6 +22,7 @@ from .backtest import BacktestEngine, BacktestResult, get_backtest_engine
 from .global_market import GlobalMarketCollector, get_global_market_collector
 
 # Phase 6 - Journal & Simulator
+from .history_collector import HistoryCollector, get_history_collector
 from .journal import TradeJournal, get_trade_journal
 from .simulator import TradingSimulator, SimulationState, get_trading_simulator
 
@@ -60,6 +61,8 @@ __all__ = [
     # Phase 6
     'TradeJournal',
     'get_trade_journal',
+    'HistoryCollector',
+    'get_history_collector',
     'TradingSimulator',
     'SimulationState',
     'get_trading_simulator',

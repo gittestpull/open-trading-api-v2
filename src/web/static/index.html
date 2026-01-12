@@ -59,6 +59,7 @@
             <button onclick="showTab('global')" id="tab-global" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300" data-i18n="tab_global">Global</button>
             <button onclick="showTab('journal')" id="tab-journal" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300" data-i18n="tab_journal">Journal</button>
             <button onclick="showTab('simulator')" id="tab-simulator" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300" data-i18n="tab_simulator">Simulator</button>
+                    <button id="tab-history" onclick="showTab('history')" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-white transition-colors border-b-2 border-transparent hover:border-dark-600" data-i18n="tab_history">Data Tool</button>
             <button onclick="showTab('admin')" id="tab-admin" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300" data-i18n="tab_admin">Admin</button>
         </nav>
 
@@ -546,6 +547,76 @@
         </div>
 
         <!-- Admin Panel -->
+        <!-- History Tool Panel -->
+        <div id="panel-history" class="hidden">
+            <div class="grid md:grid-cols-4 gap-6">
+                <!-- Control Panel -->
+                <div class="glass rounded-lg p-5 border border-dark-600 md:col-span-1 h-fit">
+                    <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="history_settings">History Settings</h2>
+                    <form id="historyForm" class="space-y-4">
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1" data-i18n="ticker">Ticker</label>
+                            <input type="text" id="histTicker" required class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none placeholder-gray-600" placeholder="e.g. 005930">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1" data-i18n="start_date">Start Date</label>
+                                <input type="text" id="histStart" class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none text-xs" placeholder="YYYYMMDD">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1" data-i18n="end_date">End Date</label>
+                                <input type="text" id="histEnd" class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none text-xs" placeholder="YYYYMMDD">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1" data-i18n="timeframe">Timeframe</label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="histTimeframe" value="D" checked class="peer sr-only">
+                                    <div class="text-center py-2 bg-dark-800 peer-checked:bg-accent-blue peer-checked:text-white rounded text-xs transition">Daily</div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="histTimeframe" value="W" class="peer sr-only">
+                                    <div class="text-center py-2 bg-dark-800 peer-checked:bg-accent-blue peer-checked:text-white rounded text-xs transition">Weekly</div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="histTimeframe" value="M" class="peer sr-only">
+                                    <div class="text-center py-2 bg-dark-800 peer-checked:bg-accent-blue peer-checked:text-white rounded text-xs transition">Monthly</div>
+                                </label>
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full py-2 bg-accent-blue hover:bg-blue-600 text-white font-medium rounded-md transition mt-2">
+                            <span id="histBtnText" data-i18n="collect_data">Collect Data</span>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Results Panel -->
+                <div class="glass rounded-lg p-5 border border-dark-600 md:col-span-3 min-h-[500px]">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-sm font-semibold text-gray-400" data-i18n="collected_data">Collected Data</h2>
+                        <span id="histCount" class="text-xs text-accent-blue"></span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="text-xs text-gray-500 uppercase bg-dark-800">
+                                <tr>
+                                    <th class="px-4 py-3">Date</th>
+                                    <th class="px-4 py-3 text-right">Open</th>
+                                    <th class="px-4 py-3 text-right">High</th>
+                                    <th class="px-4 py-3 text-right">Low</th>
+                                    <th class="px-4 py-3 text-right">Close</th>
+                                    <th class="px-4 py-3 text-right">Volume</th>
+                                </tr>
+                            </thead>
+                            <tbody id="histTableBody" class="divide-y divide-dark-700">
+                                <tr><td colspan="6" class="px-4 py-8 text-center text-gray-600" data-i18n="no_data">No data loaded</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div id="panel-admin" class="hidden">
             <div class="grid md:grid-cols-2 gap-6">
                 <div class="glass rounded-lg p-5 border border-dark-600">
@@ -763,7 +834,7 @@
                 subtitle: 'AI-Powered Investment Analysis Platform',
                 tab_scalper: 'Scalper', tab_screener: 'Screener', tab_deepdive: 'Deep Dive',
                 tab_human: 'Human Index', tab_backtest: 'Backtest', tab_global: 'Global',
-                tab_journal: 'Journal', tab_simulator: 'Simulator', tab_admin: 'Admin',
+                tab_journal: 'Journal', tab_simulator: 'Simulator', tab_admin: 'Admin', tab_history: 'Data Tool',
                 new_scalper: 'New Scalper', ticker: 'Ticker', budget: 'Budget (₩)',
                 target: 'Target (%)', start_scalper: 'Start Scalper',
                 running_processes: 'Running Processes', saved_states: 'Saved States',
@@ -823,7 +894,7 @@
                 subtitle: 'AI 기반 투자 분석 플랫폼',
                 tab_scalper: '스캘퍼', tab_screener: '종목검색', tab_deepdive: '딥다이브',
                 tab_human: '인간지표', tab_backtest: '백테스트', tab_global: '글로벌',
-                tab_journal: '매매일지', tab_simulator: '시뮬레이터', tab_admin: '관리자',
+                tab_journal: '매매일지', tab_simulator: '시뮬레이터', tab_admin: '관리자', tab_history: '데이터 도구',
                 new_scalper: '새 스캘퍼', ticker: '종목코드', budget: '예산 (원)',
                 target: '목표 (%)', start_scalper: '스캘퍼 시작',
                 running_processes: '실행 중', saved_states: '저장된 상태',
@@ -916,6 +987,12 @@
             if (tab === 'journal') { loadJournalEntries(); loadJournalStats(); }
             if (tab === 'simulator') loadSimulatorPortfolio();
             if (tab === 'backtest') loadBacktestHistory();
+            if (tab === "history") {
+                const today = new Date();
+                const start = new Date(today); start.setMonth(start.getMonth() - 1);
+                document.getElementById("histEnd").value = today.toISOString().slice(0,10).replace(/-/g,"");
+                document.getElementById("histStart").value = start.toISOString().slice(0,10).replace(/-/g,"");
+            }
         }
 
         async function fetchStatus() {
@@ -2132,3 +2209,76 @@
     </script>
 </body>
 </html>
+<script>
+    // Append History Logic
+    document.getElementById('historyForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button');
+        const originalText = document.getElementById('histBtnText').textContent;
+        
+        const ticker = document.getElementById('histTicker').value;
+        const start = document.getElementById('histStart').value;
+        const end = document.getElementById('histEnd').value;
+        const timeframe = document.querySelector('input[name="histTimeframe"]:checked').value;
+
+        if (!ticker || !start || !end) {
+            alert('Please fill in all fields');
+            return;
+        }
+
+        try {
+            btn.disabled = true;
+            document.getElementById('histBtnText').textContent = 'Collecting...';
+            
+            const res = await fetch('/api/history/collect', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ ticker, start_date: start, end_date: end, timeframe })
+            });
+            
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.detail || 'Collection failed');
+            }
+            
+            const result = await res.json();
+            alert(`Collected ${result.count} records for ${result.ticker}`);
+            loadHistoryData(result.ticker, timeframe);
+            
+        } catch (e) {
+            alert(e.message);
+        } finally {
+            btn.disabled = false;
+            document.getElementById('histBtnText').textContent = originalText;
+        }
+    });
+
+    async function loadHistoryData(ticker, timeframe) {
+        try {
+            const res = await fetch(`/api/history/${ticker}?timeframe=${timeframe}&limit=100`);
+            const data = await res.json();
+            renderHistoryTable(data.history);
+            document.getElementById('histCount').textContent = `${data.count} records`;
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    function renderHistoryTable(rows) {
+        const tbody = document.getElementById('histTableBody');
+        if (!rows || !rows.length) {
+            tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-600">No data found</td></tr>';
+            return;
+        }
+        tbody.innerHTML = rows.map(r => `
+            <tr class="hover:bg-dark-700 transition-colors">
+                <td class="px-4 py-2 font-mono text-gray-400">${r.datetime}</td>
+                <td class="px-4 py-2 text-right">${r.open.toLocaleString()}</td>
+                <td class="px-4 py-2 text-right">${r.high.toLocaleString()}</td>
+                <td class="px-4 py-2 text-right">${r.low.toLocaleString()}</td>
+                <td class="px-4 py-2 text-right font-medium ${r.close >= r.open ? 'text-accent-red' : 'text-accent-blue'}">${r.close.toLocaleString()}</td>
+                <td class="px-4 py-2 text-right text-gray-500">${r.volume.toLocaleString()}</td>
+            </tr>
+        `).join('');
+    }
+</script>
