@@ -2,6 +2,7 @@
 import asyncio
 import logging
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Optional, Callable
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -137,7 +138,7 @@ class CollectionScheduler:
             logger.warning("[Scheduler] Already running")
             return
         
-        trigger = CronTrigger(hour=hour, minute=minute, day_of_week='mon-fri')
+        trigger = CronTrigger(hour=hour, minute=minute, day_of_week='mon-fri', timezone=ZoneInfo('Asia/Seoul'))
         self._schedule_job(self._run_daily_collection, trigger)
         
         self.scheduler.start()
