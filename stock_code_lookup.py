@@ -92,3 +92,23 @@ class StockMaster:
             return self.kosdaq_master[name]
             
         return None
+
+
+_stock_master_instance = None
+
+def get_stock_code(stock_name: str) -> str:
+    """
+    종목명으로 종목코드 조회
+    
+    Args:
+        stock_name: 종목명 (예: "삼성전자")
+    
+    Returns:
+        종목코드 (예: "005930") 또는 "NOT_FOUND"
+    """
+    global _stock_master_instance
+    if _stock_master_instance is None:
+        _stock_master_instance = StockMaster()
+    
+    code = _stock_master_instance.get_code(stock_name)
+    return code if code else "NOT_FOUND"

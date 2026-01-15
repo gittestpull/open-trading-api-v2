@@ -202,7 +202,40 @@ def create_app(base_dir: str) -> FastAPI:
         stock = await stock_service.get_stock_info(ticker)
         if not stock:
             raise HTTPException(status_code=404, detail="Stock not found")
-        return stock
+        
+        price = await db.fetch_one(
+            "SELECT * FROM daily_price WHERE ticker = ? ORDER BY date DESC LIMIT 1",
+            (ticker,)
+        )
+        
+        stats = await db.fetch_one(
+            "SELECT * FROM daily_stats WHERE ticker = ? ORDER BY date DESC LIMIT 1",
+            (ticker,)
+        )
+        
+        investor = await db.fetch_one(
+            "SELECT * FROM daily_investor WHERE ticker = ? ORDER BY date DESC LIMIT 1",
+            (ticker,)
+        )
+        
+        short_credit = await db.fetch_one(
+            "SELECT * FROM daily_short_credit WHERE ticker = ? ORDER BY date DESC LIMIT 1",
+            (ticker,)
+        )
+        
+        news = await db.fetch_all(
+            "SELECT datetime, title, source, provider, url FROM stock_news WHERE ticker = ? ORDER BY datetime DESC LIMIT 20",
+            (ticker,)
+        )
+        
+        return {
+            **stock,
+            "price": price,
+            "stats": stats,
+            "investor": investor,
+            "short_credit": short_credit,
+            "news": news
+        }
     
     @app.post("/api/screener")
     async def screener(req: ScreenerRequest):
@@ -363,16 +396,19 @@ def create_app(base_dir: str) -> FastAPI:
         return {"ticker": ticker, "history": history, "count": len(history)}
     
     @app.post("/api/human-index/{ticker}/collect")
-    async def collect_human_data(ticker: str, background_tasks: BackgroundTasks):
+    async def collect_human_data(ticker: str, days: int = 30):
         stock = await stock_service.get_stock_info(ticker)
         if not stock:
             raise HTTPException(status_code=404, detail="Stock not found")
         
-        async def run_collection():
-            await human_index.collect_all_human_data(ticker, stock['name'])
+        # Run synchronously to return status
+        result = await human_index.collect_all_human_data(ticker, stock['name'], days=days)
         
-        background_tasks.add_task(run_collection)
-        return {"status": "collection_started", "ticker": ticker}
+        return {
+            "status": "collected" if result.get('collected') else "failed",
+            "ticker": ticker,
+            "details": result
+        }
     
     @app.get("/api/ai/deepdive/{ticker}")
     async def ai_deep_dive(ticker: str):
@@ -581,18 +617,39 @@ def create_app(base_dir: str) -> FastAPI:
         return {"status": "stopped"}
     
     @app.post("/api/admin/collect")
-    async def trigger_collection(background_tasks: BackgroundTasks, force: bool = False):
+    async def trigger_collection(background_tasks: BackgroundTasks, force: bool = False, detect_changes: bool = False):
         async def run_collection():
-            await scheduler.run_now(force=force)
+            await scheduler.run_now(force=force, detect_changes=detect_changes)
         
         background_tasks.add_task(run_collection)
-        mode = "FORCE " if force else ""
-        return {"status": "collection_started", "force": force, "message": f"{mode}Data collection started in background"}
+        mode = "DETECT " if detect_changes else ("FORCE " if force else "")
+        return {"status": "collection_started", "force": force, "detect_changes": detect_changes, "message": f"{mode}Data collection started in background"}
     
     @app.post("/api/admin/load-stocks")
     async def load_stocks():
         count = await scheduler.load_stocks_only()
         return {"status": "success", "count": count}
+
+    class MinuteTickersRequest(BaseModel):
+        tickers: list[str]
+
+    @app.post("/api/admin/minute-tickers")
+    async def set_minute_tickers(req: MinuteTickersRequest):
+        scheduler.set_minute_tickers(req.tickers)
+        scheduler.start_minute_collection()
+        return {"status": "success", "tickers": req.tickers}
+
+    @app.get("/api/admin/minute-tickers")
+    async def get_minute_tickers():
+        status = scheduler.get_status()
+        return {"tickers": status.get('minute_tickers', [])}
+
+    @app.post("/api/admin/minute-collect-now")
+    async def collect_minute_now(background_tasks: BackgroundTasks):
+        async def run():
+            return await scheduler.run_minute_now()
+        background_tasks.add_task(run)
+        return {"status": "started", "message": "Minute collection started in background"}
     
     @app.get("/api/admin/collection-logs")
     async def get_collection_logs(limit: int = 20):
@@ -615,6 +672,9 @@ def create_app(base_dir: str) -> FastAPI:
     from ..api import get_history_collector
     history_collector = get_history_collector()
 
+    @app.get("/api/history/overview")
+    async def get_history_overview():
+        return {"summary": await history_collector.get_history_summary()}
     @app.get("/api/history/coverage/{ticker}")
     async def get_coverage(ticker: str, timeframe: str = "D"):
         return await history_collector.get_coverage_stats(ticker, timeframe)
@@ -645,4 +705,56 @@ def create_app(base_dir: str) -> FastAPI:
     async def get_history(ticker: str, timeframe: str = "D", limit: int = 100):
         data = await history_collector.get_history(ticker, timeframe, limit)
         return {"history": data, "count": len(data)}
+
+    class BulkCollectRequest(BaseModel):
+        tickers: list[str]
+        start_date: str
+        end_date: str
+        timeframes: list[str] = ["D", "W", "M"]
+
+    @app.post("/api/history/collect-bulk")
+    async def collect_bulk_history(req: BulkCollectRequest, background_tasks: BackgroundTasks):
+        await history_collector.init_db()
+
+        async def run_bulk():
+            results = []
+            for ticker in req.tickers:
+                result = await history_collector.collect_bulk_history(
+                    ticker=ticker,
+                    start_date=req.start_date,
+                    end_date=req.end_date,
+                    timeframes=req.timeframes
+                )
+                results.append(result)
+            return results
+
+        background_tasks.add_task(run_bulk)
+        return {
+            "status": "started",
+            "tickers": req.tickers,
+            "timeframes": req.timeframes,
+            "message": f"Collecting {len(req.tickers)} tickers in background"
+        }
+
+    @app.post("/api/history/collect-bulk-sync")
+    async def collect_bulk_history_sync(req: BulkCollectRequest):
+        await history_collector.init_db()
+
+        results = []
+        for ticker in req.tickers:
+            result = await history_collector.collect_bulk_history(
+                ticker=ticker,
+                start_date=req.start_date,
+                end_date=req.end_date,
+                timeframes=req.timeframes
+            )
+            results.append(result)
+
+        total = sum(r.get('total_count', 0) for r in results if 'error' not in r)
+        return {
+            "status": "success",
+            "total_records": total,
+            "results": results
+        }
+
     return app

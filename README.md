@@ -43,6 +43,10 @@
 ├── visualize_investor_trends.py # [Analysis] 심층 차트 제너레이터 (이미지 생성)
 ├── analyze_chart_data.py        # [Analysis] 데이터 해석기 (리포트 출력)
 │
+├── youtube_news_collector.py    # [New] YouTube 뉴스 수집기 (종목별 영상 자동 수집)
+├── example_youtube_usage.py     # [New] YouTube 수집기 사용 예제
+├── README_YOUTUBE.md            # [New] YouTube 수집기 상세 문서
+│
 ├── custom_scripts/
 │   └── leading_stock_finder.py  # [Tool] 실시간 주도주 검색기
 │
@@ -442,37 +446,41 @@ python tools/analyze_trades.py
 
 ---
 
----
+## 8. YouTube 종목 뉴스 수집기 (New)
 
-## 5. 문제 해결 가이드
+YouTube API를 활용하여 종목 관련 뉴스 및 분석 영상을 자동으로 수집하는 도구입니다.
 
-### 토큰 오류 시
+### 8.1. 주요 기능
 
-```python
-import kis_auth as ka
+- 🔍 **종목명 검색**: "삼성전자", "테슬라" 등 종목명으로 간편하게 검색
+- 📊 **상세 통계**: 조회수, 좋아요, 댓글 수 등 메타데이터 수집
+- 💾 **다양한 저장**: JSON, CSV 형식으로 저장 (Excel 호환)
+- 🎯 **키워드 필터링**: "전망", "분석" 등 추가 키워드로 정확도 향상
 
-# 토큰 재발급 - 1분당 1회 발급됩니다.
-ka.auth(svr="prod")  # 또는 "vps"
-```
-
-### 설정 파일 오류 시
-
-- `kis_devlp.yaml` 파일의 앱키, 앱시크릿이 올바른지 확인
-- 계좌번호 형식이 맞는지 확인 (앞 8자리 + 뒤 2자리)
-- 실시간 시세(WebSocket) 이용 중 ‘No close frame received’ 오류가 발생하는 경우, `kis_devlp.yaml`에 입력하신 HTS ID가 정확한지 확인
-
-### 의존성 오류 시
+### 8.2. 빠른 시작
 
 ```bash
-# 의존성 재설치
-uv sync --reinstall
+# 기본 사용 (최근 7일, 50개 영상)
+uv run python youtube_news_collector.py "삼성전자"
+
+# 추가 키워드로 정확도 향상
+uv run python youtube_news_collector.py "테슬라" --keywords "전망" "분석"
+
+# 여러 종목 일괄 수집
+uv run python example_youtube_usage.py
 ```
 
+### 8.3. 수집 데이터 예시
+
+| 종목명 | 영상 수 | 평균 조회수 | Top 채널 |
+|--------|---------|-------------|----------|
+| 삼성전자 | 15개 | 12,453회 | 주식임부장 |
+| SK하이닉스 | 15개 | 8,921회 | 서울경제TV |
+| 현대차 | 15개 | 52,621회 | YTN |
+
+**상세 사용법**: [README_YOUTUBE.md](README_YOUTUBE.md) 참조
+
 ---
-
-# 📧 문의사항
-
-- [💬 한국투자증권 Open API 챗봇](https://chatgpt.com/g/g-68b920ee7afc8191858d3dc05d429571-hangugtuja-open-api-caesbos-beta)에 언제든 궁금한 점을 물어보세요.
 
 ## 6. Advanced Trading Logic (v2.2 Updated)
 
