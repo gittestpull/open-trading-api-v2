@@ -56,6 +56,7 @@ class IntegratedNewsCollector:
         
         all_news = []
         current_date = end_date
+        last_srno = ""
         
         while current_date >= start_date and len(all_news) < max_results:
             params = {
@@ -66,7 +67,7 @@ class IntegratedNewsCollector:
                 "FID_INPUT_DATE_1": current_date.strftime("%Y%m%d"),
                 "FID_INPUT_HOUR_1": "235959",
                 "FID_RANK_SORT_CLS_CODE": "0",
-                "FID_INPUT_SRNO": ""
+                "FID_INPUT_SRNO": last_srno
             }
             
             res = ka._url_fetch(api_url, tr_id, "", params)
@@ -77,18 +78,25 @@ class IntegratedNewsCollector:
                     output = [output]
                 
                 if not output or len(output) == 0:
-                    break
+                    if last_srno == "":
+                        current_date = current_date - timedelta(days=1)
+                        continue
+                    else:
+                        break
                 
                 df = pd.DataFrame(output)
                 
                 for _, row in df.iterrows():
+                    raw_date = str(row['data_dt'])
+                    formatted_date = f"{raw_date[:4]}-{raw_date[4:6]}-{raw_date[6:8]}"
+                    
                     news_item = {
                         'source': 'KIS',
                         'ticker_code': stock_code,
                         'ticker_name': row.get('kor_isnm1', ''),
                         'title': row['hts_pbnt_titl_cntt'],
                         'provider': row.get('dorg', ''),
-                        'date': row['data_dt'],
+                        'date': formatted_date,
                         'time': row['data_tm'],
                         'datetime': f"{row['data_dt']} {row['data_tm']}",
                         'news_id': row.get('cntt_usiq_srno', ''),
@@ -96,12 +104,10 @@ class IntegratedNewsCollector:
                     }
                     all_news.append(news_item)
                 
-                if 'data_dt' in df.columns and 'data_tm' in df.columns:
-                    min_dt = df['data_dt'].min()
-                    min_tm = df.loc[df['data_dt'] == min_dt, 'data_tm'].min()
-                    min_datetime_str = f"{min_dt}{min_tm}"
-                    dt_obj = datetime.strptime(min_datetime_str, "%Y%m%d%H%M%S")
-                    current_date = dt_obj - timedelta(seconds=1)
+                if len(output) > 0:
+                    last_row = df.iloc[-1]
+                    current_date = current_date - timedelta(days=1)
+                    last_srno = ""
                 else:
                     break
             else:

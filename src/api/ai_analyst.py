@@ -25,7 +25,7 @@ class AIAnalyst:
         if api_key:
             self.client = OpenAI(api_key=api_key)
     
-    async def generate_deep_dive_report(self, ticker: str) -> Dict:
+    async def generate_deep_dive_report(self, ticker: str, mode: str = "simple") -> Dict:
         stock = await self.db.fetch_one(
             "SELECT * FROM stock_info WHERE ticker = ?", (ticker,)
         )
@@ -64,8 +64,9 @@ class AIAnalyst:
         
         context = self._build_context(stock, price_history, stats, investor, human_index, news, disclosures)
         
+        is_deep = (mode == "deep")
         if self.client:
-            analysis = await self._generate_gpt_analysis(stock['name'], ticker, context)
+            analysis = await self._generate_gpt_analysis(stock['name'], ticker, context, is_deep)
         else:
             analysis = self._generate_fallback_analysis(stock, price_history, stats, investor, human_index)
         
@@ -73,6 +74,7 @@ class AIAnalyst:
             "ticker": ticker,
             "name": stock['name'],
             "market": stock['market'],
+            "mode": mode,
             "generated_at": datetime.now().isoformat(),
             "analysis": analysis,
             "data": {
@@ -132,10 +134,11 @@ class AIAnalyst:
         
         return "\n".join(lines)
     
-    async def _generate_gpt_analysis(self, name: str, ticker: str, context: str) -> Dict:
+    async def _generate_gpt_analysis(self, name: str, ticker: str, context: str, is_deep: bool = False) -> Dict:
+        model = "gpt-4o" if is_deep else "gpt-4o-mini"
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4o",
+                model=model,
                 messages=[
                     {
                         "role": "system",
@@ -172,7 +175,9 @@ class AIAnalyst:
             )
             
             import json
-            return json.loads(response.choices[0].message.content)
+            result = json.loads(response.choices[0].message.content)
+            result["model_used"] = model
+            return result
         except Exception as e:
             logger.error(f"[AIAnalyst] GPT analysis failed: {e}")
             return {"error": str(e)}

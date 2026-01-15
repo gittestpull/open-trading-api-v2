@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 import asyncio
 import logging
-from datetime import datetime
-from typing import Dict, Optional, List
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional
 
 from .database import Database, get_database
 from .youtube import YouTubeCollector, get_youtube_collector
 from .naver import NaverCollector, get_naver_collector
+from .log_buffer import get_log_buffer
 
 logger = logging.getLogger(__name__)
 
@@ -17,16 +18,27 @@ class HumanIndexCalculator:
         self.db = db or get_database()
         self.youtube = get_youtube_collector()
         self.naver = get_naver_collector()
+        self.log_buffer = get_log_buffer()
     
-    async def calculate_attention_score(self, ticker: str) -> float:
-        youtube = await self.db.fetch_one(
-            "SELECT * FROM youtube_metrics WHERE ticker = ? ORDER BY date DESC LIMIT 1",
-            (ticker,)
-        )
-        naver = await self.db.fetch_one(
-            "SELECT * FROM naver_discussion WHERE ticker = ? ORDER BY date DESC LIMIT 1",
-            (ticker,)
-        )
+    async def calculate_attention_score(self, ticker: str, target_date: str = None) -> float:
+        if target_date:
+            youtube = await self.db.fetch_one(
+                "SELECT * FROM youtube_metrics WHERE ticker = ? AND date = ?",
+                (ticker, target_date)
+            )
+            naver = await self.db.fetch_one(
+                "SELECT * FROM naver_discussion WHERE ticker = ? AND date = ?",
+                (ticker, target_date)
+            )
+        else:
+            youtube = await self.db.fetch_one(
+                "SELECT * FROM youtube_metrics WHERE ticker = ? ORDER BY date DESC LIMIT 1",
+                (ticker,)
+            )
+            naver = await self.db.fetch_one(
+                "SELECT * FROM naver_discussion WHERE ticker = ? ORDER BY date DESC LIMIT 1",
+                (ticker,)
+            )
         
         score = 0.0
         
@@ -42,19 +54,35 @@ class HumanIndexCalculator:
         
         return min(score, 100)
     
-    async def calculate_fomo_level(self, ticker: str) -> float:
-        youtube = await self.db.fetch_one(
-            "SELECT * FROM youtube_metrics WHERE ticker = ? ORDER BY date DESC LIMIT 1",
-            (ticker,)
-        )
-        naver = await self.db.fetch_one(
-            "SELECT * FROM naver_discussion WHERE ticker = ? ORDER BY date DESC LIMIT 1",
-            (ticker,)
-        )
-        price = await self.db.fetch_one(
-            "SELECT * FROM daily_price WHERE ticker = ? ORDER BY date DESC LIMIT 1",
-            (ticker,)
-        )
+    async def calculate_fomo_level(self, ticker: str, target_date: str = None) -> float:
+        if target_date:
+            youtube = await self.db.fetch_one(
+                "SELECT * FROM youtube_metrics WHERE ticker = ? AND date = ?",
+                (ticker, target_date)
+            )
+            naver = await self.db.fetch_one(
+                "SELECT * FROM naver_discussion WHERE ticker = ? AND date = ?",
+                (ticker, target_date)
+            )
+            # Price is tricky if we don't have historical price for that specific date easily accessible 
+            # in the same way, but let's try to find it or fallback
+            price = await self.db.fetch_one(
+                "SELECT * FROM daily_price WHERE ticker = ? AND date <= ? ORDER BY date DESC LIMIT 1",
+                (ticker, target_date)
+            )
+        else:
+            youtube = await self.db.fetch_one(
+                "SELECT * FROM youtube_metrics WHERE ticker = ? ORDER BY date DESC LIMIT 1",
+                (ticker,)
+            )
+            naver = await self.db.fetch_one(
+                "SELECT * FROM naver_discussion WHERE ticker = ? ORDER BY date DESC LIMIT 1",
+                (ticker,)
+            )
+            price = await self.db.fetch_one(
+                "SELECT * FROM daily_price WHERE ticker = ? ORDER BY date DESC LIMIT 1",
+                (ticker,)
+            )
         
         fomo = 0.0
         
@@ -82,15 +110,25 @@ class HumanIndexCalculator:
         
         return min(fomo, 100)
     
-    async def calculate_crowd_sentiment(self, ticker: str) -> float:
-        youtube = await self.db.fetch_one(
-            "SELECT * FROM youtube_metrics WHERE ticker = ? ORDER BY date DESC LIMIT 1",
-            (ticker,)
-        )
-        naver = await self.db.fetch_one(
-            "SELECT * FROM naver_discussion WHERE ticker = ? ORDER BY date DESC LIMIT 1",
-            (ticker,)
-        )
+    async def calculate_crowd_sentiment(self, ticker: str, target_date: str = None) -> float:
+        if target_date:
+            youtube = await self.db.fetch_one(
+                "SELECT * FROM youtube_metrics WHERE ticker = ? AND date = ?",
+                (ticker, target_date)
+            )
+            naver = await self.db.fetch_one(
+                "SELECT * FROM naver_discussion WHERE ticker = ? AND date = ?",
+                (ticker, target_date)
+            )
+        else:
+            youtube = await self.db.fetch_one(
+                "SELECT * FROM youtube_metrics WHERE ticker = ? ORDER BY date DESC LIMIT 1",
+                (ticker,)
+            )
+            naver = await self.db.fetch_one(
+                "SELECT * FROM naver_discussion WHERE ticker = ? ORDER BY date DESC LIMIT 1",
+                (ticker,)
+            )
         
         sentiments = []
         weights = []
@@ -116,14 +154,16 @@ class HumanIndexCalculator:
         
         return round(weighted_sum / total_weight, 3) if total_weight > 0 else 0.0
     
-    async def calculate_human_index(self, ticker: str) -> Dict:
-        attention = await self.calculate_attention_score(ticker)
-        fomo = await self.calculate_fomo_level(ticker)
-        sentiment = await self.calculate_crowd_sentiment(ticker)
+    async def calculate_human_index(self, ticker: str, target_date: str = None) -> Dict:
+        attention = await self.calculate_attention_score(ticker, target_date)
+        fomo = await self.calculate_fomo_level(ticker, target_date)
+        sentiment = await self.calculate_crowd_sentiment(ticker, target_date)
+        
+        calc_date = target_date if target_date else datetime.now().strftime("%Y-%m-%d")
         
         data = {
             'ticker': ticker,
-            'date': datetime.now().strftime("%Y-%m-%d"),
+            'date': calc_date,
             'attention_score': round(attention, 2),
             'fomo_level': round(fomo, 2),
             'crowd_sentiment': sentiment
@@ -141,29 +181,91 @@ class HumanIndexCalculator:
         
         return data
     
-    async def collect_all_human_data(self, ticker: str, stock_name: str) -> Dict:
+    async def collect_all_human_data(self, ticker: str, stock_name: str, days: int = 60) -> Dict:
         results = {}
+        affected_dates = set()
+        
+        self.log_buffer.add_sync(f"[HumanIndex] Starting collection for {stock_name} ({ticker})... Range: {days} days")
         
         try:
-            youtube_data = await self.youtube.collect_for_stock(ticker, stock_name)
+            self.log_buffer.add_sync(f"[HumanIndex] Collecting YouTube data for {stock_name}...")
+            youtube_data = await self.youtube.collect_for_stock(ticker, stock_name, days=days)
             results['youtube'] = youtube_data
+            if youtube_data and 'affected_dates' in youtube_data:
+                count = len(youtube_data['affected_dates'])
+                self.log_buffer.add_sync(f"[HumanIndex] YouTube: Found data for {count} days")
+                affected_dates.update(youtube_data['affected_dates'])
+            else:
+                self.log_buffer.add_sync(f"[HumanIndex] YouTube: No data found")
         except Exception as e:
             logger.debug(f"[HumanIndex] YouTube failed for {ticker}: {e}")
+            self.log_buffer.add_sync(f"[HumanIndex] YouTube failed: {e}", "ERROR")
             results['youtube'] = None
         
         try:
-            naver_data = await self.naver.collect_for_stock(ticker)
+            self.log_buffer.add_sync(f"[HumanIndex] Collecting Naver discussion data for {ticker}...")
+            naver_data = await self.naver.collect_for_stock(ticker, days=days)
             results['naver'] = naver_data
+            if naver_data and 'affected_dates' in naver_data:
+                count = len(naver_data['affected_dates'])
+                self.log_buffer.add_sync(f"[HumanIndex] Naver: Found data for {count} days")
+                affected_dates.update(naver_data['affected_dates'])
+            else:
+                self.log_buffer.add_sync(f"[HumanIndex] Naver: No data found")
         except Exception as e:
             logger.debug(f"[HumanIndex] Naver failed for {ticker}: {e}")
+            self.log_buffer.add_sync(f"[HumanIndex] Naver failed: {e}", "ERROR")
             results['naver'] = None
+            
+        # Add today just in case
+        affected_dates.add(datetime.now().strftime("%Y-%m-%d"))
         
+        if affected_dates:
+            sorted_dates = sorted(list(affected_dates))
+            min_date_str = sorted_dates[0]
+            max_date_str = sorted_dates[-1]
+            
+            try:
+                min_date = datetime.strptime(min_date_str, "%Y-%m-%d")
+                max_date = datetime.strptime(max_date_str, "%Y-%m-%d")
+                
+                curr = min_date
+                while curr <= max_date:
+                    ds = curr.strftime("%Y-%m-%d")
+                    affected_dates.add(ds)
+                    curr += timedelta(days=1)
+                    
+                self.log_buffer.add_sync(f"[HumanIndex] Filled sparse dates. Range: {min_date_str} ~ {max_date_str}")
+            except Exception as e:
+                logger.error(f"Date parsing error: {e}")
+        
+        # Recalculate human index for all affected dates
+        calculated_indices = []
         try:
-            human_index = await self.calculate_human_index(ticker)
-            results['human_index'] = human_index
+            # Sort dates to process chronologically
+            sorted_dates = sorted(list(affected_dates))
+            self.log_buffer.add_sync(f"[HumanIndex] Recalculating index for {len(sorted_dates)} dates: {sorted_dates[:5]}...")
+            
+            for d in sorted_dates:
+                hi = await self.calculate_human_index(ticker, target_date=d)
+                calculated_indices.append(hi)
+            
+            latest_hi = None
+            if calculated_indices:
+                calculated_indices.sort(key=lambda x: x['date'], reverse=True)
+                latest_hi = calculated_indices[0]
+                
+            results['human_index'] = latest_hi
+            results['history_updates'] = len(calculated_indices)
+            results['collected'] = True # Explicit flag as requested
+            
+            self.log_buffer.add_sync(f"[HumanIndex] Collection complete for {stock_name}. Updated {len(calculated_indices)} days.")
+            
         except Exception as e:
             logger.debug(f"[HumanIndex] Calculation failed for {ticker}: {e}")
+            self.log_buffer.add_sync(f"[HumanIndex] Calculation failed: {e}", "ERROR")
             results['human_index'] = None
+            results['collected'] = False
         
         return results
     

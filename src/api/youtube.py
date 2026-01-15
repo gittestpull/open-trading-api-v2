@@ -108,37 +108,76 @@ class YouTubeCollector:
         
         return total_score / total_weight if total_weight > 0 else 0.0
     
-    async def collect_for_stock(self, ticker: str, stock_name: str) -> Optional[Dict]:
-        videos = self.search_videos(stock_name, max_results=20, days_back=7)
+    async def collect_for_stock(self, ticker: str, stock_name: str, days: int = 30) -> Dict:
+        loop = asyncio.get_running_loop()
+        videos = await loop.run_in_executor(None, self.search_videos, stock_name, 50, days)
         
         if not videos:
-            return None
+            return {}
+            
+        # Group by date
+        daily_stats = {}
+        affected_dates = set()
         
-        sentiment = self.analyze_sentiment(videos)
-        total_views = sum(v.get('view_count', 0) for v in videos)
-        avg_likes = sum(v.get('like_count', 0) for v in videos) // len(videos) if videos else 0
+        for video in videos:
+            # Parse date (YYYY-MM-DD)
+            pub_at = video.get('published_at', '')
+            if not pub_at:
+                continue
+                
+            try:
+                # ISO format: 2023-01-01T12:00:00Z
+                date_str = pub_at.split('T')[0]
+            except Exception:
+                continue
+            
+            if date_str not in daily_stats:
+                daily_stats[date_str] = {
+                    'videos': [],
+                    'view_count': 0,
+                    'avg_likes': 0,
+                    'total_likes': 0
+                }
+            
+            daily_stats[date_str]['videos'].append(video)
+            daily_stats[date_str]['view_count'] += video.get('view_count', 0)
+            daily_stats[date_str]['total_likes'] += video.get('like_count', 0)
+            
+        # Calculate stats per date and save
+        results = {}
         
-        data = {
-            'ticker': ticker,
-            'date': datetime.now().strftime("%Y-%m-%d"),
-            'video_count': len(videos),
-            'total_views': total_views,
-            'avg_likes': avg_likes,
-            'sentiment_score': round(sentiment, 3)
-        }
-        
-        await self.db.execute("""
-            INSERT INTO youtube_metrics (date, ticker, video_count, total_views, avg_likes, sentiment_score)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(date, ticker) DO UPDATE SET
-                video_count = excluded.video_count,
-                total_views = excluded.total_views,
-                avg_likes = excluded.avg_likes,
-                sentiment_score = excluded.sentiment_score
-        """, (data['date'], data['ticker'], data['video_count'], data['total_views'], 
-              data['avg_likes'], data['sentiment_score']))
-        
-        return data
+        for date_str, stats in daily_stats.items():
+            video_list = stats['videos']
+            count = len(video_list)
+            if count == 0: continue
+            
+            avg_likes = stats['total_likes'] // count
+            sentiment = self.analyze_sentiment(video_list)
+            
+            data = {
+                'ticker': ticker,
+                'date': date_str,
+                'video_count': count,
+                'total_views': stats['view_count'],
+                'avg_likes': avg_likes,
+                'sentiment_score': round(sentiment, 3)
+            }
+            
+            await self.db.execute("""
+                INSERT INTO youtube_metrics (date, ticker, video_count, total_views, avg_likes, sentiment_score)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(date, ticker) DO UPDATE SET
+                    video_count = excluded.video_count,
+                    total_views = excluded.total_views,
+                    avg_likes = excluded.avg_likes,
+                    sentiment_score = excluded.sentiment_score
+            """, (data['date'], data['ticker'], data['video_count'], data['total_views'], 
+                  data['avg_likes'], data['sentiment_score']))
+            
+            results[date_str] = data
+            affected_dates.add(date_str)
+            
+        return {'affected_dates': list(affected_dates), 'details': results}
     
     async def collect_batch(self, stocks: List[Dict], delay: float = 1.0) -> Dict:
         success = 0

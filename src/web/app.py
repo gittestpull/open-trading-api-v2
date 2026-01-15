@@ -411,8 +411,10 @@ def create_app(base_dir: str) -> FastAPI:
         }
     
     @app.get("/api/ai/deepdive/{ticker}")
-    async def ai_deep_dive(ticker: str):
-        report = await ai_analyst.generate_deep_dive_report(ticker)
+    async def ai_deep_dive(ticker: str, mode: str = "simple"):
+        if mode not in ["simple", "deep"]:
+            mode = "simple"
+        report = await ai_analyst.generate_deep_dive_report(ticker, mode=mode)
         if "error" in report:
             raise HTTPException(status_code=404, detail=report["error"])
         return report

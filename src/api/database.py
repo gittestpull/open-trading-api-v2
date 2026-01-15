@@ -121,18 +121,34 @@ class Database:
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS stock_news (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                datetime TEXT NOT NULL,
+                datetime TEXT,
+                date TEXT, 
                 ticker TEXT NOT NULL,
                 title TEXT NOT NULL,
                 content TEXT,
                 sentiment_score REAL,  -- -1 ~ 1
                 source TEXT,
-                url TEXT
+                url TEXT,
+                link TEXT,
+                provider TEXT,
+                UNIQUE(ticker, link)
             )
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_stock_news_ticker ON stock_news(ticker)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_stock_news_datetime ON stock_news(datetime)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_stock_news_date ON stock_news(date)")
         
+        # News Metrics (Daily aggregated)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS news_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                ticker TEXT NOT NULL,
+                news_count INTEGER,
+                sentiment_score REAL,
+                UNIQUE(date, ticker)
+            )
+        """)
+
         # 7. DART 공시
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS dart_disclosure (
@@ -306,6 +322,27 @@ class Database:
         except sqlite3.OperationalError:
             print("[Database] Migrating daily_investor: adding foreign_ratio column")
             cursor.execute("ALTER TABLE daily_investor ADD COLUMN foreign_ratio REAL")
+        
+        # 4. stock_news: link, provider, date 추가
+        try:
+            cursor.execute("SELECT link FROM stock_news LIMIT 1")
+        except sqlite3.OperationalError:
+            print("[Database] Migrating stock_news: adding link column")
+            cursor.execute("ALTER TABLE stock_news ADD COLUMN link TEXT")
+            cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_stock_news_ticker_link ON stock_news(ticker, link)")
+        
+        try:
+            cursor.execute("SELECT provider FROM stock_news LIMIT 1")
+        except sqlite3.OperationalError:
+            print("[Database] Migrating stock_news: adding provider column")
+            cursor.execute("ALTER TABLE stock_news ADD COLUMN provider TEXT")
+        
+        try:
+            cursor.execute("SELECT date FROM stock_news LIMIT 1")
+        except sqlite3.OperationalError:
+             print("[Database] Migrating stock_news: adding date column")
+             cursor.execute("ALTER TABLE stock_news ADD COLUMN date TEXT")
+             cursor.execute("CREATE INDEX IF NOT EXISTS idx_stock_news_date ON stock_news(date)")
     
     async def execute(self, query: str, params: tuple = ()) -> None:
         """비동기 쿼리 실행 (INSERT, UPDATE, DELETE)"""

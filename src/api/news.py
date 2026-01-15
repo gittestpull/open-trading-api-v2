@@ -176,14 +176,16 @@ class NewsCollector:
         return {'affected_dates': list(affected_dates), 'details': results}
 
 
-    async def collect_integrated_news(self, ticker: str, stock_name: str, days: int = 7) -> Dict:
+    async def collect_integrated_news(self, ticker: str, stock_name: str, days: int = 7, max_youtube: int = 50, max_kis: int = 200) -> Dict:
         """
         KIS API + YouTube 통합 뉴스 수집 및 DB 저장
         
         Args:
             ticker: 종목코드
             stock_name: 종목명
-            days: 수집 기간
+            days: 수집 기간 (기본 7일)
+            max_youtube: YouTube 최대 수집 개수 (기본 50개)
+            max_kis: KIS API 최대 수집 개수 (기본 200개, 60일 기준)
         """
         try:
             loop = asyncio.get_running_loop()
@@ -192,8 +194,8 @@ class NewsCollector:
                 self.integrated_collector.collect_all_news,
                 stock_name if stock_name else ticker,
                 days,
-                30,
-                50,
+                max_youtube,
+                max_kis,
                 ["전망", "분석"]
             )
             

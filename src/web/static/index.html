@@ -204,7 +204,12 @@
                         <button type="button" onclick="openStockSearch('deepdiveSearch')" class="absolute right-3 text-gray-400 hover:text-white">🔍</button>
                     </div>
                     <button onclick="loadDeepDive()" class="px-6 py-2 bg-accent-purple hover:bg-purple-600 text-white font-medium rounded-md transition" data-i18n="analyze">Analyze</button>
-                    <button onclick="loadAIDeepDive()" class="px-6 py-2 bg-accent-green hover:bg-green-600 text-white font-medium rounded-md transition" data-i18n="ai_report">AI Report</button>
+                    <button onclick="loadAIDeepDive('simple')" class="px-6 py-2 bg-accent-blue hover:bg-blue-600 text-white font-medium rounded-md transition">
+                        <span data-i18n="ai_simple">AI Simple</span>
+                    </button>
+                    <button onclick="loadAIDeepDive('deep')" class="px-6 py-2 bg-accent-green hover:bg-green-600 text-white font-medium rounded-md transition">
+                        <span data-i18n="ai_deep">AI Deep</span>
+                    </button>
                 </div>
             </div>
 
@@ -251,6 +256,33 @@
                     </div>
                 </div>
             </div>
+
+            <div id="shortCreditTrendSection" class="mt-6 hidden">
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="glass rounded-lg p-5 border border-dark-600">
+                        <h3 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="short_credit_trend_chart">Short/Credit Trend</h3>
+                        <div class="h-64">
+                            <canvas id="shortCreditTrendChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="glass rounded-lg p-5 border border-dark-600">
+                        <h3 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="short_credit_trend_table">Daily Short/Credit</h3>
+                        <div id="shortCreditTrendTable" class="max-h-64 overflow-y-auto scrollbar-thin">
+                            <table class="w-full text-xs">
+                                <thead class="text-gray-500 border-b border-dark-600">
+                                    <tr>
+                                        <th class="py-2 text-left" data-i18n="date">Date</th>
+                                        <th class="py-2 text-right" data-i18n="short_bal">Short Bal</th>
+                                        <th class="py-2 text-right" data-i18n="credit_bal">Credit Bal</th>
+                                        <th class="py-2 text-right" data-i18n="ratio">Ratio</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="shortCreditTrendBody" class="divide-y divide-dark-700"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Human Index Panel -->
@@ -282,7 +314,12 @@
                         <input type="text" id="humanIndexTicker" placeholder="Enter ticker..." class="w-full pl-4 pr-10 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
                         <button type="button" onclick="openStockSearch('humanIndexTicker')" class="absolute right-3 text-gray-400 hover:text-white">🔍</button>
                     </div>
+                    <div class="w-24 flex items-center">
+                        <input type="number" id="humanIndexDays" value="60" min="1" max="365" class="w-full py-2 px-2 bg-dark-900 border border-dark-600 rounded-md text-sm text-center" placeholder="Days">
+                        <span class="ml-1 text-xs text-gray-500">days</span>
+                    </div>
                     <button onclick="loadHumanIndex()" class="px-6 py-2 bg-accent-blue hover:bg-blue-600 text-white font-medium rounded-md transition" data-i18n="check">Check</button>
+                    <button onclick="collectHumanIndexNow()" id="btnCollectHumanNow" class="px-6 py-2 bg-accent-purple hover:bg-purple-600 text-white font-medium rounded-md transition" data-i18n="collect">Collect</button>
                 </div>
                 <div id="humanIndexResult" class="grid grid-cols-3 gap-4">
                     <div class="p-4 bg-dark-900 rounded-lg text-center">
@@ -597,7 +634,66 @@
                         <button type="submit" class="w-full py-2 bg-accent-blue hover:bg-blue-600 text-white font-medium rounded-md transition mt-2">
                             <span id="histBtnText" data-i18n="collect_data">Collect Data</span>
                         </button>
+                        
+                        <div class="flex gap-2 mt-2">
+                            <div class="w-24 flex items-center bg-dark-900 border border-dark-600 rounded-md px-2">
+                                <input type="number" id="histHumanDays" value="60" min="1" max="365" class="w-full bg-transparent text-white text-sm text-center focus:outline-none" placeholder="60">
+                                <span class="text-xs text-gray-500">days</span>
+                            </div>
+                            <button type="button" id="btnCollectHuman" class="flex-1 py-2 bg-accent-purple hover:bg-purple-600 text-white font-medium rounded-md transition">
+                                <span id="humanBtnText" data-i18n="collect_human_index">Collect Human Index</span>
+                            </button>
+                        </div>
+                        
+                        <!-- Log Area -->
+                        <div class="mt-4">
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-xs text-gray-500">Collection Logs</label>
+                                <button type="button" id="btnClearHistoryLogs" class="text-xs text-gray-600 hover:text-white">Clear</button>
+                            </div>
+                            <div id="historyLogs" class="h-32 bg-dark-900 rounded border border-dark-700 p-2 text-xs font-mono overflow-y-auto scrollbar-thin">
+                                <div class="text-gray-600 italic text-center py-10">Logs will appear here...</div>
+                            </div>
+                        </div>
                     </form>
+
+                    <!-- Bulk Collection Section -->
+                    <div class="mt-6 pt-4 border-t border-dark-600">
+                        <h3 class="text-sm font-semibold text-accent-green mb-3">📦 Bulk Collection</h3>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">Selected Stocks</label>
+                                <div id="bulkTickerTags" class="flex flex-wrap gap-1 min-h-[40px] p-2 bg-dark-900 border border-dark-600 rounded-md">
+                                    <span class="text-xs text-gray-600">Click + to add</span>
+                                </div>
+                                <button type="button" onclick="openBulkStockSearch()" class="w-full mt-2 py-2 bg-dark-700 hover:bg-dark-600 text-white text-xs rounded-md transition flex items-center justify-center gap-1">
+                                    <span class="text-lg">+</span> Add Stocks
+                                </button>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">Timeframes</label>
+                                <div class="flex flex-wrap gap-2">
+                                    <label class="flex items-center gap-1 text-xs text-gray-400 cursor-pointer">
+                                        <input type="checkbox" id="bulk1m" class="rounded"> <span class="text-accent-yellow">1m</span>
+                                    </label>
+                                    <label class="flex items-center gap-1 text-xs text-gray-400 cursor-pointer">
+                                        <input type="checkbox" id="bulkD" checked class="rounded"> D
+                                    </label>
+                                    <label class="flex items-center gap-1 text-xs text-gray-400 cursor-pointer">
+                                        <input type="checkbox" id="bulkW" checked class="rounded"> W
+                                    </label>
+                                    <label class="flex items-center gap-1 text-xs text-gray-400 cursor-pointer">
+                                        <input type="checkbox" id="bulkM" checked class="rounded"> M
+                                    </label>
+                                </div>
+                                <p class="text-xs text-gray-600 mt-1">1m = 하루 전체 분봉</p>
+                            </div>
+                            <button onclick="collectBulk()" class="w-full py-2 bg-accent-green hover:bg-green-600 text-white font-medium rounded-md transition">
+                                <span id="bulkBtnText">Collect 1 Year</span>
+                            </button>
+                            <div id="bulkProgress" class="hidden text-xs text-accent-green text-center"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Results Panel -->
@@ -606,9 +702,9 @@
                         <h2 class="text-sm font-semibold text-gray-400" data-i18n="collected_data">Collected Data</h2>
                         <span id="histCount" class="text-xs text-accent-blue"></span>
                     </div>
-                    <div class="overflow-x-auto">
+                    <div class="overflow-x-auto max-h-[300px] scrollbar-thin">
                         <table class="w-full text-sm text-left">
-                            <thead class="text-xs text-gray-500 uppercase bg-dark-800">
+                            <thead class="text-xs text-gray-500 uppercase bg-dark-800 sticky top-0">
                                 <tr>
                                     <th class="px-4 py-3">Date</th>
                                     <th class="px-4 py-3 text-right">Open</th>
@@ -623,9 +719,54 @@
                             </tbody>
                         </table>
                     </div>
+
+                    <!-- Data Overview -->
+                    <div class="mt-6 pt-4 border-t border-dark-600">
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="text-sm font-semibold text-gray-400">📊 Data Overview</h3>
+                            <button onclick="loadHistoryOverview()" class="px-2 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded">Refresh</button>
+                        </div>
+                        <div class="overflow-x-auto max-h-[200px] scrollbar-thin">
+                            <table class="w-full text-xs text-left">
+                                <thead class="text-gray-500 uppercase bg-dark-800 sticky top-0">
+                                    <tr>
+                                        <th class="px-3 py-2">Ticker</th>
+                                        <th class="px-3 py-2">Name</th>
+                                        <th class="px-3 py-2">TF</th>
+                                        <th class="px-3 py-2 text-right">Count</th>
+                                        <th class="px-3 py-2">Range</th>
+                                        <th class="px-3 py-2 text-center">View</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="histOverviewBody" class="divide-y divide-dark-700">
+                                    <tr><td colspan="6" class="px-3 py-4 text-center text-gray-600">Click Refresh</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
+
+        <!-- Bulk Stock Search Modal -->
+        <div id="modal-bulk-stock-search" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div class="glass w-full max-w-md p-6 rounded-xl border border-dark-600 shadow-2xl">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold text-white">Add Stocks</h3>
+                    <button onclick="closeBulkStockSearch()" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+                </div>
+                <input type="text" id="bulkSearchInput" placeholder="Search stocks..." 
+                    class="w-full px-4 py-2 bg-dark-900 border border-dark-600 rounded-md text-white mb-4"
+                    oninput="searchBulkStocks(this.value)">
+                <div id="bulkSearchResults" class="max-h-60 overflow-y-auto space-y-1">
+                    <div class="text-center text-gray-500 py-4">Type to search</div>
+                </div>
+                <button onclick="closeBulkStockSearch()" class="w-full mt-4 py-2 bg-accent-green hover:bg-green-600 text-white font-medium rounded-md">
+                    Done
+                </button>
+            </div>
+        </div>
+
         <div id="panel-admin" class="hidden">
             <div class="grid md:grid-cols-2 gap-6">
                 <div class="glass rounded-lg p-5 border border-dark-600">
@@ -1199,28 +1340,32 @@
             }
         }
 
-        async function loadAIDeepDive() {
+        async function loadAIDeepDive(mode = 'simple') {
             const ticker = document.getElementById('deepdiveSearch').value.trim();
             if (!ticker) return;
             document.getElementById('aiReportContent').classList.remove('hidden');
-            document.getElementById('aiReport').innerHTML = '<div class="text-gray-500">Generating AI report...</div>';
+            const modeLabel = mode === 'deep' ? 'Deep (GPT-4o)' : 'Simple (GPT-4o-mini)';
+            document.getElementById('aiReport').innerHTML = `<div class="text-gray-500">Generating ${modeLabel} AI report...</div>`;
             try {
-                const res = await fetch(`/api/ai/deepdive/${ticker}`);
+                const res = await fetch(`/api/ai/deepdive/${ticker}?mode=${mode}`);
                 if (!res.ok) throw new Error('Failed to generate report');
                 const data = await res.json();
-                renderAIReport(data);
+                renderAIReport(data, mode);
             } catch (e) {
                 document.getElementById('aiReport').innerHTML = `<div class="text-accent-red">${e.message}</div>`;
             }
         }
 
-        function renderAIReport(data) {
+        function renderAIReport(data, mode = 'simple') {
             const a = data.analysis || {};
             const rec = a.recommendation || 'HOLD';
             const recClass = rec === 'BUY' ? 'text-accent-green' : rec === 'SELL' ? 'text-accent-red' : 'text-accent-yellow';
+            const modeLabel = mode === 'deep' ? '🔍 Deep' : '⚡ Simple';
+            const modeBadge = mode === 'deep' ? 'bg-accent-green' : 'bg-accent-blue';
             document.getElementById('aiReport').innerHTML = `
                 <div class="flex items-center gap-4 mb-4">
                     <span class="text-2xl font-bold ${recClass}">${rec}</span>
+                    <span class="px-3 py-1 rounded text-sm ${modeBadge} text-white">${modeLabel}</span>
                     <span class="px-3 py-1 rounded text-sm ${a.risk_level === 'HIGH' ? 'bg-accent-red' : a.risk_level === 'LOW' ? 'bg-accent-green' : 'bg-accent-yellow'} text-black">Risk: ${a.risk_level || '-'}</span>
                     ${a.target_price ? `<span class="text-gray-400">Target: ${a.target_price.toLocaleString()}원</span>` : ''}
                 </div>
@@ -1243,6 +1388,7 @@
             const latestPrice = data.price_history[0] || {};
             const latestStats = data.stats_history[0] || {};
             const latestInvestor = data.investor_history[0] || {};
+            const latestShortCredit = data.short_credit?.[0] || {};
 
             document.getElementById('stockInfo').innerHTML = `
                 <div class="space-y-4">
@@ -1274,10 +1420,16 @@
                     <div class="flex justify-between"><span class="text-gray-500">EPS</span><span>${latestStats.eps ? latestStats.eps.toLocaleString() : '-'}</span></div>
                     <div class="flex justify-between"><span class="text-gray-500">BPS</span><span>${latestStats.bps ? latestStats.bps.toLocaleString() : '-'}</span></div>
                     <div class="flex justify-between"><span class="text-gray-500">Foreign Ratio</span><span>${latestInvestor.foreign_ratio ? latestInvestor.foreign_ratio.toFixed(1) + '%' : '-'}</span></div>
+                    <div class="border-t border-dark-600 pt-2 mt-2"></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Short Ratio</span><span class="text-accent-red">${latestShortCredit.short_ratio ? latestShortCredit.short_ratio.toFixed(2) + '%' : '-'}</span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Credit Ratio</span><span class="text-yellow-500">${latestShortCredit.credit_ratio ? latestShortCredit.credit_ratio.toFixed(2) + '%' : '-'}</span></div>
+                    <div class="flex justify-between text-xs text-gray-500 mt-1"><span>Short Bal</span><span>${latestShortCredit.short_balance ? (latestShortCredit.short_balance/1000).toFixed(0) + 'K' : '-'}</span></div>
+                    <div class="flex justify-between text-xs text-gray-500"><span>Credit Bal</span><span>${latestShortCredit.credit_balance ? (latestShortCredit.credit_balance/1000).toFixed(0) + 'K' : '-'}</span></div>
                 </div>
             `;
 
             renderInvestorTrend(data.investor_history || []);
+            renderShortCreditTrend(data.short_credit || []);
         }
 
         let investorChart = null;
@@ -1374,6 +1526,119 @@
             }).join('');
         }
 
+        let shortCreditChart = null;
+
+        function renderShortCreditTrend(history) {
+            const section = document.getElementById('shortCreditTrendSection');
+            
+            if (!history || history.length === 0) {
+                section.classList.add('hidden');
+                return;
+            }
+            
+            section.classList.remove('hidden');
+            
+            const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date));
+            const labels = sorted.map(d => d.date.slice(5));
+            const shortData = sorted.map(d => (d.short_balance || 0));
+            const creditData = sorted.map(d => (d.credit_balance || 0));
+            
+            const ctx = document.getElementById('shortCreditTrendChart').getContext('2d');
+            
+            if (shortCreditChart) {
+                shortCreditChart.destroy();
+            }
+            
+            shortCreditChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: t('credit_bal') || 'Credit Bal',
+                            data: creditData,
+                            borderColor: '#d29922', // yellow
+                            backgroundColor: 'rgba(210, 153, 34, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: t('short_bal') || 'Short Bal',
+                            data: shortData,
+                            borderColor: '#f85149', // red
+                            backgroundColor: 'rgba(248, 81, 73, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: { color: '#9ca3af', font: { size: 11 } }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#6b7280', font: { size: 10 } },
+                            grid: { color: '#30363d' }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            ticks: { 
+                                color: '#d29922', 
+                                font: { size: 10 },
+                                callback: v => (v/1000).toFixed(0) + 'K'
+                            },
+                            grid: { color: '#30363d' },
+                            title: { display: true, text: 'Credit', color: '#d29922' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            ticks: { 
+                                color: '#f85149', 
+                                font: { size: 10 },
+                                callback: v => (v/1000).toFixed(0) + 'K'
+                            },
+                            grid: { drawOnChartArea: false },
+                            title: { display: true, text: 'Short', color: '#f85149' }
+                        }
+                    }
+                }
+            });
+            
+            const tbody = document.getElementById('shortCreditTrendBody');
+            const reversed = [...sorted].reverse();
+            tbody.innerHTML = reversed.map(d => {
+                const sBal = (d.short_balance || 0);
+                const cBal = (d.credit_balance || 0);
+                const sRatio = (d.short_ratio || 0).toFixed(2);
+                const cRatio = (d.credit_ratio || 0).toFixed(2);
+                
+                return `
+                    <tr>
+                        <td class="py-2 text-gray-400">${d.date}</td>
+                        <td class="py-2 text-right text-accent-red">${(sBal/1000).toFixed(0)}K</td>
+                        <td class="py-2 text-right text-accent-yellow">${(cBal/1000).toFixed(0)}K</td>
+                        <td class="py-2 text-right text-gray-300">S:${sRatio}% C:${cRatio}%</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
         async function loadFomoAlerts() {
             try {
                 const res = await fetch('/api/human-index/fomo-alerts?threshold=70');
@@ -1402,6 +1667,50 @@
                     </div>
                 `).join('');
             } catch (e) { console.error(e); }
+        }
+
+        async function collectHumanIndexNow() {
+            const btn = document.getElementById('btnCollectHumanNow');
+            const originalText = btn.textContent;
+            
+            const ticker = document.getElementById('humanIndexTicker').value.trim();
+            const days = document.getElementById('humanIndexDays').value || 30;
+            
+            if (!ticker) {
+                alert('Please enter a ticker');
+                return;
+            }
+            
+            try {
+                btn.disabled = true;
+                btn.textContent = 'Collecting...';
+                
+                const res = await fetch(`/api/human-index/${ticker}/collect?days=${days}`, {
+                    method: 'POST'
+                });
+                
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'Collection failed');
+                }
+                
+                const result = await res.json();
+                
+                let msg = `Collection ${result.status}`;
+                if (result.details) {
+                    const updates = result.details.history_updates || 0;
+                    msg += `\nUpdated ${updates} historical records.`;
+                }
+                
+                alert(msg);
+                loadHumanIndex(); // Reload charts
+                
+            } catch (e) {
+                alert(e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
         }
 
         async function loadHumanIndex() {
@@ -2216,11 +2525,115 @@
         setInterval(fetchStates, 10000);
         applyTranslations();
     </script>
-</body>
-</html>
-<script>
-    // Append History Logic
-    document.getElementById('historyForm').addEventListener('submit', async e => {
+    <script>
+        // WebSocket for History Logs
+        let historyLogWs = null;
+        let historyLogConnected = false;
+
+        function connectHistoryLogStream() {
+            if (historyLogWs) return;
+            
+            const container = document.getElementById('historyLogs');
+            if (!container) return; // Guard in case element doesn't exist yet
+            
+            const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            historyLogWs = new WebSocket(`${wsProtocol}//${location.host}/ws/collection-logs`);
+            
+            historyLogWs.onopen = () => {
+                historyLogConnected = true;
+                const line = document.createElement('div');
+                line.className = 'text-accent-green py-0.5';
+                line.textContent = 'Log stream connected...';
+                
+                if (container.querySelector('.text-center')) {
+                    container.innerHTML = '';
+                }
+                container.appendChild(line);
+            };
+            
+            historyLogWs.onmessage = e => {
+                try {
+                    const log = JSON.parse(e.data);
+                    if (log.message.includes('[HumanIndex]')) {
+                        const line = document.createElement('div');
+                        line.className = `py-0.5 ${log.level === 'ERROR' ? 'text-accent-red' : 'text-gray-300'}`;
+                        line.textContent = `[${log.timestamp}] ${log.message}`;
+                        
+                        container.appendChild(line);
+                        container.scrollTop = container.scrollHeight;
+                    }
+                } catch (err) {
+                    console.error(err);
+                }
+            };
+            
+            historyLogWs.onclose = () => {
+                historyLogConnected = false;
+                historyLogWs = null;
+            };
+        }
+
+        document.getElementById('btnClearHistoryLogs')?.addEventListener('click', () => {
+            const container = document.getElementById('historyLogs');
+            if(container) container.innerHTML = '<div class="text-gray-600 italic text-center py-10">Logs will appear here...</div>';
+        });
+
+        // Initialize connection
+        // Use timeout to ensure DOM is ready if script is at bottom
+        setTimeout(connectHistoryLogStream, 1000);
+
+        // Append History Logic
+        document.getElementById('btnCollectHuman').addEventListener('click', async () => {
+            const btn = document.getElementById('btnCollectHuman');
+            const originalText = document.getElementById('humanBtnText').textContent;
+            
+            const ticker = document.getElementById('histTicker').value;
+            const days = document.getElementById('histHumanDays').value || 30;
+            
+            if (!ticker) {
+                alert('Please enter a ticker');
+                return;
+            }
+            
+            try {
+                btn.disabled = true;
+                document.getElementById('humanBtnText').textContent = 'Collecting...';
+                
+                const res = await fetch(`/api/human-index/${ticker}/collect?days=${days}`, {
+                    method: 'POST'
+                });
+                
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'Collection failed');
+                }
+                
+                const result = await res.json();
+                
+                let msg = `Collection ${result.status}`;
+                if (result.details) {
+                    const updates = result.details.history_updates || 0;
+                    msg += `\nUpdated ${updates} historical records.`;
+                    
+                    if (result.details.youtube) {
+                        msg += `\nYouTube: ${result.details.youtube.details ? Object.keys(result.details.youtube.details).length : 0} videos`;
+                    }
+                    if (result.details.naver) {
+                        msg += `\nNaver: ${result.details.naver.details ? Object.keys(result.details.naver.details).length : 0} days`;
+                    }
+                }
+                
+                alert(msg);
+                
+            } catch (e) {
+                alert(e.message);
+            } finally {
+                btn.disabled = false;
+                document.getElementById('humanBtnText').textContent = originalText;
+            }
+        });
+
+        document.getElementById('historyForm').addEventListener('submit', async e => {
         e.preventDefault();
         const btn = e.target.querySelector('button');
         const originalText = document.getElementById('histBtnText').textContent;
@@ -2291,6 +2704,150 @@
             </tr>
         `).join('');
     }
+
+    const bulkSelectedTickers = new Map();
+
+    function openBulkStockSearch() {
+        document.getElementById('modal-bulk-stock-search').classList.remove('hidden');
+        document.getElementById('bulkSearchInput').focus();
+    }
+
+    function closeBulkStockSearch() {
+        document.getElementById('modal-bulk-stock-search').classList.add('hidden');
+    }
+
+    async function searchBulkStocks(query) {
+        if (!query || query.length < 1) {
+            document.getElementById('bulkSearchResults').innerHTML = '<div class="text-center text-gray-500 py-4">Type to search</div>';
+            return;
+        }
+        try {
+            const res = await fetch(`/api/stocks/search?q=${encodeURIComponent(query)}&limit=20`);
+            const data = await res.json();
+            const stocks = data.stocks || data;
+            if (!stocks || !stocks.length) {
+                document.getElementById('bulkSearchResults').innerHTML = '<div class="text-center text-gray-500 py-4">No results</div>';
+                return;
+            }
+            document.getElementById('bulkSearchResults').innerHTML = stocks.map(s => `
+                <div class="flex justify-between items-center p-2 hover:bg-dark-700 rounded cursor-pointer" onclick="toggleBulkTicker('${s.ticker}', '${s.name}')">
+                    <div>
+                        <span class="text-white font-medium">${s.ticker}</span>
+                        <span class="text-gray-400 text-sm ml-2">${s.name}</span>
+                    </div>
+                    <span class="text-lg ${bulkSelectedTickers.has(s.ticker) ? 'text-accent-green' : 'text-gray-600'}">${bulkSelectedTickers.has(s.ticker) ? '✓' : '+'}</span>
+                </div>
+            `).join('');
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    function toggleBulkTicker(ticker, name) {
+        if (bulkSelectedTickers.has(ticker)) {
+            bulkSelectedTickers.delete(ticker);
+        } else {
+            bulkSelectedTickers.set(ticker, name);
+        }
+        updateBulkTickerTags();
+        searchBulkStocks(document.getElementById('bulkSearchInput').value);
+    }
+
+    function removeBulkTicker(ticker) {
+        bulkSelectedTickers.delete(ticker);
+        updateBulkTickerTags();
+    }
+
+    function updateBulkTickerTags() {
+        const container = document.getElementById('bulkTickerTags');
+        if (bulkSelectedTickers.size === 0) {
+            container.innerHTML = '<span class="text-xs text-gray-600">Click + to add</span>';
+            return;
+        }
+        container.innerHTML = Array.from(bulkSelectedTickers.entries()).map(([ticker, name]) => `
+            <span class="inline-flex items-center gap-1 px-2 py-1 bg-accent-green/20 text-accent-green text-xs rounded-full">
+                ${ticker}
+                <button onclick="removeBulkTicker('${ticker}')" class="hover:text-white">×</button>
+            </span>
+        `).join('');
+    }
+
+    async function collectBulk() {
+        if (bulkSelectedTickers.size === 0) {
+            alert('Add at least one stock');
+            return;
+        }
+
+        const tickers = Array.from(bulkSelectedTickers.keys());
+        const timeframes = [];
+        if (document.getElementById('bulk1m').checked) timeframes.push('1m');
+        if (document.getElementById('bulkD').checked) timeframes.push('D');
+        if (document.getElementById('bulkW').checked) timeframes.push('W');
+        if (document.getElementById('bulkM').checked) timeframes.push('M');
+
+        if (timeframes.length === 0) {
+            alert('Select at least one timeframe');
+            return;
+        }
+
+        const today = new Date();
+        const endDate = today.toISOString().slice(0,10).replace(/-/g, '');
+        const startDate = new Date(today.setFullYear(today.getFullYear() - 1)).toISOString().slice(0,10).replace(/-/g, '');
+
+        const btn = document.getElementById('bulkBtnText');
+        const progress = document.getElementById('bulkProgress');
+        
+        try {
+            btn.textContent = 'Collecting...';
+            progress.classList.remove('hidden');
+            progress.textContent = `0/${tickers.length} stocks`;
+
+            const res = await fetch('/api/history/collect-bulk-sync', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ tickers, start_date: startDate, end_date: endDate, timeframes })
+            });
+
+            const result = await res.json();
+            progress.textContent = `Done! ${result.total_records} records collected`;
+            alert(`Collected ${result.total_records} records for ${tickers.length} stocks`);
+            loadHistoryOverview();
+        } catch (e) {
+            alert('Error: ' + e.message);
+        } finally {
+            btn.textContent = 'Collect 1 Year';
+        }
+    }
+
+    async function loadHistoryOverview() {
+        const tbody = document.getElementById('histOverviewBody');
+        tbody.innerHTML = '<tr><td colspan="6" class="px-3 py-4 text-center text-gray-600">Loading...</td></tr>';
+        
+        try {
+            const res = await fetch('/api/history/overview');
+            const data = await res.json();
+            
+            if (!data.summary || !data.summary.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="px-3 py-4 text-center text-gray-600">No data collected yet</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = data.summary.map(r => `
+                <tr class="hover:bg-dark-700">
+                    <td class="px-3 py-2 text-accent-blue font-medium">${r.ticker}</td>
+                    <td class="px-3 py-2 text-gray-300">${r.name}</td>
+                    <td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs ${r.timeframe === '1m' ? 'bg-accent-yellow/20 text-accent-yellow' : 'bg-dark-700'}">${r.timeframe}</span></td>
+                    <td class="px-3 py-2 text-right text-gray-400">${r.count.toLocaleString()}</td>
+                    <td class="px-3 py-2 text-gray-500 text-xs">${r.start_date.split(' ')[0]} ~ ${r.end_date.split(' ')[0]}</td>
+                    <td class="px-3 py-2 text-center">
+                        <button onclick="openHistoryViewer('${r.ticker}', '${r.name}')" class="px-2 py-1 text-xs bg-accent-blue/20 hover:bg-accent-blue text-accent-blue hover:text-white rounded transition">View</button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (e) {
+            tbody.innerHTML = `<tr><td colspan="6" class="px-3 py-4 text-center text-accent-red">${e.message}</td></tr>`;
+        }
+    }
 </script>
     <!-- History Viewer Modal -->
     <div id="modal-history-viewer" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -2310,6 +2867,7 @@
                 <button onclick="switchHistTab('W')" id="tab-hist-W" class="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors border-b-2 border-transparent">Weekly</button>
                 <button onclick="switchHistTab('M')" id="tab-hist-M" class="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors border-b-2 border-transparent">Monthly</button>
                 <button onclick="switchHistTab('C')" id="tab-hist-C" class="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors border-b-2 border-transparent">Coverage Map</button>
+                <button onclick="switchHistTab('H')" id="tab-hist-H" class="px-4 py-2 text-sm text-accent-purple hover:text-white transition-colors border-b-2 border-transparent">Human Index Map</button>
             </div>
 
             <!-- Actions -->
@@ -2432,7 +2990,8 @@
             tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-600">Loading...</td></tr>';
             
             try {
-                const res = await fetch(`/api/history/${currentHistTicker}?timeframe=${currentHistTimeframe}&limit=200`);
+                const limit = currentHistTimeframe === '1m' ? 500 : 200;
+                const res = await fetch(`/api/history/${currentHistTicker}?timeframe=${currentHistTimeframe}&limit=${limit}`);
                 const data = await res.json();
                 
                 if (!data.history || !data.history.length) {
@@ -2440,7 +2999,12 @@
                     return;
                 }
 
-                tbody.innerHTML = data.history.map(r => `
+                let rows = data.history;
+                if (currentHistTimeframe === '1m') {
+                    rows = rows.slice().sort((a, b) => a.datetime.localeCompare(b.datetime));
+                }
+
+                tbody.innerHTML = rows.map(r => `
                     <tr class="hover:bg-dark-700 transition-colors">
                         <td class="px-4 py-2 font-mono text-gray-400 text-xs">${r.datetime}</td>
                         <td class="px-4 py-2 text-right">${r.open.toLocaleString()}</td>
@@ -2534,7 +3098,8 @@
             const res = await fetch(`/api/admin/scheduler/start?hour=${hour}&minute=${minute}`, { method: 'POST' });
             if (res.ok) {
                 document.getElementById('modal-scheduler-time').classList.add('hidden');
-                loadSchedulerStatus();
+                loadAdminData(); // Refresh admin panel data
+                alert('Scheduler started successfully!');
             } else {
                 alert('Failed to start scheduler');
             }
@@ -2543,15 +3108,22 @@
             alert(e.message);
         }
     }
+
+    async function loadSchedulerStatus() {
+        // Alias for loadAdminData to maintain compatibility
+        await loadAdminData();
+    }
 </script>
 <script>
     // Coverage Map Logic
-    async function loadCoverageData() {
+    async function loadCoverageData(timeframeOverride = null) {
         const container = document.getElementById('coverageCalendar');
         container.innerHTML = '<div class="text-center text-gray-500 py-10">Loading map...</div>';
         
         try {
-            const res = await fetch(`/api/history/coverage/${currentHistTicker}?timeframe=${currentHistTimeframe}`);
+            // Use override if provided (e.g. 'H'), otherwise use current (e.g. 'D' for coverage tab)
+            const tf = timeframeOverride || currentHistTimeframe;
+            const res = await fetch(`/api/history/coverage/${currentHistTicker}?timeframe=${tf}`);
             const data = await res.json();
             const dateSet = new Set(data.dates);
             
@@ -2628,10 +3200,10 @@
     // Hook into tab switching
     const originalSwitchHistTab = window.switchHistTab; // Save original function if possible or overwrite smart
     window.switchHistTab = function(tf) {
-        currentHistTimeframe = tf === 'C' ? 'D' : tf; // Default to Daily for coverage view logic if 'C' selected
+        currentHistTimeframe = (tf === 'C' || tf === 'H') ? 'D' : tf; // Default to Daily for coverage view logic if 'C' or 'H' selected
         
         // Tab Styles
-        ['1m', 'D', 'W', 'M', 'C'].forEach(t => {
+        ['1m', 'D', 'W', 'M', 'C', 'H'].forEach(t => {
             const tab = document.getElementById(`tab-hist-${t}`);
             if (tab) {
                 if (t === tf) {
@@ -2645,14 +3217,27 @@
         const tableView = document.querySelector('#modal-history-viewer table').parentNode; // The scrollable div
         const coverageView = document.getElementById('histCoverageView');
 
-        if (tf === 'C') {
+        if (tf === 'C' || tf === 'H') {
             tableView.classList.add('hidden');
             coverageView.classList.remove('hidden');
-            loadCoverageData();
+            
+            // Set title based on type
+            const titleEl = coverageView.querySelector('h4');
+            if (tf === 'H') {
+                titleEl.textContent = 'Human Index Availability Heatmap (Last 1 Year)';
+                // Change logic to load human index coverage
+                loadCoverageData('H');
+            } else {
+                titleEl.textContent = 'Data Availability Heatmap (Last 1 Year)';
+                loadCoverageData('D');
+            }
         } else {
             tableView.classList.remove('hidden');
             coverageView.classList.add('hidden');
             loadHistoryViewData();
         }
     };
+
 </script>
+</body>
+</html>
