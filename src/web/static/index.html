@@ -1646,7 +1646,7 @@
                 const container = document.getElementById('fomoAlerts');
                 if (!data.stocks?.length) { container.innerHTML = '<div class="text-center text-gray-600 py-4">No FOMO alerts</div>'; return; }
                 container.innerHTML = data.stocks.map(s => `
-                    <div class="p-3 bg-dark-900 rounded-lg heatmap-hot text-white">
+                    <div class="p-3 bg-dark-900 rounded-lg heatmap-hot text-white cursor-pointer hover:bg-dark-700 transition" onclick="loadHumanIndexFromSignal('${s.ticker}')">
                         <div class="font-medium">${s.name || s.ticker} <span class="text-xs opacity-75">${s.ticker}</span></div>
                         <div class="text-sm mt-1">FOMO: ${s.fomo_level?.toFixed(0) || 0} | Attention: ${s.attention_score?.toFixed(0) || 0}</div>
                     </div>
@@ -1661,12 +1661,17 @@
                 const container = document.getElementById('bottomSignals');
                 if (!data.stocks?.length) { container.innerHTML = '<div class="text-center text-gray-600 py-4">No bottom signals</div>'; return; }
                 container.innerHTML = data.stocks.map(s => `
-                    <div class="p-3 bg-dark-900 rounded-lg heatmap-cool text-white">
+                    <div class="p-3 bg-dark-900 rounded-lg heatmap-cool text-white cursor-pointer hover:bg-dark-700 transition" onclick="loadHumanIndexFromSignal('${s.ticker}')">
                         <div class="font-medium">${s.name || s.ticker} <span class="text-xs opacity-75">${s.ticker}</span></div>
                         <div class="text-sm mt-1">Attention: ${s.attention_score?.toFixed(0) || 0} | Sentiment: ${s.crowd_sentiment?.toFixed(2) || 0}</div>
                     </div>
                 `).join('');
             } catch (e) { console.error(e); }
+        }
+
+        async function loadHumanIndexFromSignal(ticker) {
+            document.getElementById('humanIndexTicker').value = ticker;
+            await loadHumanIndex();
         }
 
         async function collectHumanIndexNow() {
