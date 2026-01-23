@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import asyncio
 import logging
+import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from typing import Optional, Callable
@@ -36,6 +37,20 @@ class CollectionScheduler:
     def set_on_complete_callback(self, callback: Callable):
         self._on_complete_callback = callback
     
+    async def initialize(self):
+        """Initialize scheduler state from database"""
+        from .database import get_database
+        db = get_database()
+        
+        # Load minute tickers
+        tickers_json = await db.get_config("minute_tickers")
+        if tickers_json:
+            try:
+                self._minute_tickers = json.loads(tickers_json)
+                logger.info(f"[Scheduler] Loaded minute tickers: {self._minute_tickers}")
+            except json.JSONDecodeError:
+                logger.error("[Scheduler] Failed to decode minute_tickers config")
+
     async def _run_daily_collection(self):
         start_time = datetime.now()
         log_msg = f"[{start_time.strftime('%H:%M')}] Daily collection triggered"
@@ -221,6 +236,10 @@ class CollectionScheduler:
         self.scheduler.start()
         self._is_running = True
         logger.info(f"[Scheduler] Started - Daily collection at {hour:02d}:{minute:02d} (Mon-Fri)")
+        
+        # Start minute collection if configured
+        if self._minute_tickers:
+            self.start_minute_collection()
     
     def stop(self):
         if not self._is_running:
@@ -270,9 +289,14 @@ class CollectionScheduler:
             'minute_tickers': self._minute_tickers
         }
 
-    def set_minute_tickers(self, tickers: list[str]):
+    async def set_minute_tickers(self, tickers: list[str]):
         self._minute_tickers = tickers
         logger.info(f"[Scheduler] Minute collection tickers set: {tickers}")
+        
+        # Save to DB
+        from .database import get_database
+        db = get_database()
+        await db.set_config("minute_tickers", json.dumps(tickers))
 
     async def _run_minute_collection(self):
         if not self._minute_tickers:

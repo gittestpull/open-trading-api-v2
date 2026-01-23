@@ -290,6 +290,24 @@ class Database:
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        # 17. 섹터 분석 결과
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sector_analysis (
+                sector_name TEXT PRIMARY KEY,
+                data TEXT NOT NULL,  -- JSON data
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # 18. 시스템 설정 (System Config)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS system_config (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         
         # 마이그레이션 실행
         self._migrate_tables(conn)
@@ -484,6 +502,22 @@ class Database:
         """
         today = datetime.now().strftime("%Y-%m-%d")
         await self.execute(query, (today, collection_type, total, success, failed, duration))
+
+    async def get_config(self, key: str) -> Optional[str]:
+        """시스템 설정 조회"""
+        row = await self.fetch_one("SELECT value FROM system_config WHERE key = ?", (key,))
+        return row['value'] if row else None
+
+    async def set_config(self, key: str, value: str):
+        """시스템 설정 저장"""
+        query = """
+            INSERT INTO system_config (key, value, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                updated_at = excluded.updated_at
+        """
+        await self.execute(query, (key, value))
 
 
 # 싱글톤 인스턴스

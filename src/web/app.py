@@ -80,6 +80,16 @@ class SimulatorTradeRequest(BaseModel):
     amount: Optional[float] = None
 
 
+class SectorRequest(BaseModel):
+    sector: str
+    force_refresh: bool = False
+
+
+class SectorUpdateRequest(BaseModel):
+    sector: str
+    data: dict
+
+
 def create_app(base_dir: str) -> FastAPI:
     app = FastAPI(title="Deep Dive Investment Platform", version="2.0.0")
     manager = ProcessManager(base_dir)
@@ -426,6 +436,34 @@ def create_app(base_dir: str) -> FastAPI:
         result = await ai_analyst.compare_stocks(tickers)
         return result
     
+    @app.post("/api/global/sector-leaders")
+    async def get_global_sector_leaders(req: SectorRequest):
+        result = await ai_analyst.get_global_sector_leaders(req.sector, req.force_refresh)
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+        return result
+    
+    @app.get("/api/global/sectors")
+    async def get_saved_sectors():
+        results = await ai_analyst.get_saved_sectors()
+        return {"sectors": results}
+
+    @app.put("/api/global/sector-leaders")
+    async def update_sector_leaders(req: SectorUpdateRequest):
+        success = await ai_analyst.update_sector_data(req.sector, req.data)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to update sector data")
+        return {"status": "updated"}
+
+    @app.post("/api/history/collect-sector")
+    async def collect_sector_history(req: SectorUpdateRequest, background_tasks: BackgroundTasks):
+        async def run_collection():
+            await history_collector.init_db()
+            await history_collector.collect_sector_history(req.data, days=365)
+        
+        background_tasks.add_task(run_collection)
+        return {"status": "started", "message": f"Collecting 1 year history for sector: {req.sector}"}
+
     @app.post("/api/backtest/run")
     async def run_backtest(req: BacktestRequest):
         if req.strategy == "ma":
@@ -637,7 +675,7 @@ def create_app(base_dir: str) -> FastAPI:
 
     @app.post("/api/admin/minute-tickers")
     async def set_minute_tickers(req: MinuteTickersRequest):
-        scheduler.set_minute_tickers(req.tickers)
+        await scheduler.set_minute_tickers(req.tickers)
         scheduler.start_minute_collection()
         return {"status": "success", "tickers": req.tickers}
 
@@ -664,6 +702,7 @@ def create_app(base_dir: str) -> FastAPI:
     @app.on_event("startup")
     async def startup_event():
         db.create_tables()
+        await scheduler.initialize()
     
     @app.on_event("shutdown")
     def shutdown_event():
