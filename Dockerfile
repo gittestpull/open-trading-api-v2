@@ -32,5 +32,5 @@ RUN mkdir -p /app/logs
 RUN mkdir -p /app/scalp_data
 RUN mkdir -p /root/KIS/config
 
-# Default entrypoint with uv
-ENTRYPOINT ["uv", "run", "python", "monitor_scalp_universal.py"]
+# Default entrypoint with uv (Web Server)
+ENTRYPOINT ["uv", "run", "python", "run_web.py"]
