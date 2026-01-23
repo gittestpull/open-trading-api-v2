@@ -6,6 +6,9 @@ import warnings
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import pytz
+
+KST = pytz.timezone('Asia/Seoul')
 import argparse
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -98,7 +101,7 @@ class LLMScalper:
             params = {
                 "FID_COND_MRKT_DIV_CODE": "J",
                 "FID_INPUT_ISCD": self.ticker,
-                "FID_INPUT_HOUR_1": datetime.now().strftime("%H%M%S"),
+                "FID_INPUT_HOUR_1": datetime.now(KST).strftime("%H%M%S"),
                 "FID_PW_DATA_INCU_YN": "Y",
                 "FID_ETC_CLS_CODE": ""
             }
@@ -135,7 +138,7 @@ class LLMScalper:
 
     def check_market_hours(self):
         """Returns True if within trading hours, False otherwise."""
-        now = datetime.now()
+        now = datetime.now(KST)
         if self.is_domestic:
             close_time = now.replace(hour=15, minute=40, second=0, microsecond=0)
             return now < close_time
@@ -194,7 +197,7 @@ class LLMScalper:
                 "FID_COND_MRKT_CLS_CODE": "00",
                 "FID_INPUT_ISCD": self.ticker,
                 "FID_TITL_CNTT": "",
-                "FID_INPUT_DATE_1": datetime.now().strftime("%Y%m%d"),
+                "FID_INPUT_DATE_1": datetime.now(KST).strftime("%Y%m%d"),
                 "FID_INPUT_HOUR_1": "090000",
                 "FID_RANK_SORT_CLS_CODE": "01",
                 "FID_INPUT_SRNO": "1"
@@ -208,7 +211,7 @@ class LLMScalper:
                 "NATION_CD": "US",
                 "EXCHANGE_CD": "",
                 "SYMB": self.ticker,
-                "DATA_DT": datetime.now().strftime("%Y%m%d"),
+                "DATA_DT": datetime.now(KST).strftime("%Y%m%d"),
                 "DATA_TM": "",
                 "CTS": ""
             }
@@ -426,7 +429,7 @@ class LLMScalper:
         while True:
             # 0. Check Market Hours
             if not self.check_market_hours():
-                logger.info(f"Market Closed. Current Time: {datetime.now().strftime('%H:%M:%S')}. Stopping Bot...")
+                logger.info(f"Market Closed. Current Time: {datetime.now(KST).strftime('%H:%M:%S')}. Stopping Bot...")
                 break
 
             # 1. Fetch Data, Index, Trend & News

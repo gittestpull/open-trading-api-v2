@@ -4,6 +4,9 @@ import time
 import logging
 import warnings
 from datetime import datetime
+import pytz
+
+KST = pytz.timezone('Asia/Seoul')
 
 warnings.warn(
     "monitor_scalp_universal.py is deprecated. "
@@ -17,7 +20,7 @@ LOG_DIR = os.path.join(os.getcwd(), 'logs')
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR)
 
-log_filename = os.path.join(LOG_DIR, f"trading_{datetime.now().strftime('%Y%m%d')}.log")
+log_filename = os.path.join(LOG_DIR, f"trading_{datetime.now(KST).strftime('%Y%m%d')}.log")
 
 # Setup Handlers
 console_handler = logging.StreamHandler()
@@ -67,7 +70,7 @@ def check_log_health(filename, limit_minutes=5, max_errors=3):
         return True
     
     recent_critical_errors = 0
-    now = datetime.now()
+    now = datetime.now(KST)
     
     # Critical keywords that directly affect trading (only these will block startup)
     CRITICAL_KEYWORDS = ["Auth Failed", "Connection timeout"] # Removed insufficient balance
@@ -86,7 +89,7 @@ def check_log_health(filename, limit_minutes=5, max_errors=3):
                     # 2. Check time
                     try:
                         log_time_str = line.split(',')[0]
-                        log_time = datetime.strptime(log_time_str, '%Y-%m-%d %H:%M:%S')
+                        log_time = KST.localize(datetime.strptime(log_time_str, '%Y-%m-%d %H:%M:%S'))
                         if (now - log_time).total_seconds() / 60 > limit_minutes:
                             continue # Too old
                             
@@ -251,7 +254,7 @@ class UniversalScalper:
             params = {
                 "FID_COND_MRKT_DIV_CODE": mrkt_code,
                 "FID_INPUT_ISCD": self.ticker,
-                "FID_INPUT_HOUR_1": datetime.now().strftime("%H%M%S"),
+                "FID_INPUT_HOUR_1": datetime.now(KST).strftime("%H%M%S"),
                 "FID_PW_DATA_INCU_YN": "Y",
                 "FID_ETC_CLS_CODE": ""
             }
@@ -565,7 +568,7 @@ class UniversalScalper:
             # Summary update
             summary_path = "trade_summary.txt"
             with open(summary_path, "a", encoding="utf-8") as f:
-                dt_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                dt_str = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
                 f.write(f"[{dt_str}] {self.ticker} | FILLED | Net: {net_profit_rate:+.2%} | Profit: {net_profit_amt:+,.0f} | Qty: {sell_qty}\n")
             
             logger.info(f"💰 SELL CONFIRMED: {self.ticker} | Realized Net Profit: {net_profit_amt:,.0f}")
@@ -588,7 +591,7 @@ class UniversalScalper:
 
     def is_holiday_today(self):
         """Checks if today is a holiday using KIS API."""
-        now = datetime.now()
+        now = datetime.now(KST)
         now_date = now.strftime("%Y%m%d")
         
         # Weekend check FIRST (Saturday=5, Sunday=6)
@@ -694,7 +697,7 @@ class UniversalScalper:
 
     def get_market_session(self):
         """Returns current market session: KRX, NXT_PRE, NXT_POST, or CLOSED."""
-        now = datetime.now()
+        now = datetime.now(KST)
         hour, minute = now.hour, now.minute
         time_val = hour * 100 + minute  # HHMM format
         
@@ -1165,7 +1168,7 @@ class UniversalScalper:
             current_time = time.time()
             session = self.get_market_session()
             if session == "CLOSED":
-                logger.info(f"Market Closed. Current Time: {datetime.now().strftime('%H:%M:%S')}. Stopping Bot...")
+                logger.info(f"Market Closed. Current Time: {datetime.now(KST).strftime('%H:%M:%S')}. Stopping Bot...")
                 break
             
             # Update current exchange based on session
