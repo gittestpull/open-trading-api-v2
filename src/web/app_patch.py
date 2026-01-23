@@ -1,0 +1,38 @@
+# -*- coding: utf-8 -*-
+"""
+This module provides additional API endpoints for the web application.
+"""
+from fastapi import HTTPException
+from pydantic import BaseModel
+
+def register_history_endpoints(app):
+    """Register history collection endpoints to FastAPI app"""
+    # History Collection Endpoints
+    from ..api import get_history_collector
+    history_collector = get_history_collector()
+
+    class HistoryCollectRequest(BaseModel):
+        ticker: str
+        start_date: str # YYYYMMDD
+        end_date: str # YYYYMMDD
+        timeframe: str = "D" # D, W, M
+
+    @app.post("/api/history/collect")
+    async def collect_history(req: HistoryCollectRequest):
+        # Initialize DB schema on first run
+        await history_collector.init_db()
+        
+        result = await history_collector.collect_history(
+            ticker=req.ticker,
+            start_date=req.start_date,
+            end_date=req.end_date,
+            timeframe=req.timeframe
+        )
+        if "error" in result:
+            raise HTTPException(status_code=400, detail=result["error"])
+        return result
+
+    @app.get("/api/history/{ticker}")
+    async def get_history(ticker: str, timeframe: str = "D", limit: int = 100):
+        data = await history_collector.get_history(ticker, timeframe, limit)
+        return {"history": data, "count": len(data)}

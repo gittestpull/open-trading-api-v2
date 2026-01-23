@@ -7,6 +7,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import uvicorn
 from src.web import create_app
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 
 def main():

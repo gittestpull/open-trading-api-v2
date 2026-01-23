@@ -57,7 +57,6 @@
             <button onclick="showTab('human')" id="tab-human" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300" data-i18n="tab_human">Human Index</button>
             <button onclick="showTab('backtest')" id="tab-backtest" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300" data-i18n="tab_backtest">Backtest</button>
             <button onclick="showTab('global')" id="tab-global" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300" data-i18n="tab_global">Global</button>
-            <button onclick="showTab('sector')" id="tab-sector" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300" data-i18n="tab_sector">Sector</button>
             <button onclick="showTab('journal')" id="tab-journal" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300" data-i18n="tab_journal">Journal</button>
             <button onclick="showTab('simulator')" id="tab-simulator" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300" data-i18n="tab_simulator">Simulator</button>
                     <button id="tab-history" onclick="showTab('history')" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-white transition-colors border-b-2 border-transparent hover:border-dark-600" data-i18n="tab_history">Data Tool</button>
@@ -478,59 +477,6 @@
                         Market data will appear after refresh
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- Sector Panel -->
-        <div id="panel-sector" class="hidden">
-            <div class="grid md:grid-cols-4 gap-6">
-                <!-- Sidebar -->
-                <div class="glass rounded-lg p-5 border border-dark-600 h-fit">
-                    <h2 class="text-sm font-semibold text-gray-400 mb-4 pb-2 border-b border-dark-600">Saved Sectors</h2>
-                    <div id="savedSectorsList" class="space-y-2 max-h-[600px] overflow-y-auto scrollbar-thin text-sm">
-                        <div class="text-center text-gray-600 py-4">No saved sectors</div>
-                    </div>
-                </div>
-
-                <!-- Main Content -->
-                <div class="md:col-span-3">
-                    <div class="glass rounded-lg p-5 border border-dark-600 mb-6">
-                        <div class="flex gap-3">
-                            <div class="relative flex-1 flex items-center">
-                                <input type="text" id="sectorInput" placeholder="Enter sector (e.g., Shipbuilding, AI, Semiconductor)..." class="w-full pl-4 pr-10 py-2 bg-dark-900 border border-dark-600 rounded-md focus:border-accent-blue focus:outline-none" onkeypress="if(event.key==='Enter') loadSectorLeaders()">
-                            </div>
-                            <button onclick="loadSectorLeaders()" class="px-6 py-2 bg-accent-blue hover:bg-blue-600 text-white font-medium rounded-md transition">
-                                Find Leaders
-                            </button>
-                        </div>
-                    </div>
-
-                    <div id="sectorResults" class="grid md:grid-cols-4 gap-4">
-                        <div class="glass rounded-lg p-4 border border-dark-600 text-center text-gray-500 col-span-4 py-12">
-                            Enter a sector name to find global leading companies.
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Edit Sector Modal -->
-        <div id="modal-sector-edit" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div class="glass w-full max-w-2xl p-6 rounded-xl border border-dark-600 shadow-2xl">
-                <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-lg font-bold text-white">Edit Sector Analysis</h3>
-                    <button onclick="closeEditSectorModal()" class="text-gray-400 hover:text-white transition">✕</button>
-                </div>
-                <form id="sectorEditForm" class="space-y-4">
-                    <input type="hidden" id="editSectorName">
-                    <div id="editSectorContainer" class="max-h-[60vh] overflow-y-auto scrollbar-thin space-y-6">
-                        <!-- Dynamic Content -->
-                    </div>
-                    <div class="flex gap-3 mt-6 pt-4 border-t border-dark-600">
-                        <button type="button" onclick="closeEditSectorModal()" class="flex-1 py-2 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-md transition">Cancel</button>
-                        <button type="submit" class="flex-1 py-2 bg-accent-blue hover:bg-blue-600 text-white font-medium rounded-md transition">Save Changes</button>
-                    </div>
-                </form>
             </div>
         </div>
 
@@ -1037,7 +983,7 @@
             en: {
                 subtitle: 'AI-Powered Investment Analysis Platform',
                 tab_scalper: 'Scalper', tab_screener: 'Screener', tab_deepdive: 'Deep Dive',
-                tab_human: 'Human Index', tab_backtest: 'Backtest', tab_global: 'Global', tab_sector: 'Sector',
+                tab_human: 'Human Index', tab_backtest: 'Backtest', tab_global: 'Global',
                 tab_journal: 'Journal', tab_simulator: 'Simulator', tab_admin: 'Admin', tab_history: 'Data Tool',
                 new_scalper: 'New Scalper', ticker: 'Ticker', budget: 'Budget (₩)',
                 target: 'Target (%)', start_scalper: 'Start Scalper',
@@ -1097,7 +1043,7 @@
             ko: {
                 subtitle: 'AI 기반 투자 분석 플랫폼',
                 tab_scalper: '스캘퍼', tab_screener: '종목검색', tab_deepdive: '딥다이브',
-                tab_human: '인간지표', tab_backtest: '백테스트', tab_global: '글로벌', tab_sector: '섹터',
+                tab_human: '인간지표', tab_backtest: '백테스트', tab_global: '글로벌',
                 tab_journal: '매매일지', tab_simulator: '시뮬레이터', tab_admin: '관리자', tab_history: '데이터 도구',
                 new_scalper: '새 스캘퍼', ticker: '종목코드', budget: '예산 (원)',
                 target: '목표 (%)', start_scalper: '스캘퍼 시작',
@@ -1188,7 +1134,6 @@
             if (tab === 'screener') loadScreenerData();
             if (tab === 'admin') loadAdminData();
             if (tab === 'global') loadGlobalMarket();
-            if (tab === 'sector') loadSavedSectors();
             if (tab === 'journal') { loadJournalEntries(); loadJournalStats(); }
             if (tab === 'simulator') loadSimulatorPortfolio();
             if (tab === 'backtest') loadBacktestHistory();
@@ -1395,32 +1340,28 @@
             }
         }
 
-        async function loadAIDeepDive(mode = 'simple') {
+        async function loadAIDeepDive() {
             const ticker = document.getElementById('deepdiveSearch').value.trim();
             if (!ticker) return;
             document.getElementById('aiReportContent').classList.remove('hidden');
-            const modeLabel = mode === 'deep' ? 'Deep (GPT-4o)' : 'Simple (GPT-4o-mini)';
-            document.getElementById('aiReport').innerHTML = `<div class="text-gray-500">Generating ${modeLabel} AI report...</div>`;
+            document.getElementById('aiReport').innerHTML = '<div class="text-gray-500">Generating AI report...</div>';
             try {
-                const res = await fetch(`/api/ai/deepdive/${ticker}?mode=${mode}`);
+                const res = await fetch(`/api/deepdive/${ticker}?mode=simple`);
                 if (!res.ok) throw new Error('Failed to generate report');
                 const data = await res.json();
-                renderAIReport(data, mode);
+                renderAIReport(data);
             } catch (e) {
                 document.getElementById('aiReport').innerHTML = `<div class="text-accent-red">${e.message}</div>`;
             }
         }
 
-        function renderAIReport(data, mode = 'simple') {
+        function renderAIReport(data) {
             const a = data.analysis || {};
             const rec = a.recommendation || 'HOLD';
             const recClass = rec === 'BUY' ? 'text-accent-green' : rec === 'SELL' ? 'text-accent-red' : 'text-accent-yellow';
-            const modeLabel = mode === 'deep' ? '🔍 Deep' : '⚡ Simple';
-            const modeBadge = mode === 'deep' ? 'bg-accent-green' : 'bg-accent-blue';
             document.getElementById('aiReport').innerHTML = `
                 <div class="flex items-center gap-4 mb-4">
                     <span class="text-2xl font-bold ${recClass}">${rec}</span>
-                    <span class="px-3 py-1 rounded text-sm ${modeBadge} text-white">${modeLabel}</span>
                     <span class="px-3 py-1 rounded text-sm ${a.risk_level === 'HIGH' ? 'bg-accent-red' : a.risk_level === 'LOW' ? 'bg-accent-green' : 'bg-accent-yellow'} text-black">Risk: ${a.risk_level || '-'}</span>
                     ${a.target_price ? `<span class="text-gray-400">Target: ${a.target_price.toLocaleString()}원</span>` : ''}
                 </div>
@@ -1701,7 +1642,7 @@
                 const container = document.getElementById('fomoAlerts');
                 if (!data.stocks?.length) { container.innerHTML = '<div class="text-center text-gray-600 py-4">No FOMO alerts</div>'; return; }
                 container.innerHTML = data.stocks.map(s => `
-                    <div class="p-3 bg-dark-900 rounded-lg heatmap-hot text-white cursor-pointer hover:bg-dark-700 transition" onclick="loadHumanIndexFromSignal('${s.ticker}')">
+                    <div class="p-3 bg-dark-900 rounded-lg heatmap-hot text-white">
                         <div class="font-medium">${s.name || s.ticker} <span class="text-xs opacity-75">${s.ticker}</span></div>
                         <div class="text-sm mt-1">FOMO: ${s.fomo_level?.toFixed(0) || 0} | Attention: ${s.attention_score?.toFixed(0) || 0}</div>
                     </div>
@@ -1716,17 +1657,12 @@
                 const container = document.getElementById('bottomSignals');
                 if (!data.stocks?.length) { container.innerHTML = '<div class="text-center text-gray-600 py-4">No bottom signals</div>'; return; }
                 container.innerHTML = data.stocks.map(s => `
-                    <div class="p-3 bg-dark-900 rounded-lg heatmap-cool text-white cursor-pointer hover:bg-dark-700 transition" onclick="loadHumanIndexFromSignal('${s.ticker}')">
+                    <div class="p-3 bg-dark-900 rounded-lg heatmap-cool text-white">
                         <div class="font-medium">${s.name || s.ticker} <span class="text-xs opacity-75">${s.ticker}</span></div>
                         <div class="text-sm mt-1">Attention: ${s.attention_score?.toFixed(0) || 0} | Sentiment: ${s.crowd_sentiment?.toFixed(2) || 0}</div>
                     </div>
                 `).join('');
             } catch (e) { console.error(e); }
-        }
-
-        async function loadHumanIndexFromSignal(ticker) {
-            document.getElementById('humanIndexTicker').value = ticker;
-            await loadHumanIndex();
         }
 
         async function collectHumanIndexNow() {
@@ -3297,238 +3233,6 @@
             loadHistoryViewData();
         }
     };
-
-    let currentSectorData = null;
-
-    async function loadSavedSectors() {
-        try {
-            const res = await fetch('/api/global/sectors');
-            const data = await res.json();
-            const list = document.getElementById('savedSectorsList');
-            if (!data.sectors || !data.sectors.length) {
-                list.innerHTML = '<div class="text-center text-gray-600 py-4">No saved sectors</div>';
-                return;
-            }
-            list.innerHTML = data.sectors.map(s => `
-                <div onclick="openSector('${s.sector_name}')" class="p-3 bg-dark-900 rounded cursor-pointer hover:bg-dark-700 transition border border-transparent hover:border-accent-blue group">
-                    <div class="font-medium text-white group-hover:text-accent-blue">${s.sector_name}</div>
-                    <div class="text-xs text-gray-500 mt-1">${new Date(s.updated_at).toLocaleString()}</div>
-                </div>
-            `).join('');
-        } catch (e) {
-            console.error(e);
-        }
-    }
-
-    async function openSector(sector) {
-        document.getElementById('sectorInput').value = sector;
-        loadSectorLeaders(false);
-    }
-
-    async function loadSectorLeaders(forceRefresh = false) {
-        const sector = document.getElementById('sectorInput').value.trim();
-        if (!sector) return;
-        
-        const container = document.getElementById('sectorResults');
-        container.innerHTML = `<div class="col-span-4 text-center py-12 text-gray-500">${forceRefresh ? 'Regenerating' : 'Analyzing'} global market... This may take up to 30 seconds.</div>`;
-        
-        try {
-            const res = await fetch('/api/global/sector-leaders', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sector: sector, force_refresh: forceRefresh })
-            });
-            
-            if (!res.ok) {
-                let errorMsg = 'Analysis failed';
-                try {
-                    const err = await res.json();
-                    errorMsg = err.detail || errorMsg;
-                } catch (e) {}
-                throw new Error(`${res.status} ${res.statusText}: ${errorMsg}`);
-            }
-            const data = await res.json();
-            currentSectorData = data;
-            renderSectorResults(data);
-            loadSavedSectors(); // Refresh list
-        } catch (e) {
-            container.innerHTML = `<div class="col-span-4 text-center py-12 text-accent-red">Error: ${e.message}</div>`;
-        }
-    }
-
-    function renderSectorResults(data) {
-        const container = document.getElementById('sectorResults');
-        if (!data) return;
-        
-        const regions = [
-            { code: 'KR', name: 'South Korea 🇰🇷' },
-            { code: 'US', name: 'United States 🇺🇸' },
-            { code: 'JP', name: 'Japan 🇯🇵' },
-            { code: 'CN', name: 'China 🇨🇳' }
-        ];
-        
-        let html = regions.map(r => `
-            <div class="glass rounded-lg p-4 border border-dark-600">
-                <h3 class="text-lg font-bold text-white mb-4 border-b border-dark-600 pb-2">${r.name}</h3>
-                <div class="space-y-3">
-                    ${(data[r.code] || []).map(stock => `
-                        <div class="p-3 bg-dark-900 rounded border ${stock.type === 'Vendor' ? 'border-accent-purple' : 'border-dark-700'} hover:border-accent-blue transition group relative">
-                            ${stock.type === 'Vendor' ? `<div class="absolute -top-2 -right-2 bg-accent-purple text-white text-[10px] px-1.5 py-0.5 rounded shadow">Vendor</div>` : ''}
-                            <div class="flex justify-between items-start mb-1">
-                                <div class="font-bold text-accent-blue group-hover:text-blue-400">${stock.ticker}</div>
-                                <div class="text-xs text-gray-500 bg-dark-800 px-1.5 py-0.5 rounded">${stock.type || 'Leader'}</div>
-                            </div>
-                            <div class="font-medium text-sm text-gray-200 mb-1">${stock.name}</div>
-                            ${stock.related_to && stock.related_to !== 'Self' ? `<div class="text-xs text-purple-400 mb-1">🔗 ${stock.related_to}</div>` : ''}
-                            ${stock.logic ? `<div class="text-[10px] text-gray-400 bg-dark-800 p-1 rounded italic mt-1">💡 ${stock.logic}</div>` : ''}
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        `).join('');
-
-        // Add Edit & Regenerate Buttons
-        html += `
-            <div class="col-span-4 flex justify-between mt-4 pt-4 border-t border-dark-600">
-                <div class="flex gap-2">
-                    <button onclick="loadSectorLeaders(true)" class="px-6 py-2 bg-dark-800 hover:bg-dark-700 text-accent-yellow font-medium rounded-md transition flex items-center gap-2 border border-dark-600 hover:border-accent-yellow">
-                        <span>↻ Regenerate with AI</span>
-                    </button>
-                    <button onclick="collectSectorData()" class="px-6 py-2 bg-accent-purple hover:bg-purple-600 text-white font-medium rounded-md transition flex items-center gap-2">
-                        <span>📥 Collect Data (1Y)</span>
-                    </button>
-                </div>
-                <button onclick="openEditSectorModal()" class="px-6 py-2 bg-dark-700 hover:bg-dark-600 text-white font-medium rounded-md transition flex items-center gap-2">
-                    <span>✏️ Edit Analysis</span>
-                </button>
-            </div>
-        `;
-        
-        container.innerHTML = html;
-    }
-
-    async function collectSectorData() {
-        if (!currentSectorData) return;
-        
-        if (!confirm(`Start collecting 1 year historical data for all companies in '${currentSectorData.sector}'? This may take a while.`)) return;
-        
-        try {
-            const res = await fetch('/api/history/collect-sector', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sector: currentSectorData.sector, data: currentSectorData })
-            });
-            
-            if (!res.ok) throw new Error('Request failed');
-            const result = await res.json();
-            alert(`Started! ${result.message}\nCheck 'Data Tool' or logs for progress.`);
-        } catch (e) {
-            alert('Error: ' + e.message);
-        }
-    }
-
-    function openEditSectorModal() {
-        if (!currentSectorData) return;
-        
-        const modal = document.getElementById('modal-sector-edit');
-        const container = document.getElementById('editSectorContainer');
-        document.getElementById('editSectorName').value = currentSectorData.sector;
-        
-        const regions = ['KR', 'US', 'JP', 'CN'];
-        
-        container.innerHTML = regions.map(code => `
-            <div class="bg-dark-900/50 p-4 rounded-lg border border-dark-600">
-                <h4 class="font-bold text-accent-yellow mb-3">${code} Companies</h4>
-                <div id="edit-${code}" class="space-y-4">
-                    ${(currentSectorData[code] || []).map((stock, idx) => `
-                        <div class="grid grid-cols-12 gap-2 items-start bg-dark-800 p-2 rounded">
-                            <div class="col-span-2">
-                                <label class="text-[10px] text-gray-500">Ticker</label>
-                                <input type="text" value="${stock.ticker}" class="w-full bg-dark-900 border border-dark-600 rounded px-2 py-1 text-xs text-accent-blue font-bold" data-field="ticker">
-                            </div>
-                            <div class="col-span-3">
-                                <label class="text-[10px] text-gray-500">Name</label>
-                                <input type="text" value="${stock.name}" class="w-full bg-dark-900 border border-dark-600 rounded px-2 py-1 text-xs" data-field="name">
-                            </div>
-                            <div class="col-span-6">
-                                <label class="text-[10px] text-gray-500">Reason</label>
-                                <textarea class="w-full bg-dark-900 border border-dark-600 rounded px-2 py-1 text-xs h-16" data-field="reason">${stock.reason}</textarea>
-                            </div>
-                            <div class="col-span-1 flex justify-center items-center h-full pt-4">
-                                <button type="button" onclick="this.parentElement.parentElement.remove()" class="text-gray-500 hover:text-accent-red text-lg">×</button>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-                <button type="button" onclick="addCompanyRow('${code}')" class="mt-2 text-xs text-accent-green hover:underline">+ Add Company</button>
-            </div>
-        `).join('');
-        
-        modal.classList.remove('hidden');
-    }
-
-    function addCompanyRow(code) {
-        const container = document.getElementById(`edit-${code}`);
-        const div = document.createElement('div');
-        div.className = 'grid grid-cols-12 gap-2 items-start bg-dark-800 p-2 rounded';
-        div.innerHTML = `
-            <div class="col-span-2">
-                <label class="text-[10px] text-gray-500">Ticker</label>
-                <input type="text" value="" class="w-full bg-dark-900 border border-dark-600 rounded px-2 py-1 text-xs text-accent-blue font-bold" data-field="ticker">
-            </div>
-            <div class="col-span-3">
-                <label class="text-[10px] text-gray-500">Name</label>
-                <input type="text" value="" class="w-full bg-dark-900 border border-dark-600 rounded px-2 py-1 text-xs" data-field="name">
-            </div>
-            <div class="col-span-6">
-                <label class="text-[10px] text-gray-500">Reason</label>
-                <textarea class="w-full bg-dark-900 border border-dark-600 rounded px-2 py-1 text-xs h-16" data-field="reason"></textarea>
-            </div>
-            <div class="col-span-1 flex justify-center items-center h-full pt-4">
-                <button type="button" onclick="this.parentElement.parentElement.remove()" class="text-gray-500 hover:text-accent-red text-lg">×</button>
-            </div>
-        `;
-        container.appendChild(div);
-    }
-
-    function closeEditSectorModal() {
-        document.getElementById('modal-sector-edit').classList.add('hidden');
-    }
-
-    document.getElementById('sectorEditForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const sectorName = document.getElementById('editSectorName').value;
-        const newData = { sector: sectorName };
-        
-        ['KR', 'US', 'JP', 'CN'].forEach(code => {
-            newData[code] = [];
-            const rows = document.getElementById(`edit-${code}`).children;
-            for (let row of rows) {
-                newData[code].push({
-                    ticker: row.querySelector('[data-field="ticker"]').value,
-                    name: row.querySelector('[data-field="name"]').value,
-                    reason: row.querySelector('[data-field="reason"]').value
-                });
-            }
-        });
-        
-        try {
-            const res = await fetch('/api/global/sector-leaders', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sector: sectorName, data: newData })
-            });
-            
-            if (!res.ok) throw new Error('Update failed');
-            
-            currentSectorData = newData;
-            renderSectorResults(newData);
-            closeEditSectorModal();
-            loadSavedSectors(); // Update timestamp in list
-        } catch (e) {
-            alert('Failed to save changes: ' + e.message);
-        }
-    });
 
 </script>
 </body>

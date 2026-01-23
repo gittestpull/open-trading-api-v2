@@ -1,18 +1,9 @@
 {
-    "state": "HOLDING",
-    "avg_buy_price": 79950.0,
-    "total_qty": 2,
-    "current_step": 2,
-    "buy_history": [
-        [
-            79900.0,
-            1
-        ],
-        [
-            80000.0,
-            1
-        ]
-    ],
+    "state": "SEARCHING",
+    "avg_buy_price": 0.0,
+    "total_qty": 0,
+    "current_step": 0,
+    "buy_history": [],
     "pending_sell": null,
     "daily_realized_profit": 0.0
 }

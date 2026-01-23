@@ -95,6 +95,161 @@ class HistoryCollector:
             logger.error(f"Failed to fetch history for {ticker}: {msg}")
             return {"error": msg}
 
+    async def collect_overseas_history(self, ticker: str, exchange: str, start_date: str, end_date: str, timeframe: str = "D") -> dict:
+        """Collect overseas historical data."""
+        # Exchange Code Mapping (AI -> KIS)
+        # AI: NASDAQ, NYSE, AMEX, TOKYO, SHANGHAI, SHENZHEN, HONGKONG
+        # KIS: NAS, NYS, AMS, TSE, SHS, SZS, HKS
+        ex_map = {
+            "NASDAQ": "NAS", "NYSE": "NYS", "AMEX": "AMS",
+            "TOKYO": "TSE", "JP": "TSE",
+            "SHANGHAI": "SHS", "SHENZHEN": "SZS", "CHINA": "SHS", # Default to SHS if generic
+            "HONGKONG": "HKS", "HK": "HKS",
+            "HANOI": "HASE", "HOCHIMINH": "VNSE", "VN": "VNSE"
+        }
+        
+        kis_ex = ex_map.get(exchange.upper(), exchange.upper())
+        if len(kis_ex) > 3 and kis_ex not in ["HASE", "VNSE"]:
+             # Heuristic: if mapped value is still long (e.g. "KOSPI"), maybe it's domestic or unmapped
+             # But here we assume it's overseas.
+             pass
+
+        # Determine TR_ID and URL
+        url = "/uapi/overseas-price/v1/quotations/dailyprice"
+        if kis_ex in ["NAS", "NYS", "AMS"]:
+            tr_id = "HHDFS76200200" # US Daily
+        else:
+            tr_id = "TTTS30270400" # Other Overseas Daily (JP, CN, HK, VN)
+
+        # Pagination/Loop logic
+        # Overseas daily price usually returns 100 records. KIS doesn't support date range strictly for some overseas APIs,
+        # often it returns 'n' days from today or end date.
+        # However, `dailyprice` endpoint typically takes specific parameters.
+        
+        # Checking parameters for `HHDFS76200200` (US)
+        # SYMB, EXCD, GUBN(0:D, 1:W, 2:M), BYMD(Base Date), MODP(0:No, 1:Yes)
+        # It returns 100 records *before* BYMD. So we need to loop backwards.
+        
+        gubn = {'D': '0', 'W': '1', 'M': '2'}.get(timeframe, '0')
+        
+        current_date = end_date # YYYYMMDD
+        start_dt = datetime.strptime(start_date, "%Y%m%d")
+        total_count = 0
+        
+        # We limit to 1 year approx (3 calls of 100 days) to be safe/fast
+        max_calls = 5 
+        
+        for _ in range(max_calls):
+            params = {
+                "AUTH": "",
+                "EXCD": kis_ex,
+                "SYMB": ticker,
+                "GUBN": gubn,
+                "BYMD": current_date,
+                "MODP": "1" # Adjusted price
+            }
+            
+            res = kis_auth._url_fetch(url, tr_id, "", params)
+            
+            if not res.isOK():
+                logger.error(f"Overseas API error for {ticker}({kis_ex}): {res.getErrorMessage()}")
+                return {"error": res.getErrorMessage()}
+                
+            output = res.getBody().output2
+            if not output:
+                break
+                
+            page_count = 0
+            oldest_date = None
+            
+            for item in output:
+                dt = item.get('xymd') # Date key for US/Overseas
+                if not dt: continue
+                
+                item_dt = datetime.strptime(dt, "%Y%m%d")
+                if item_dt < start_dt:
+                    continue
+                    
+                oldest_date = dt
+                fmt_date = f"{dt[:4]}-{dt[4:6]}-{dt[6:]}"
+                
+                # Price keys are different for overseas
+                # clos, sign, diff, rate, open, high, low, tvol
+                open_p = float(item.get('open', 0))
+                high_p = float(item.get('high', 0))
+                low_p = float(item.get('low', 0))
+                close_p = float(item.get('clos', 0))
+                vol = int(item.get('tvol', 0))
+                
+                await self.db.execute("""
+                    INSERT INTO price_history (ticker, datetime, timeframe, open, high, low, close, volume)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(ticker, datetime, timeframe) DO UPDATE SET
+                        open=excluded.open, high=excluded.high, low=excluded.low,
+                        close=excluded.close, volume=excluded.volume
+                """, (ticker, fmt_date, timeframe, open_p, high_p, low_p, close_p, vol))
+                page_count += 1
+                
+            total_count += page_count
+            
+            if not oldest_date or page_count == 0:
+                break
+                
+            # Next loop starts from day before oldest_date
+            next_end_dt = datetime.strptime(oldest_date, "%Y%m%d") - timedelta(days=1)
+            if next_end_dt < start_dt:
+                break
+                
+            current_date = next_end_dt.strftime("%Y%m%d")
+            await asyncio.sleep(API_DELAY_SECONDS)
+            
+        return {"status": "success", "count": total_count, "ticker": ticker, "exchange": kis_ex}
+
+    async def collect_sector_history(self, sector_data: dict, days: int = 365) -> dict:
+        """Collect history for all stocks in sector data."""
+        end_date = datetime.now().strftime("%Y%m%d")
+        start_date = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
+        
+        results = {}
+        
+        # Iterate over regions: KR, US, JP, CN
+        for region, stocks in sector_data.items():
+            if region in ["sector", "updated_at"]: continue
+            if not isinstance(stocks, list): continue
+            
+            for stock in stocks:
+                ticker = stock.get('ticker')
+                exchange = stock.get('exchange', '') # e.g. "NASDAQ", "KOSPI"
+                
+                if not ticker: continue
+                
+                # Determine if domestic or overseas
+                is_domestic = region == "KR" or exchange.upper() in ["KOSPI", "KOSDAQ", "KONEX"]
+                
+                try:
+                    if is_domestic:
+                        # Clean ticker for KR (remove KS/KQ if present)
+                        clean_ticker = ticker
+                        res = await self.collect_history(clean_ticker, start_date, end_date, "D")
+                    else:
+                        # For overseas, we need exchange code.
+                        # If exchange is empty, try to infer from region
+                        if not exchange:
+                            if region == "US": exchange = "NAS" # Default attempt
+                            elif region == "JP": exchange = "TSE"
+                            elif region == "CN": exchange = "SHS"
+                        
+                        res = await self.collect_overseas_history(ticker, exchange, start_date, end_date, "D")
+                    
+                    results[ticker] = res
+                except Exception as e:
+                    logger.error(f"Failed to collect {ticker}: {e}")
+                    results[ticker] = {"error": str(e)}
+                
+                await asyncio.sleep(API_DELAY_SECONDS)
+                
+        return {"status": "completed", "results": results}
+
     async def get_history(self, ticker: str, timeframe: str = 'D', limit: int = 100):
         return await self.db.fetch_all("""
             SELECT * FROM price_history 

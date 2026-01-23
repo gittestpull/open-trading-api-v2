@@ -381,21 +381,21 @@ class LLMScalper:
         if not self.is_domestic:
             return ""
         try:
-            res = kis_auth._url_fetch("/uapi/domestic-stock/v1/quotations/inquire-investor", "FHKST01010900", "", {"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": self.ticker})
+            res = kis_auth._url_fetch(\"/uapi/domestic-stock/v1/quotations/inquire-investor\", \"FHKST01010900\", \"\", {\"FID_COND_MRKT_DIV_CODE\": \"J\", \"FID_INPUT_ISCD\": self.ticker})
             if res.isOK():
                 out = res.getBody().output
                 if isinstance(out, list): out = out[0]
                 f_qty = int(out.get('frgn_ntby_qty', 0))
                 i_qty = int(out.get('orgn_ntby_qty', 0))
                 def fmt(n):
-                    if abs(n) >= 1000000: return f"{n/1000000:.1f}M"
-                    if abs(n) >= 1000: return f"{n/1000:.1f}k"
+                    if abs(n) >= 1000000: return f\"{n/1000000:.1f}M\"
+                    if abs(n) >= 1000: return f\"{n/1000:.1f}k\"
                     return str(n)
-                return f"Supply: F:{fmt(f_qty)}, I:{fmt(i_qty)}"
+                return f\"Supply: F:{fmt(f_qty)}, I:{fmt(i_qty)}\"
         except Exception: pass
-        return ""
+        return \"\"
 
-    def place_order(self, dv="buy", qty=0, price=0):
+    def place_order(self, dv=\"buy\", qty=0, price=0):
         if qty <= 0: return False
         mode_str = "LIVE" if self.live_mode else "DRY RUN"
         logger.info(f"[{mode_str}] {dv.upper()} {qty} of {self.ticker} at {price}")

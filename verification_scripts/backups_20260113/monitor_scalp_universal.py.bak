@@ -1644,7 +1644,6 @@ if __name__ == "__main__":
     
     # 0. Log Health Check before starting
     if not check_log_health(log_filename):
-        logger.warning("Log health check failed, but continuing as configured...")
         # sys.exit(1)  # Disabled exit on insufficient funds
     
     scalper = UniversalScalper(args.ticker, args.budget, args.target, args.live, args.buy_price, args.orderbook, args.momentum)

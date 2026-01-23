@@ -268,6 +268,168 @@ class AIAnalyst:
             "stocks": comparisons
         }
 
+    async def get_global_sector_leaders(self, sector: str, force_refresh: bool = False) -> Dict:
+        # Determine if input is a specific Ticker/Company or a Sector
+        is_company_query = False
+        
+        # Simple heuristic: If it looks like a ticker (all uppercase, numbers) or contains specific company names
+        # But for robustness, we will let GPT/Search determine context.
+        # However, we can hint prompt based on input.
+        
+        # 1. Check DB first (unless forced)
+        if not force_refresh:
+            db_result = await self.db.fetch_one(
+                "SELECT * FROM sector_analysis WHERE sector_name = ?",
+                (sector,)
+            )
+            
+            if db_result:
+                import json
+                try:
+                    data = json.loads(db_result['data'])
+                    return data
+                except json.JSONDecodeError:
+                    pass  # Fallback to AI if JSON is corrupt
+
+        if not self.client:
+            return {"error": "OpenAI client not initialized"}
+        
+        # 2. Perform Web Search for latest data
+        search_context = ""
+        try:
+            from duckduckgo_search import DDGS
+            with DDGS() as ddgs:
+                results = []
+                
+                # Query 1: Global/English (General)
+                # Check if it's a company name or ticker
+                q_en = f"{sector} stock competitors suppliers value chain ecosystem 2025"
+                results.extend(list(ddgs.text(q_en, max_results=3)))
+                
+                # Query 2: Korean Specific
+                q_kr = f"{sector} 관련주 테마주 밸류체인 경쟁사 2025"
+                results.extend(list(ddgs.text(q_kr, max_results=3)))
+
+                # Query 3: Specific Region Niche
+                q_niche = f"Top companies related to {sector} supply chain list"
+                results.extend(list(ddgs.text(q_niche, max_results=2)))
+                
+                if results:
+                    search_context = "\n".join([f"- [{r.get('title', 'No Title')}] {r.get('body', '')}" for r in results])
+                    logger.info(f"[AIAnalyst] Web Search Context found: {len(results)} items")
+                else:
+                    logger.warning("[AIAnalyst] Web Search returned no results")
+                    
+        except Exception as e:
+            logger.warning(f"Web search failed: {e}")
+            search_context = "Web search unavailable."
+
+        try:
+            prompt = f"""
+            Analyze the global market ecosystem for the input: '{sector}'.
+            
+            [LATEST REAL-TIME WEB SEARCH RESULTS (2024-2025)]
+            {search_context}
+            
+            IMPORTANT INSTRUCTIONS:
+            1. **Determine Input Type**: 
+               - Is '{sector}' a specific COMPANY/TICKER (e.g. "Samsung Electronics", "TSLA", "005930")?
+               - Or is it a SECTOR (e.g. "Semiconductor", "Shipbuilding")?
+            
+            2. **If COMPANY/TICKER**:
+               - Identify its **Industry/Sector**.
+               - Find its **Key Competitors** (Rivals).
+               - Find its **Key Suppliers/Vendors** (Value Chain).
+               - Find its **Key Customers** (if B2B).
+               - The goal is to show the "Ecosystem" around this specific company.
+            
+            3. **If SECTOR**:
+               - Continue with previous logic: Find Leaders & Key Vendors.
+
+            4. **CRITICAL**: Use the MOST UP-TO-DATE company names and tickers as of 2024/2025.
+            
+            Identify 5-8 companies related to '{sector}' in each region:
+            1. South Korea (KR)
+            2. United States (US)
+            3. Japan (JP)
+            4. China (CN)
+
+            For each company, provide:
+            - Ticker Symbol
+            - Exchange Code
+            - Company Name
+            - Type: 
+              - If input was Sector: "Leader", "Vendor"
+              - If input was Company: "Competitor", "Supplier", "Customer", "Partner"
+            - Related Leader/Entity: If Supplier/Customer, who are they related to? (Usually the input company)
+            - Selection Logic: Why selected? (e.g. "Main rival in memory chips", "Supplies camera modules to {sector}")
+
+            Return the response in strict JSON format:
+            {{
+                "sector": "{sector}",
+                "input_type": "Company" or "Sector",
+                "KR": [{{ "ticker": "...", "exchange": "...", "name": "...", "type": "...", "related_to": "...", "logic": "..." }}, ...],
+                "US": [{{ "ticker": "...", "exchange": "...", "name": "...", "type": "...", "related_to": "...", "logic": "..." }}, ...],
+                "JP": [{{ "ticker": "...", "exchange": "...", "name": "...", "type": "...", "related_to": "...", "logic": "..." }}, ...],
+                "CN": [{{ "ticker": "...", "exchange": "...", "name": "...", "type": "...", "related_to": "...", "logic": "..." }}, ...]
+            }}
+            """
+            
+            response = self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": "You are a global equity research analyst specializing in sector analysis."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                response_format={"type": "json_object"}
+            )
+            
+            import json
+            result = json.loads(response.choices[0].message.content)
+            
+            # 2. Save to DB
+            await self.db.execute(
+                """
+                INSERT INTO sector_analysis (sector_name, data, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(sector_name) DO UPDATE SET
+                    data = excluded.data,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (sector, json.dumps(result, ensure_ascii=False))
+            )
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"[AIAnalyst] Global sector analysis failed: {e}")
+            return {"error": str(e)}
+
+    async def get_saved_sectors(self) -> List[Dict]:
+        """저장된 섹터 목록 조회"""
+        rows = await self.db.fetch_all(
+            "SELECT sector_name, updated_at FROM sector_analysis ORDER BY updated_at DESC"
+        )
+        return rows
+
+    async def update_sector_data(self, sector: str, data: Dict) -> bool:
+        """섹터 데이터 수동 업데이트"""
+        import json
+        try:
+            await self.db.execute(
+                """
+                UPDATE sector_analysis 
+                SET data = ?, updated_at = CURRENT_TIMESTAMP 
+                WHERE sector_name = ?
+                """,
+                (json.dumps(data, ensure_ascii=False), sector)
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to update sector data: {e}")
+            return False
+
 
 _analyst_instance: Optional[AIAnalyst] = None
 
