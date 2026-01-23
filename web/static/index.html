@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Bot Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css?v=3">
+    <link href="https://fonts.googleapis.com/css2?family=Paperlogy:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal">
+        <div class="modal-content login-box">
+            <h2>🔐 Trading Bot Dashboard</h2>
+            <p>비밀번호를 입력하세요</p>
+            <input type="password" id="passwordInput" placeholder="Password"
+                onkeypress="if(event.key==='Enter')login()">
+            <button onclick="login()">로그인</button>
+            <p id="loginError" class="error"></p>
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div id="dashboard" class="hidden">
+        <header>
+            <div class="header-left">
+                <h1>📈 Trading Bot Dashboard</h1>
+                <nav class="main-tabs">
+                    <span class="has-tooltip">
+                        <button onclick="showTab('dashboard')" id="tab-dashboard" class="tab-btn active">메인
+                            대시보드</button>
+                        <span class="tooltip-text" style="width:250px;">
+                            등록된 봇 목록, 실시간 상태, 수익률을 확인하고 봇을 관리하는 메인 화면입니다.
+                        </span>
+                    </span>
+                    <span class="has-tooltip">
+                        <button onclick="showTab('screener')" id="tab-screener" class="tab-btn">🔍 종목 검색기</button>
+                        <span class="tooltip-text" style="width:280px;">
+                            PER, 거래량, RSI 등 조건으로 종목을 검색하고 바로 봇을 등록할 수 있는 스크리너입니다.<br><br>
+                            📍 출처: 네이버 금융 | 🔄 갱신: 5분 캐시
+                        </span>
+                    </span>
+                </nav>
+            </div>
+            <div class="header-actions">
+                <span id="envBadge" class="env-badge has-tooltip">로컬
+                    <span class="tooltip-text" style="width:250px;">
+                        현재 접속한 환경을 표시합니다.<br><br>
+                        <b>Dev (8081):</b> 실시간 코드 반영 테스트용<br>
+                        <b>Staging (8080):</b> 안정성 검증된 상시 가동<br>
+                        <b>Local:</b> 로컬 개발 환경
+                    </span>
+                </span>
+                <span class="has-tooltip">
+                    <button onclick="showGuideModal()" class="btn-help">❓ 시스템 가이드</button>
+                    <span class="tooltip-text" style="width:280px;">
+                        시스템 아키텍처, 매매 로직(RSI/볼린저/물타기), 환경 정책을 한눈에 설명하는 모달을 엽니다.
+                    </span>
+                </span>
+                <span id="connectionStatus" class="status-dot disconnected has-tooltip">
+                    <span class="tooltip-text" style="width:220px;">
+                        서버 WebSocket 연결 상태<br><br>
+                        🟢 연결됨: 실시간 데이터 수신 중<br>
+                        🔴 끊김: 연결 재시도 중
+                    </span>
+                </span>
+                <span class="has-tooltip">
+                    <button onclick="showAddBotModal()" class="btn-primary">+ 봇 추가</button>
+                    <span class="tooltip-text" style="width:280px;">
+                        새로운 트레이딩 봇을 등록하는 모달을 엽니다.<br><br>
+                        종목코드, 예산, 목표수익률, 하락폭 등을 설정하고 '시작' 버튼으로 자동매매를 시작합니다.
+                    </span>
+                </span>
+            </div>
+        </header>
+
+        <main>
+            <!-- Dashboard Section -->
+            <div id="dashboard-section" class="tab-content active">
+                <!-- Bot Cards Container -->
+                <div id="botCards" class="bot-cards">
+                    <div class="empty-state" id="emptyState">
+                        <p>등록된 봇이 없습니다</p>
+                        <span class="has-tooltip">
+                            <button onclick="showAddBotModal()">첫 번째 봇 추가하기</button>
+                            <span class="tooltip-text" style="width:280px;">
+                                종목코드, 예산, 목표수익률 등을 설정하여 첫 번째 자동매매 봇을 등록합니다.
+                            </span>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Log Viewer -->
+                <div class="log-section">
+                    <div class="log-header">
+                        <span class="has-tooltip">
+                            <h3 id="logHeaderTitle">📋 로그</h3>
+                            <span class="tooltip-text" style="width:280px;">
+                                선택한 봇의 실시간 매매 활동 로그입니다.<br><br>
+                                📍 출처: 서버 프로세스 로그<br>
+                                🔄 갱신: WebSocket으로 실시간 수신
+                            </span>
+                        </span>
+                        <span class="has-tooltip">
+                            <button onclick="refreshLogs()" class="btn-small">새로고침</button>
+                            <span class="tooltip-text" style="width:220px;">
+                                서버에서 최신 로그를 다시 가져옵니다.
+                            </span>
+                        </span>
+                    </div>
+                    <div id="logViewer" class="log-viewer">
+                        <p class="log-placeholder">봇을 시작하면 로그가 표시됩니다...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Screener Section -->
+            <div id="screener-section" class="tab-content">
+                <div class="screener-controls">
+                    <div class="filter-panel">
+                        <h3>🔍 조건 검색 설정 <small style="font-weight: normal; color: #888;">(출처: 네이버 금융)</small>
+                            <button class="action-btn" onclick="triggerManualUpdate()"
+                                style="float: right; font-size: 0.8rem; background: transparent; border: 1px solid #4fc3f7; color: #4fc3f7; padding: 4px 8px; border-radius: 4px; cursor: pointer;">🔄
+                                데이터 수동 업데이트</button>
+                        </h3>
+
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <label>거래량 (주)</label>
+                                <div style="display: flex; gap: 5px;">
+                                    <input type="number" id="minVolume" value="0" placeholder="Min">
+                                    <input type="number" id="maxVolume" value="0" placeholder="Max">
+                                </div>
+                            </div>
+                            <div class="filter-group">
+                                <label>시가총액 (억)</label>
+                                <div style="display: flex; gap: 5px;">
+                                    <input type="number" id="minMarketCap" value="0" placeholder="Min">
+                                    <input type="number" id="maxMarketCap" value="0" placeholder="Max">
+                                </div>
+                            </div>
+                            <div class="filter-group">
+                                <label>PER (배)</label>
+                                <div style="display: flex; gap: 5px;">
+                                    <input type="number" id="minPer" value="0" step="0.1" placeholder="Min">
+                                    <input type="number" id="maxPer" value="0" step="0.1" placeholder="Max">
+                                </div>
+                            </div>
+                            <div class="filter-group">
+                                <label>PBR (배)</label>
+                                <div style="display: flex; gap: 5px;">
+                                    <input type="number" id="minPbr" value="0" step="0.1" placeholder="Min">
+                                    <input type="number" id="maxPbr" value="0" step="0.1" placeholder="Max">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <label>영업이익률 (%)</label>
+                                <div style="display: flex; gap: 5px;">
+                                    <input type="number" id="minOpRate" value="0" step="0.1" placeholder="Min">
+                                    <input type="number" id="maxOpRate" value="0" step="0.1" placeholder="Max">
+                                </div>
+                            </div>
+                            <div class="filter-group">
+                                <label>부채비율 (%)</label>
+                                <div style="display: flex; gap: 5px;">
+                                    <input type="number" id="minDebtRate" value="0" step="0.1" placeholder="Min">
+                                    <input type="number" id="maxDebtRate" value="0" step="0.1" placeholder="Max">
+                                </div>
+                            </div>
+                            <div class="filter-group">
+                                <label>유보율 (%)</label>
+                                <div style="display: flex; gap: 5px;">
+                                    <input type="number" id="minRsrvRate" value="0" step="10" placeholder="Min">
+                                    <input type="number" id="maxRsrvRate" value="0" step="10" placeholder="Max">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="checkbox-row">
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="requireDoubleBottom">
+                                <label for="requireDoubleBottom">📉 쌍바닥 패턴</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="requireInvestorFlow">
+                                <label for="requireInvestorFlow">📊 외국인/기관 수급 (3일)</label>
+                            </div>
+                            <div class="checkbox-item"
+                                style="border: 1px solid #ffd700; padding: 5px 10px; border-radius: 5px; background: rgba(255, 215, 0, 0.05);">
+                                <input type="checkbox" id="optimalMode">
+                                <label for="optimalMode" style="color: #ffd700; font-weight: bold; cursor: pointer;">✨
+                                    Antigravity 최적 전략 (AI)</label>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
+                            <span class="has-tooltip">
+                                <button class="btn-scan" id="scanBtn" onclick="startScan()">
+                                    🔍 검색 시작
+                                </button>
+                                <span class="tooltip-text">설정된 조건으로 종목을 검색합니다.</span>
+                            </span>
+
+                            <span class="has-tooltip">
+                                <button class="btn-scan" style="background: linear-gradient(135deg, #9c27b0, #673ab7);"
+                                    onclick="startRawScan()">
+                                    📊 전체보기
+                                </button>
+                                <span class="tooltip-text">필터링 없이 거래량 상위 종목을 조회합니다.</span>
+                            </span>
+                        </div>
+
+                        <!-- Pre-built Strategies -->
+                        <div style="margin-top: 15px;">
+                            <label style="color: #ffd54f; font-size: 0.85rem; font-weight: bold;">⚡ 빠른 전략</label>
+                            <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
+                                <button class="btn-scan"
+                                    style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #ff5722, #e64a19);"
+                                    onclick="runStrategy('surge')">🔥 급등주</button>
+                                <button class="btn-scan"
+                                    style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #4caf50, #2e7d32);"
+                                    onclick="runStrategy('value')">💰 가치주</button>
+                                <button class="btn-scan"
+                                    style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #2196f3, #1565c0);"
+                                    onclick="runStrategy('trend')">📈 추세돌파</button>
+                                <button class="btn-scan"
+                                    style="padding: 5px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #ff9800, #ef6c00);"
+                                    onclick="runStrategy('institution')">🏦 수급매집</button>
+                            </div>
+                        </div>
+
+                        <!-- Manual Stock Lookup -->
+                        <div
+                            style="margin-top: 15px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; border: 1px dashed #456;">
+                            <label style="color: #90caf9; font-size: 0.9rem;">🔎 종목 검색 (코드 또는 이름)</label>
+                            <div style="display: flex; gap: 8px; margin-top: 6px;">
+                                <input type="text" id="manualTicker" placeholder="예: 005930 또는 삼성전자"
+                                    style="flex: 1; padding: 8px 12px; background: #1a2332; border: 1px solid #456; border-radius: 4px; color: #fff; font-size: 0.9rem;">
+                                <button class="btn-scan"
+                                    style="padding: 8px 16px; background: linear-gradient(135deg, #00bcd4, #009688);"
+                                    onclick="lookupStock()">
+                                    조회
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <div class="screener-status">
+                        <div class="status-item">
+                            <span>📊 데이터 갱신:</span>
+                            <strong id="cacheStatus">로딩 중...</strong>
+                            <span class="has-tooltip" style="margin-left: 4px;">
+                                <span class="info-icon">i</span>
+                                <span class="tooltip-text">전체 종목 캐시는 5분마다 자동 갱신됩니다. 네이버 금융에서 시세·거래량·재무 데이터를
+                                    수집합니다.</span>
+                            </span>
+                        </div>
+                        <div class="status-item">
+                            <span>마지막 검색:</span>
+                            <strong id="lastScanTime">-</strong>
+                        </div>
+                        <div class="status-item">
+                            <span>검색 결과:</span>
+                            <strong id="resultCount">0개</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="results-container">
+                    <table class="screener-table">
+                        <thead>
+                            <tr>
+                                <th class="has-tooltip">코드
+                                    <span class="tooltip-text" style="width:220px;">
+                                        📍 출처: KRX 상장 종목 코드<br>
+                                        🔄 갱신: 고정값 (변경 없음)<br><br>
+                                        종목 고유 식별자입니다.
+                                    </span>
+                                </th>
+                                <th class="has-tooltip">종목명
+                                    <span class="tooltip-text" style="width:220px;">
+                                        📍 출처: 네이버 금융<br>
+                                        🔄 갱신: 캐시 갱신 시 (5분)<br><br>
+                                        회사 공식 상장명입니다.
+                                    </span>
+                                </th>
+                                <th class="has-tooltip">현재가
+                                    <span class="tooltip-text" style="width:250px;">
+                                        📍 출처: 네이버 금융 실시간 시세<br>
+                                        🔄 갱신: 캐시 갱신 시 (5분)<br><br>
+                                        마지막 체결가 기준입니다.
+                                    </span>
+                                </th>
+                                <th class="has-tooltip">등락률
+                                    <span class="tooltip-text" style="width:250px;">
+                                        📍 출처: 네이버 금융<br>
+                                        📊 계산: (현재가 - 전일종가) / 전일종가<br>
+                                        🔄 갱신: 캐시 갱신 시 (5분)<br><br>
+                                        전일 대비 등락률입니다.
+                                    </span>
+                                </th>
+                                <th class="has-tooltip">거래량
+                                    <span class="tooltip-text" style="width:250px;">
+                                        📍 출처: 네이버 금융<br>
+                                        🔄 갱신: 캐시 갱신 시 (5분)<br><br>
+                                        당일 누적 체결 수량입니다.<br>
+                                        높을수록 유동성이 좋습니다.
+                                    </span>
+                                </th>
+                                <th class="has-tooltip">PER
+                                    <span class="tooltip-text" style="width:280px;">
+                                        📍 출처: 네이버 금융 (재무정보)<br>
+                                        📊 계산: 주가 / 주당순이익(EPS)<br>
+                                        🔄 갱신: 분기별 + 캐시 5분<br><br>
+                                        낮을수록 저평가. 음수는 적자 기업.
+                                    </span>
+                                </th>
+                                <th class="has-tooltip">수익성
+                                    <span class="tooltip-text" style="width:280px;">
+                                        📍 출처: 네이버 금융 (재무정보)<br>
+                                        📊 계산: 영업이익률 = 영업이익/매출액<br>
+                                        🔄 갱신: 분기별 + 캐시 5분<br><br>
+                                        높을수록 사업 경쟁력이 좋습니다.
+                                    </span>
+                                </th>
+                                <th class="has-tooltip">RSI/추세
+                                    <span class="tooltip-text" style="width:300px;">
+                                        📍 출처: 계산값 (14일 RSI)<br>
+                                        📊 계산: 14일간 상승폭/하락폭 비율<br>
+                                        🔄 갱신: 캐시 갱신 시 (5분)<br><br>
+                                        RSI ≤ 30: 과매도 (매수 기회)<br>
+                                        RSI ≥ 70: 과매수 (매도 고려)
+                                    </span>
+                                </th>
+                                <th class="has-tooltip">부채/유보
+                                    <span class="tooltip-text" style="width:280px;">
+                                        📍 출처: 네이버 금융 (재무정보)<br>
+                                        📊 부채비율: 부채/자본<br>
+                                        📊 유보율: 사내유보금/자본금<br>
+                                        🔄 갱신: 분기별 + 캐시 5분<br><br>
+                                        부채비율 100% 이하 = 안정적
+                                    </span>
+                                </th>
+                                <th class="has-tooltip">작업
+                                    <span class="tooltip-text" style="width:250px;">
+                                        이 종목으로 트레이딩 봇을 등록하거나<br>
+                                        상세 정보를 확인할 수 있습니다.
+                                    </span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="screenerResults">
+                            <tr>
+                                <td colspan="9" class="empty-state">검색 버튼을 눌러 분석을 시작하세요.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <div class="footer-content">
+                <p>Trading Bot Dashboard v1.2 | <span id="currentTime"></span></p>
+                <span class="has-tooltip">
+                    <button onclick="showSecurityModal()" class="btn-text">🛡️ 보안 관리</button>
+                    <span class="tooltip-text" style="width:280px; bottom:150%;">
+                        IP 차단/해제, 전체 매도 및 초기화 등 보안 관련 설정을 관리합니다.<br><br>
+                        ⚠️ 위험 작업 포함 - 주의해서 사용하세요.
+                    </span>
+                </span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Add Bot Modal -->
+    <div id="addBotModal" class="modal hidden">
+        <div class="modal-content">
+            <h2>봇 추가</h2>
+            <form onsubmit="addBot(event)">
+                <div class="form-group">
+                    <label>종목명 또는 종목코드</label>
+                    <input type="text" id="tickerInput" placeholder="예: 오리엔탈정공 또는 014940" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>투자 예산 (원)</label>
+                        <input type="number" id="budgetInput" placeholder="1300000" value="1300000" required>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            목표 수익 (%)
+                            <span class="has-tooltip">
+                                <span class="info-icon">i</span>
+                                <span class="tooltip-text">평단가 대비 설정한 수익률에 도달하면 전량 매도합니다. (익절 기준)</span>
+                            </span>
+                        </label>
+                        <input type="number" id="targetInput" placeholder="2" value="2" step="any" required>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            추가 매수 하락폭 (%)
+                            <span class="has-tooltip">
+                                <span class="info-icon">i</span>
+                                <span class="tooltip-text">평단가 대비 설정한 하락폭만큼 떨어지면 추가 매수(물타기)를 진행합니다.</span>
+                            </span>
+                        </label>
+                        <input type="number" id="pyramidingInput" placeholder="1.0" value="1.0" step="0.1" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        수동 매수 가격 (최대 4개)
+                        <span class="has-tooltip">
+                            <span class="info-icon">i</span>
+                            <span class="tooltip-text" style="width: 300px; left: 0; transform: none;"><b>언제:</b> 봇 실행 중
+                                실시간 시세가 설정 가격에 도달 시<br><b>어떻게:</b> RSI/볼린저 무시하고 즉시 시장가 매수<br><b>어디서:</b>
+                                monitor_scalp_universal.py 스크립트<br><b>누가:</b> KIS API 통해 자동 주문 집행<br><br>📌 0 또는 공백은
+                                무시됩니다.</span>
+                        </span>
+                    </label>
+                    <div class="multi-input-row">
+                        <input type="number" id="buyPriceInput1" placeholder="매수가1" value="0">
+                        <input type="number" id="buyPriceInput2" placeholder="매수가2" value="0">
+                        <input type="number" id="buyPriceInput3" placeholder="매수가3" value="0">
+                        <input type="number" id="buyPriceInput4" placeholder="매수가4" value="0">
+                    </div>
+                    <small class="hint">하나라도 현재가에 도달하면 즉시 매수합니다.</small>
+                </div>
+
+                <div class="options-group">
+                    <div class="form-group checkbox">
+                        <input type="checkbox" id="orderbookInput">
+                        <label for="orderbookInput">
+                            호가 잔량 필터
+                            <span class="has-tooltip">
+                                <span class="info-icon">i</span>
+                                <span class="tooltip-text">매수 잔량이 매도 잔량보다 많아 하락을 지지할 때만 매수합니다.</span>
+                            </span>
+                        </label>
+                    </div>
+                    <div class="form-group checkbox">
+                        <input type="checkbox" id="momentumInput">
+                        <label for="momentumInput">
+                            모멘텀 모드
+                            <span class="has-tooltip">
+                                <span class="info-icon">i</span>
+                                <span class="tooltip-text">상승 추세가 강할 때 추격 매수하는 돌파 매매 전략입니다. (RSI, 볼밴 무시)</span>
+                            </span>
+                        </label>
+                    </div>
+                    <div class="form-group checkbox">
+                        <input type="checkbox" id="ignoreMarketInput">
+                        <label for="ignoreMarketInput">
+                            장외 시간 무시 (24시간 가동)
+                            <span class="has-tooltip">
+                                <span class="info-icon">i</span>
+                                <span class="tooltip-text">정규 장 시간뿐만 아니라 야간 시장(NXT) 등 24시간 감시합니다.</span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group checkbox live-box">
+                    <input type="checkbox" id="liveInput" checked>
+                    <label for="liveInput">
+                        🚨 실제 매매 (Live Mode)
+                        <span class="has-tooltip">
+                            <span class="info-icon">i</span>
+                            <span class="tooltip-text">체크 시 모의 투자가 아닌 실제 계좌에서 주문이 집행됩니다. 주의하세요!</span>
+                        </span>
+                    </label>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" onclick="hideAddBotModal()" class="btn-secondary">취소</button>
+                    <button type="submit" class="btn-primary">추가</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Bot Modal -->
+    <div id="editBotModal" class="modal hidden">
+        <div class="modal-content">
+            <h2>봇 설정 수정</h2>
+
+            <form onsubmit="updateBot(event)">
+                <input type="hidden" id="editBotId">
+                <div class="form-group">
+                    <label>종목</label>
+                    <input type="text" id="editTickerInput" disabled class="disabled-input">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>투자 예산 (원)</label>
+                        <input type="number" id="editBudgetInput" required>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            목표 수익 (%)
+                            <span class="has-tooltip">
+                                <span class="info-icon">i</span>
+                                <span class="tooltip-text">평단가 대비 설정한 수익률에 도달하면 전량 매도합니다. (익절 기준)</span>
+                            </span>
+                        </label>
+                        <input type="number" id="editTargetInput" step="0.1" placeholder="2.0" value="2.0">
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            추가 매수 하락폭 (%)
+                            <span class="has-tooltip">
+                                <span class="info-icon">i</span>
+                                <span class="tooltip-text">평단가 대비 설정한 하락폭만큼 떨어지면 추가 매수(물타기)를 진행합니다.</span>
+                            </span>
+                        </label>
+                        <input type="number" id="editPyramidingInput" step="0.1" placeholder="1.0" value="1.0">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        수동 매수 가격 (최대 4개)
+                        <span class="has-tooltip">
+                            <span class="info-icon">i</span>
+                            <span class="tooltip-text" style="width: 300px; left: 0; transform: none;"><b>언제:</b> 봇 실행 중
+                                실시간 시세가 설정 가격에 도달 시<br><b>어떻게:</b> RSI/볼린저 무시하고 즉시 시장가 매수<br><b>어디서:</b>
+                                monitor_scalp_universal.py 스크립트<br><b>누가:</b> KIS API 통해 자동 주문 집행<br><br>📌 0 또는 공백은
+                                무시됩니다.</span>
+                        </span>
+                    </label>
+                    <div class="multi-input-row">
+                        <input type="number" id="editBuyPriceInput1" placeholder="매수가1" value="0">
+                        <input type="number" id="editBuyPriceInput2" placeholder="매수가2" value="0">
+                        <input type="number" id="editBuyPriceInput3" placeholder="매수가3" value="0">
+                        <input type="number" id="editBuyPriceInput4" placeholder="매수가4" value="0">
+                    </div>
+                    <small class="hint">하나라도 현재가에 도달하면 즉시 매수합니다.</small>
+                </div>
+
+                <div class="options-group">
+                    <div class="form-group checkbox">
+                        <input type="checkbox" id="editOrderbookInput">
+                        <label for="editOrderbookInput">
+                            호가 잔량 필터
+                            <span class="has-tooltip">
+                                <span class="info-icon">i</span>
+                                <span class="tooltip-text">매수 잔량이 매도 잔량보다 많아 하락을 지지할 때만 매수합니다.</span>
+                            </span>
+                        </label>
+                    </div>
+                    <div class="form-group checkbox">
+                        <input type="checkbox" id="editMomentumInput">
+                        <label for="editMomentumInput">
+                            모멘텀 모드
+                            <span class="has-tooltip">
+                                <span class="info-icon">i</span>
+                                <span class="tooltip-text">상승 추세가 강할 때 추격 매수하는 돌파 매매 전략입니다. (RSI, 볼밴 무시)</span>
+                            </span>
+                        </label>
+                    </div>
+                    <div class="form-group checkbox">
+                        <input type="checkbox" id="editIgnoreMarketInput">
+                        <label for="editIgnoreMarketInput">
+                            장외 시간 무시
+                            <span class="has-tooltip">
+                                <span class="info-icon">i</span>
+                                <span class="tooltip-text">정규 장 시간뿐만 아니라 야간 시장(NXT) 등 24시간 감시합니다.</span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group checkbox live-box">
+                    <input type="checkbox" id="editLiveInput">
+                    <label for="editLiveInput">
+                        🚨 실제 매매 (Live Mode)
+                        <span class="has-tooltip">
+                            <span class="info-icon">i</span>
+                            <span class="tooltip-text">체크 시 모의 투자가 아닌 실제 계좌에서 주문이 집행됩니다. 주의하세요!</span>
+                        </span>
+                    </label>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" onclick="hideEditBotModal()" class="btn-secondary">취소</button>
+                    <button type="submit" class="btn-primary">저장</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Security Modal -->
+    <div id="securityModal" class="modal hidden">
+        <div class="modal-content">
+            <h2>🛡️ 차단된 IP 관리</h2>
+            <div id="blockedIpList" class="ip-list">
+                <p class="placeholder-text">차단된 IP가 없습니다.</p>
+            </div>
+
+            <hr class="divider">
+            <div class="danger-zone">
+                <h3>🚨 Danger Zone</h3>
+                <p class="warning-text">모든 봇을 중지하고, 보유 주식을 전량 매도하며, 데이터를 초기화합니다.</p>
+                <button onclick="emergencyReset()" class="btn-danger-block">⚠️ 전체 매도 및 초기화</button>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" onclick="hideSecurityModal()" class="btn-secondary">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Guide Modal -->
+    <div id="guideModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 800px;">
+            <h2>📖 트레이딩 시스템 가이드</h2>
+            <div class="guide-content">
+                <h3>1. 시스템 아키텍처</h3>
+                <p>본 시스템은 대시보드에서 설정한 전략에 따라 <strong>독립적인 봇 프로세스</strong>가 실시간으로 시장을 감시합니다. 데이터는 한국투자증권(KIS) API와 네이버 금융을
+                    상호 보강하여 수집합니다.</p>
+
+                <h3>2. 봇 시작 시 동작</h3>
+                <p>봇 카드에서 <strong>'시작' 버튼을 누르면</strong> 아래 프로세스가 실행됩니다:</p>
+                <ul>
+                    <li><strong>실행 스크립트:</strong> <code>monitor_scalp_universal.py</code></li>
+                    <li><strong>감시 주기:</strong> 약 10초마다 실시간 시세 조회</li>
+                    <li><strong>데이터 소스:</strong> KIS WebSocket + 네이버 금융 보강</li>
+                </ul>
+
+                <h3>3. 매매 로직 상세</h3>
+                <h4>A. 진입 (Entry) - 매수 조건</h4>
+                <ul>
+                    <li><strong>RSI 과매도:</strong> <code>RSI ≤ 30</code>일 때 자동 매수 신호 발생.</li>
+                    <li><strong>볼린저 밴드 반등:</strong> 주가가 볼린저 밴드 하단을 깨고 반등할 때 매수.</li>
+                    <li><strong>수동 지정가:</strong> 사용자가 설정한 4개 가격 중 하나라도 터치 시 즉시 매수 (지표 무시).</li>
+                    <li><strong>모멘텀 모드:</strong> RSI/볼린저 무시하고 거래량 돌파 시 추격 매수.</li>
+                </ul>
+
+                <h4>B. 청산 (Exit) - 매도 조건</h4>
+                <ul>
+                    <li><strong>익절:</strong> 평단가 대비 설정된 <code>목표 수익률</code> 도달 시 전량 매도.</li>
+                </ul>
+
+                <h4>C. 추가 매수 (Pyramiding) - 물타기</h4>
+                <ul>
+                    <li><strong>조건:</strong> 평단가 대비 설정된 <code>하락폭</code> (기본 1%) 도달 시.</li>
+                    <li><strong>가중치:</strong> <code>1:2:4:8</code> 비율로 추가 매수하여 평단가를 효과적으로 낮춤.</li>
+                    <li><strong>최대 4회</strong> 추가 매수 가능.</li>
+                </ul>
+
+                <div class="warning-box">
+                    <strong>⚠️ 주의사항:</strong> NXT(야간) 시장은 시장가 주문을 지원하지 않으므로, 시스템이 현재가 기반의 지정가 주문으로 보정하여 체결을 시도합니다.
+                </div>
+
+                <h3>4. 환경 정책 안내</h3>
+                <ul>
+                    <li><strong>개발(Dev) (포트 8081):</strong> 실시간 수정 사항이 즉시 반영되는 테스트 환경입니다.</li>
+                    <li><strong>스테이징(Staging) (포트 8080):</strong> 안정성이 검증된 코드만 배포되는 상시 가동 환경입니다.</li>
+                </ul>
+            </div>
+            <div class="form-actions">
+                <button onclick="hideGuideModal()" class="btn-primary">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/script.js?v=4"></script>
+</body>
+
+</html>

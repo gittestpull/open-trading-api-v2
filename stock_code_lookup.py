@@ -93,22 +93,29 @@ class StockMaster:
             
         return None
 
-
-_stock_master_instance = None
-
-def get_stock_code(stock_name: str) -> str:
-    """
-    종목명으로 종목코드 조회
-    
-    Args:
-        stock_name: 종목명 (예: "삼성전자")
-    
-    Returns:
-        종목코드 (예: "005930") 또는 "NOT_FOUND"
-    """
-    global _stock_master_instance
-    if _stock_master_instance is None:
-        _stock_master_instance = StockMaster()
-    
-    code = _stock_master_instance.get_code(stock_name)
-    return code if code else "NOT_FOUND"
+    def get_name(self, code):
+        # Check KOSPI first
+        if self.kospi_master is None:
+            if self._download_and_extract('kospi'):
+                self.kospi_master = self._parse_master('kospi')
+            else:
+                self.kospi_master = {}
+        
+        # Reverse search in KOSPI
+        for name, cd in self.kospi_master.items():
+            if cd == code:
+                return name
+                
+        # Check KOSDAQ
+        if self.kosdaq_master is None:
+            if self._download_and_extract('kosdaq'):
+                self.kosdaq_master = self._parse_master('kosdaq')
+            else:
+                self.kosdaq_master = {}
+                
+        # Reverse search in KOSDAQ
+        for name, cd in self.kosdaq_master.items():
+            if cd == code:
+                return name
+                
+        return None

@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>주식 검색기 - Trading Bot Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css?v=3">
+    <link href="https://fonts.googleapis.com/css2?family=Paperlogy:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        /* Screener Specific Styles */
+        .screener-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .screener-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .screener-header h1 {
+            font-size: 1.8rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 15px;
+        }
+
+        .nav-links a {
+            color: #4fc3f7;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+
+        .nav-links a:hover {
+            background: rgba(79, 195, 247, 0.1);
+        }
+
+        .filter-panel {
+            background: linear-gradient(145deg, #1e2a38, #243447);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .filter-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .filter-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #90a4ae;
+            font-size: 0.9rem;
+        }
+
+        .filter-group input[type="number"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #37474f;
+            border-radius: 8px;
+            background: #1a252f;
+            color: #fff;
+            font-size: 1rem;
+        }
+
+        .checkbox-row {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+        }
+
+        .btn-scan {
+            background: linear-gradient(135deg, #4fc3f7, #29b6f6);
+            border: none;
+            color: #0d1117;
+            padding: 14px 32px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn-scan:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(79, 195, 247, 0.4);
+        }
+
+        .btn-scan:disabled {
+            background: #37474f;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .status-bar {
+            background: #1a252f;
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-label {
+            color: #78909c;
+        }
+
+        .status-value {
+            color: #4fc3f7;
+            font-weight: 600;
+        }
+
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #1e2a38;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .results-table th {
+            background: #243447;
+            color: #90a4ae;
+            padding: 14px 12px;
+            text-align: left;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .results-table td {
+            padding: 14px 12px;
+            border-bottom: 1px solid #37474f;
+            color: #e0e0e0;
+        }
+
+        .results-table tr:hover {
+            background: rgba(79, 195, 247, 0.05);
+        }
+
+        .results-table .ticker {
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .results-table .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background: rgba(76, 175, 80, 0.2);
+            color: #81c784;
+        }
+
+        .badge-warning {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffca28;
+        }
+
+        .badge-info {
+            background: rgba(79, 195, 247, 0.2);
+            color: #4fc3f7;
+        }
+
+        .score-bar {
+            display: flex;
+            gap: 4px;
+        }
+
+        .score-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #37474f;
+        }
+
+        .score-dot.active {
+            background: #4fc3f7;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #78909c;
+        }
+
+        .empty-state h3 {
+            margin-bottom: 10px;
+            color: #90a4ae;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #4fc3f7;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .action-btn {
+            background: transparent;
+            border: 1px solid #4fc3f7;
+            color: #4fc3f7;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: background 0.2s;
+        }
+
+        .action-btn:hover {
+            background: rgba(79, 195, 247, 0.1);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .filter-row {
+                grid-template-columns: 1fr;
+            }
+
+            .checkbox-row {
+                flex-direction: column;
+            }
+
+            .results-table {
+                font-size: 0.85rem;
+            }
+
+            .results-table th,
+            .results-table td {
+                padding: 10px 8px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal">
+        <div class="modal-content login-box">
+            <h2>🔐 주식 검색기</h2>
+            <p>비밀번호를 입력하세요</p>
+            <input type="password" id="passwordInput" placeholder="Password"
+                onkeypress="if(event.key==='Enter')login()">
+            <button onclick="login()">로그인</button>
+            <p id="loginError" class="error"></p>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div id="dashboard" class="hidden screener-container">
+        <header class="screener-header">
+            <h1>🔍 주식 조건 검색기</h1>
+            <div class="nav-links">
+                <a href="/">📈 대시보드</a>
+                <a href="/static/screener.html" class="active">🔍 검색기</a>
+            </div>
+            <button class="action-btn" onclick="triggerManualUpdate()" style="margin-left: auto;">🔄 데이터 수동
+                업데이트</button>
+        </header>
+
+        <!-- Filter Panel -->
+        <div class="filter-panel">
+            <h3>검색 조건 (범위 설정: 0 입력 시 제한 없음)</h3>
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label>거래량 (주)</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="number" id="minVolume" value="0" placeholder="Min">
+                        <input type="number" id="maxVolume" value="0" placeholder="Max">
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label>시가총액 (억)</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="number" id="minMarketCap" value="0" placeholder="Min">
+                        <input type="number" id="maxMarketCap" value="0" placeholder="Max">
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label>PER (배)</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="number" id="minPer" value="0" step="0.1" placeholder="Min">
+                        <input type="number" id="maxPer" value="0" step="0.1" placeholder="Max">
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label>PBR (배)</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="number" id="minPbr" value="0" step="0.1" placeholder="Min">
+                        <input type="number" id="maxPbr" value="0" step="0.1" placeholder="Max">
+                    </div>
+                </div>
+            </div>
+
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label>영업이익률 (%)</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="number" id="minOpRate" value="0" step="0.1" placeholder="Min">
+                        <input type="number" id="maxOpRate" value="0" step="0.1" placeholder="Max">
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label>부채비율 (%)</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="number" id="minDebtRate" value="0" step="0.1" placeholder="Min">
+                        <input type="number" id="maxDebtRate" value="0" step="0.1" placeholder="Max">
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label>유보율 (%)</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="number" id="minRsrvRate" value="0" step="10" placeholder="Min">
+                        <input type="number" id="maxRsrvRate" value="0" step="10" placeholder="Max">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="checkbox-row">
+            <div class="checkbox-item">
+                <input type="checkbox" id="requireDoubleBottom">
+                <label for="requireDoubleBottom">📉 쌍바닥 패턴</label>
+            </div>
+            <div class="checkbox-item">
+                <input type="checkbox" id="requireInvestorFlow">
+                <label for="requireInvestorFlow">📊 외국인/기관 수급 (3일)</label>
+            </div>
+            <div class="checkbox-item"
+                style="border: 1px solid #ffd700; padding: 5px 10px; border-radius: 5px; background: rgba(255, 215, 0, 0.05);">
+                <input type="checkbox" id="optimalMode">
+                <label for="optimalMode" style="color: #ffd700; font-weight: bold; cursor: pointer;">✨ Antigravity 최적 전략
+                    (AI)</label>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
+            <button class="btn-scan" id="scanBtn" onclick="startScan()">
+                🔍 검색 시작
+            </button>
+            <button class="btn-scan" style="background: linear-gradient(135deg, #9c27b0, #673ab7);"
+                onclick="startRawScan()">
+                📊 전체보기 (필터없음)
+            </button>
+        </div>
+
+        <!-- Manual Stock Lookup -->
+        <div
+            style="margin-top: 15px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; border: 1px dashed #456;">
+            <label style="color: #90caf9; font-size: 0.9rem;">🔎 수동 종목 검색 (종목코드 입력)</label>
+            <div style="display: flex; gap: 10px; margin-top: 8px;">
+                <input type="text" id="manualTicker" placeholder="예: 005930 (삼성전자)"
+                    style="flex: 1; padding: 8px 12px; background: #1a2332; border: 1px solid #456; border-radius: 5px; color: #fff;">
+                <button class="btn-scan"
+                    style="padding: 8px 20px; background: linear-gradient(135deg, #00bcd4, #009688);"
+                    onclick="lookupStock()">
+                    조회
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+        <div class="status-item">
+            <span class="status-label">마지막 검색:</span>
+            <span class="status-value" id="lastScanTime">-</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">검색 결과:</span>
+            <span class="status-value" id="resultCount">0개</span>
+        </div>
+    </div>
+
+    <!-- Results Table -->
+    <div class="results-container">
+        <table class="results-table" id="resultsTable">
+            <thead>
+                <tr>
+                    <th>종목코드</th>
+                    <th>종목명</th>
+                    <th>섹터</th>
+                    <th>현재가</th>
+                    <th>시가총액</th>
+                    <th>PER</th>
+                    <th>PBR</th>
+                    <th>영업이익율</th>
+                    <th>RSI / 추세</th>
+                    <th>부채/유보</th>
+                    <th>거래량</th>
+                    <th>평가</th>
+                    <th>액션</th>
+                </tr>
+            </thead>
+            <tbody id="resultsBody">
+                <tr>
+                    <td colspan="13" class="empty-state">
+                        <h3>🔍 검색 결과 없음</h3>
+                        <p>검색 조건을 설정하고 "검색 시작" 버튼을 클릭하세요.</p>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    </div>
+
+    <script>
+        let password = '';
+
+        // Login
+        async function login() {
+            password = document.getElementById('passwordInput').value;
+            try {
+                const response = await fetch('/api/screener/status', {
+                    headers: {
+                        'Authorization': 'Basic ' + btoa('user:' + password)
+                    }
+                });
+
+                if (response.ok) {
+                    document.getElementById('loginModal').classList.add('hidden');
+                    document.getElementById('dashboard').classList.remove('hidden');
+                    loadLastResults();
+                } else if (response.status === 401) {
+                    document.getElementById('loginError').textContent = '비밀번호가 틀렸습니다';
+                } else if (response.status === 403) {
+                    document.getElementById('loginError').textContent = '🚫 IP가 차단되었습니다';
+                }
+            } catch (e) {
+                document.getElementById('loginError').textContent = '서버 연결 오류';
+            }
+        }
+
+        // Load last scan results
+        async function loadLastResults() {
+            try {
+                const response = await fetch('/api/screener/status', {
+                    headers: {
+                        'Authorization': 'Basic ' + btoa('user:' + password)
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.last_scan_time) {
+                        document.getElementById('lastScanTime').textContent = data.last_scan_time;
+                        document.getElementById('resultCount').textContent = data.result_count + '개';
+                        renderResults(data.stocks || []);
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load last results:', e);
+            }
+        }
+
+        // Start scan
+        async function startScan() {
+            const btn = document.getElementById('scanBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading-spinner"></span> 검색 중...';
+
+            const params = new URLSearchParams({
+                minVolume: document.getElementById('minVolume').value,
+                maxVolume: document.getElementById('maxVolume').value,
+
+                minMarketCap: document.getElementById('minMarketCap').value,
+                maxMarketCap: document.getElementById('maxMarketCap').value,
+
+                minPer: document.getElementById('minPer').value,
+                maxPer: document.getElementById('maxPer').value,
+
+                minPbr: document.getElementById('minPbr').value,
+                maxPbr: document.getElementById('maxPbr').value,
+
+                minOpRate: document.getElementById('minOpRate').value,
+                maxOpRate: document.getElementById('maxOpRate').value,
+
+                minDebtRate: document.getElementById('minDebtRate').value,
+                maxDebtRate: document.getElementById('maxDebtRate').value,
+
+                minRsrvRate: document.getElementById('minRsrvRate').value,
+                maxRsrvRate: document.getElementById('maxRsrvRate').value,
+
+                requireDoubleBottom: document.getElementById('requireDoubleBottom').checked,
+                requireInvestorFlow: document.getElementById('requireInvestorFlow').checked,
+                optimalMode: document.getElementById('optimalMode').checked
+            });
+
+            try {
+                const response = await fetch(`/api/screener/scan?${params}`, {
+                    headers: {
+                        'Authorization': 'Basic ' + btoa('user:' + password)
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('lastScanTime').textContent = data.scan_time || new Date().toLocaleString();
+                    document.getElementById('resultCount').textContent = (data.count || 0) + '개';
+
+                    // Display applied filters
+                    if (data.filters) {
+                        const f = data.filters;
+                        document.getElementById('lastScanTime').textContent = f.description || `검색 결과: ${data.count}개`;
+                    }
+
+                    renderResults(data.items || [], data.filters);
+                } else {
+                    alert('검색 실패: ' + response.statusText);
+                }
+            } catch (e) {
+                alert('검색 오류: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🔍 검색 시작';
+            }
+        }
+
+        // Render results
+        function renderResults(stocks, filters) {
+            const tbody = document.getElementById('resultsBody');
+
+            // Filter summary string
+            const filterSummary = filters ?
+                `[${filters.description}] 거래량≥${(filters.minVolume / 10000).toFixed(0)}만, PER≤${filters.maxPer}, 영업이익률≥${filters.minOpRate}%` : '';
+
+            if (!stocks || stocks.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="13" class="empty-state">
+                            <h3>🔍 조건에 맞는 종목이 없습니다</h3>
+                            <p style="font-size: 0.9rem; color: #78909c;">${filterSummary}</p>
+                            <p>검색 조건을 완화하거나 "최적전략(AI)" 체크를 해제해 보세요.</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+
+            tbody.innerHTML = stocks.map(stock => `
+                <tr>
+                    <td class="ticker">${stock.ticker}</td>
+                    <td><a href="https://finance.naver.com/item/main.naver?code=${stock.ticker}" target="_blank" style="color: #4fc3f7; text-decoration: none;">${stock.name || '-'}</a></td>
+                    <td><span class="badge badge-info">${stock.sector || '-'}</span></td>
+                    <td>${formatNumber(stock.price)}원</td>
+                    <td style="font-size: 0.9rem;">${formatMarketCap(stock.market_cap)}</td>
+                    <td>${stock.per ? stock.per.toFixed(2) : '-'}</td>
+                    <td>${stock.pbr ? stock.pbr.toFixed(2) : '-'}</td>
+                    <td class="${stock.op_rate >= 5 ? 'badge-success' : ''}">${stock.op_rate ? stock.op_rate.toFixed(1) + '%' : '-'}</td>
+                    <td>
+                        ${stock.rsi ? `<span class="badge" style="background: ${stock.rsi > 60 ? '#ff9800' : stock.rsi < 40 ? '#03a9f4' : '#4caf50'}">RSI ${stock.rsi}</span>` : ''}
+                        ${stock.trend_ok ? '<span class="badge" style="background: #9c27b0">추세</span>' : ''}
+                    </td>
+                    <td>
+                        <div style="font-size: 0.85rem;">부채: ${stock.debt_rate ? stock.debt_rate.toFixed(1) + '%' : '-'}</div>
+                        <div style="font-size: 0.85rem;">유보: ${stock.rsrv_rate ? Math.round(stock.rsrv_rate) + '%' : '-'}</div>
+                    </td>
+                    <td>${formatNumber(stock.volume)}</td>
+                    <td>${renderScore(stock.score)}</td>
+                    <td><button class="action-btn" onclick="analyzeStock('${stock.ticker}')">상세</button></td>
+                </tr>
+            `).join('');
+        }
+
+        // Format number with commas
+        function formatNumber(num) {
+            if (!num) return '-';
+            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        }
+
+        // Format Market Cap (억 단위 -> 조/억)
+        function formatMarketCap(amount) {
+            if (!amount) return '-';
+            // amount는 억 단위가 아니라 원 단위? 아니, 네이버 시총은 '억원' 단위로 옴. 
+            // 하지만 8,228,297 -> 822 조? 아니면 8조?
+            // 삼성전자 시총 500조. -> 5,000,000 억원.
+            // check_columns output: 8,228,297 (억원). -> 822조.
+
+            // 1조 = 10,000 억
+            if (amount >= 10000) {
+                const trillion = Math.floor(amount / 10000);
+                const billion = amount % 10000;
+                return `${trillion}조 ${billion}억`;
+            }
+            return `${formatNumber(amount)}억`;
+        }
+
+        // Render score dots
+        function renderScore(score) {
+            let html = '<div class="score-bar">';
+            for (let i = 0; i < 4; i++) {
+                html += `<div class="score-dot ${i < score ? 'active' : ''}"></div>`;
+            }
+            html += '</div>';
+            return html;
+        }
+
+        // Analyze single stock
+        async function analyzeStock(ticker) {
+            try {
+                const response = await fetch(`/api/screener/analyze/${ticker}`, {
+                    headers: {
+                        'Authorization': 'Basic ' + btoa('user:' + password)
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(JSON.stringify(data, null, 2));
+                } else {
+                    alert('분석 실패');
+                }
+            } catch (e) {
+                alert('분석 오류: ' + e.message);
+            }
+        }
+
+        // RAW Scan - No filters, just high volume stocks
+        async function startRawScan() {
+            const minVolume = document.getElementById('minVolume').value || 0;
+
+            document.getElementById('lastScanTime').textContent = '조회 중...';
+
+            try {
+                const response = await fetch(`/api/screener/raw?minVolume=${minVolume}`, {
+                    headers: {
+                        'Authorization': 'Basic ' + btoa('user:' + password)
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('lastScanTime').textContent = data.message || '전체보기 모드';
+                    document.getElementById('resultCount').textContent = (data.count || 0) + '개';
+                    renderResults(data.items || [], null);
+                } else {
+                    alert('조회 실패: ' + response.statusText);
+                }
+            } catch (e) {
+                alert('조회 오류: ' + e.message);
+            }
+        }
+
+        // Manual stock lookup
+        async function lookupStock() {
+            const ticker = document.getElementById('manualTicker').value.trim();
+            if (!ticker) {
+                alert('종목코드를 입력하세요');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/screener/lookup?ticker=${ticker}`, {
+                    headers: {
+                        'Authorization': 'Basic ' + btoa('user:' + password)
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('lastScanTime').textContent = `수동 조회: ${ticker}`;
+                    document.getElementById('resultCount').textContent = '1개';
+                    renderResults([data.item], null);
+                } else {
+                    const err = await response.json();
+                    alert('조회 실패: ' + (err.detail || response.statusText));
+                }
+            } catch (e) {
+                alert('조회 오류: ' + e.message);
+            }
+        }
+
+        // Manual Update Trigger
+        async function triggerManualUpdate() {
+            if (!confirm('현재 모든 종목의 데이터를 최신으로 업데이트하시겠습니까?\n(약 3~5분 소요되며, 서버 부하가 발생할 수 있습니다.)')) return;
+
+            try {
+                const response = await fetch('/api/screener/update', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Basic ' + btoa('user:' + password)
+                    }
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    alert('✅ ' + data.message);
+                } else {
+                    alert('❌ 실패: ' + data.message);
+                }
+            } catch (e) {
+                alert('오류 발생: ' + e.message);
+            }
+        }
+
+        // Check if already logged in (via session/cookie check would be ideal)
+        document.addEventListener('DOMContentLoaded', () => {
+            // Show login modal by default
+        });
+    </script>
+
+</body>
+
+</html>

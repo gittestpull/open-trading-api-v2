@@ -1,4 +1,4 @@
-# Trading Bot Container with uv
+# Trading Bot Web Dashboard
 FROM python:3.13-slim
 
 # Install required system dependencies
@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     libgl1 \
     libxkbcommon0 \
     libegl1 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv
@@ -17,11 +18,11 @@ RUN pip install uv
 # Set working directory
 WORKDIR /app
 
-# Copy project files
+# Copy project files for dependency installation
 COPY pyproject.toml ./
 COPY requirements.txt ./
 
-# Install dependencies using uv sync
+# Install dependencies using uv
 RUN uv sync --no-dev
 
 # Copy all source code
@@ -32,5 +33,8 @@ RUN mkdir -p /app/logs
 RUN mkdir -p /app/scalp_data
 RUN mkdir -p /root/KIS/config
 
-# Default entrypoint with uv
-ENTRYPOINT ["uv", "run", "python", "monitor_scalp_universal.py"]
+# Expose port
+EXPOSE 8080
+
+# Default command - run the web dashboard
+CMD ["uv", "run", "uvicorn", "web.app:app", "--host", "0.0.0.0", "--port", "8080"]

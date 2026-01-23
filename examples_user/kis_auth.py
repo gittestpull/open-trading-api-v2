@@ -14,7 +14,6 @@ from collections.abc import Callable
 from datetime import datetime
 from io import StringIO
 import os
-from typing import Union
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -38,59 +37,32 @@ from Crypto.Util.Padding import unpad
 clearConsole = lambda: os.system("cls" if os.name in ("nt", "dos") else "clear")
 
 key_bytes = 32
-
-# Robust Config Path Logic
-env_config_path = os.getenv("KIS_CONFIG_PATH")
-if env_config_path:
-    config_root = env_config_path
-else:
-    # Try default home directory
-    config_root = os.path.join(os.path.expanduser("~"), "KIS", "config")
-
-# Ensure directory exists, or fallback to temp/cwd
-try:
-    if not os.path.exists(config_root):
-        os.makedirs(config_root, exist_ok=True)
-except Exception as e:
-    print(f"Warning: Could not create config dir at {config_root}. Using current directory. Error: {e}")
-    config_root = os.getcwd()
-
-# Token file path
+config_root = os.path.join(os.path.expanduser("~"), "KIS", "config")
+# config_root = "$HOME/KIS/config/"  # 토큰 파일이 저장될 폴더, 제3자가 찾기 어렵도록 경로 설정하시기 바랍니다.
+# token_tmp = config_root + 'KIS000000'  # 토큰 로컬저장시 파일 이름 지정, 파일이름을 토큰값이 유추가능한 파일명은 삼가바랍니다.
+# token_tmp = config_root + 'KIS' + datetime.today().strftime("%Y%m%d%H%M%S")  # 토큰 로컬저장시 파일명 년월일시분초
 token_tmp = os.path.join(
     config_root, f"KIS{datetime.today().strftime('%Y%m%d')}"
-)
+)  # 토큰 로컬저장시 파일명 년월일
 
-# Create token file if not exists
-try:
-    if not os.path.exists(token_tmp):
-        with open(token_tmp, "w+") as f:
-            pass
-except Exception as e:
-    print(f"Warning: Could not create token file at {token_tmp}. Using temp file. Error: {e}")
-    import tempfile
-    token_tmp = os.path.join(tempfile.gettempdir(), f"KIS{datetime.today().strftime('%Y%m%d')}")
-    with open(token_tmp, "w+") as f:
-        pass
+# 접근토큰 관리하는 파일 존재여부 체크, 없으면 생성
+if os.path.exists(config_root) == False:
+    os.makedirs(config_root, exist_ok=True)
 
-# Config file path (kis_devlp.yaml)
-# Priority: 
-# 1. KIS_CONFIG_FILE env var
-# 2. kis_devlp.yaml in current dir
-# 3. kis_devlp.yaml in config_root
-env_config_file = os.getenv("KIS_CONFIG_FILE")
-if env_config_file and os.path.exists(env_config_file):
-    config_file = env_config_file
-elif os.path.exists("kis_devlp.yaml"):
-    config_file = "kis_devlp.yaml"
+if os.path.exists(token_tmp) == False:
+    f = open(token_tmp, "w+")
+
+# 앱키, 앱시크리트, 토큰, 계좌번호 등 저장관리, 자신만의 경로와 파일명으로 설정하시기 바랍니다.
+# pip install PyYAML (패키지설치)
+# Check if kis_devlp.yaml exists in current directory first
+local_cfg_path = "kis_devlp.yaml"
+if os.path.exists(local_cfg_path):
+    config_file = local_cfg_path
 else:
     config_file = os.path.join(config_root, "kis_devlp.yaml")
 
-if not os.path.exists(config_file):
-    print(f"Warning: Config file not found at {config_file}. Auth might fail.")
-
 with open(config_file, encoding="UTF-8") as f:
     _cfg = yaml.load(f, Loader=yaml.FullLoader)
-
 
 _TRENV = tuple()
 _last_auth_time = datetime.now()
@@ -272,8 +244,9 @@ def auth(svr="prod", product=_cfg["my_prod"], url=None):
             ).access_token_token_expired  # 토큰값 만료일시 가져오기
             save_token(my_token, my_expired)  # 새로 발급 받은 토큰 저장
         else:
-            print("Get Authentification token fail!\nYou have to restart your app!!!")
-            return
+            msg = "Get Authentification token fail!\nYou have to restart your app!!!"
+            print(msg)
+            raise Exception(msg)
     else:
         my_token = saved_token  # 기존 발급 토큰 확인되어 기존 토큰 사용
 
@@ -488,9 +461,9 @@ def _url_fetch(
 
     if postFlag:
         # if (hashFlag): set_order_hash_key(headers, params)
-        res = requests.post(url, headers=headers, data=json.dumps(params))
+        res = requests.post(url, headers=headers, data=json.dumps(params), timeout=10)
     else:
-        res = requests.get(url, headers=headers, params=params)
+        res = requests.get(url, headers=headers, params=params, timeout=10)
 
     if res.status_code == 200:
         ar = APIResp(res)
@@ -656,7 +629,7 @@ open_map: dict = {}
 def add_open_map(
         name: str,
         request: Callable[[str, str, ...], (dict, list[str])],
-        data: Union[str, list[str]],
+        data: str | list[str],
         kwargs: dict = None,
 ):
     if open_map.get(name, None) is None:
@@ -807,7 +780,7 @@ class KISWebSocket:
             ws: websockets.ClientConnection,
             request: Callable[[str, str, ...], (dict, list[str])],
             tr_type: str,
-            data: Union[list, str],
+            data: list | str,
             kwargs: dict = None,
     ):
         if type(data) is str:
@@ -822,7 +795,7 @@ class KISWebSocket:
     def subscribe(
             cls,
             request: Callable[[str, str, ...], (dict, list[str])],
-            data: Union[list, str],
+            data: list | str,
             kwargs: dict = None,
     ):
         add_open_map(request.__name__, request, data, kwargs)
@@ -831,7 +804,7 @@ class KISWebSocket:
             self,
             ws: websockets.ClientConnection,
             request: Callable[[str, str, ...], (dict, list[str])],
-            data: Union[list, str],
+            data: list | str,
     ):
         self.send_multiple(ws, request, "2", data)
 

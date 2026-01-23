@@ -1,0 +1,29 @@
+# KIS Open Trading API 설정 파일
+# 이 파일을 복사하여 kis_devlp.yaml 로 저장한 후 실제 값을 입력하세요.
+
+# ===== 실전투자용 앱 정보 =====
+my_app: "your_real_app_key"          # 실전투자용 앱키 (발급받은 APP KEY)
+my_sec: "your_real_app_secret"       # 실전투자용 앱시크릿 (발급받은 APP SECRET)
+
+# ===== 모의투자용 앱 정보 =====
+paper_app: "your_paper_app_key"      # 모의투자용 앱키
+paper_sec: "your_paper_app_secret"   # 모의투자용 앱시크릿
+
+# ===== 계좌 정보 =====
+my_acct_stock: "12345678"            # 주식 계좌번호 (8자리)
+my_acct_future: "12345678"           # 선물옵션 계좌번호 (8자리)
+my_prod: "01"                        # 계좌 상품코드 (01: 위탁, 03: 선물옵션)
+my_htsid: "your_hts_id"              # HTS 아이디
+
+# ===== 모의투자 계좌 정보 =====
+my_paper_stock: "12345678"           # 모의투자 주식 계좌번호
+my_paper_future: "12345678"          # 모의투자 선물옵션 계좌번호
+
+# ===== 서버 URL =====
+prod: "https://openapi.koreainvestment.com:9443"    # 실전투자 도메인
+vps: "https://openapivts.koreainvestment.com:29443" # 모의투자 도메인
+ops: "ws://ops.koreainvestment.com:21000"           # 실전투자 WebSocket
+vops: "ws://ops.koreainvestment.com:31000"          # 모의투자 WebSocket
+
+# ===== 기타 설정 =====
+my_agent: "Mozilla/5.0"              # User Agent

@@ -166,3 +166,13 @@ MCP/
 examples_llm/
 stocks_info/
 uv.lock
+
+# Trading Bot specific ignores
+scalp_data/
+data/
+logs/
+web/bots_config.json
+web/blocked_ips.json
+.last_web_port
+*.log
+.cursorrules
