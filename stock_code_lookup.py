@@ -119,3 +119,11 @@ class StockMaster:
                 return name
                 
         return None
+
+def get_stock_code(name):
+    """
+    Helper function for direct usage without instantiating StockMaster
+    """
+    master = StockMaster()
+    return master.get_code(name)
+
