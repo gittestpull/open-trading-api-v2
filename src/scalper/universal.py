@@ -2,8 +2,11 @@
 import sys
 import os
 from datetime import datetime
+import pytz
 from typing import Tuple
 import logging
+
+KST = pytz.timezone('Asia/Seoul')
 import pandas as pd
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'examples_user'))
@@ -61,7 +64,7 @@ class UniversalScalper(BaseScalper):
             params = {
                 "FID_COND_MRKT_DIV_CODE": mrkt_code,
                 "FID_INPUT_ISCD": self.ticker,
-                "FID_INPUT_HOUR_1": datetime.now().strftime("%H%M%S"),
+                "FID_INPUT_HOUR_1": datetime.now(KST).strftime("%H%M%S"),
                 "FID_PW_DATA_INCU_YN": "Y",
                 "FID_ETC_CLS_CODE": ""
             }
@@ -269,7 +272,7 @@ class UniversalScalper(BaseScalper):
         return 0, 0, ""
     
     def check_market_hours(self) -> bool:
-        now = datetime.now()
+        now = datetime.now(KST)
         current_time = now.strftime("%H:%M")
         
         if self.is_domestic:

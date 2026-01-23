@@ -15,7 +15,10 @@ import re
 import logging
 from typing import Tuple, Optional, List, Dict
 from datetime import datetime
+import pytz
 from dotenv import load_dotenv
+
+KST = pytz.timezone('Asia/Seoul')
 
 import pandas as pd
 
@@ -100,7 +103,7 @@ class LLMScalper(BaseScalper):
             params = {
                 "FID_COND_MRKT_DIV_CODE": "J",
                 "FID_INPUT_ISCD": self.ticker,
-                "FID_INPUT_HOUR_1": datetime.now().strftime("%H%M%S"),
+                "FID_INPUT_HOUR_1": datetime.now(KST).strftime("%H%M%S"),
                 "FID_PW_DATA_INCU_YN": "Y",
                 "FID_ETC_CLS_CODE": ""
             }
@@ -295,7 +298,7 @@ class LLMScalper(BaseScalper):
                 "FID_COND_MRKT_CLS_CODE": "00",
                 "FID_INPUT_ISCD": self.ticker,
                 "FID_TITL_CNTT": "",
-                "FID_INPUT_DATE_1": datetime.now().strftime("%Y%m%d"),
+                "FID_INPUT_DATE_1": datetime.now(KST).strftime("%Y%m%d"),
                 "FID_INPUT_HOUR_1": "090000",
                 "FID_RANK_SORT_CLS_CODE": "01",
                 "FID_INPUT_SRNO": "1"
@@ -306,7 +309,7 @@ class LLMScalper(BaseScalper):
             params = {
                 "INFO_GB": "", "CLASS_CD": "", "NATION_CD": "US",
                 "EXCHANGE_CD": "", "SYMB": self.ticker,
-                "DATA_DT": datetime.now().strftime("%Y%m%d"),
+                "DATA_DT": datetime.now(KST).strftime("%Y%m%d"),
                 "DATA_TM": "", "CTS": ""
             }
         
