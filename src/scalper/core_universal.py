@@ -353,6 +353,8 @@ class UniversalScalper:
             # 1. Investor Trend Estimate (HHPTJ04160200) - Real-time estimate
             # Fields: frgn_fake_ntby_qty (Foreigner), orgn_fake_ntby_qty (Institution)
             # Personal data is not explicitly provided in this estimate API
+            if d_func is None:
+                return
             est_df = d_func.investor_trend_estimate(self.ticker)
             if not est_df.empty:
                 row = est_df.iloc[0]
@@ -389,6 +391,10 @@ class UniversalScalper:
             
         try:
             if self.is_domestic:
+                if d_func is None:
+                    self.unfilled_buy_qty = 0
+                    self.unfilled_sell_qty = 0
+                    return
                 # inqr_dvsn_1: 0(주문), 1(종목) | inqr_dvsn_2: 0(전체), 1(매도), 2(매수)
                 df = d_func.inquire_psbl_rvsecncl(
                     cano=self.trenv.my_acct, 
@@ -1049,6 +1055,8 @@ class UniversalScalper:
                         logger.info(f"[LIVE] BUY {cash_buy_qty} of {self.ticker} (Cash)")
                         env_type = "demo" if kis_auth.isPaperTrading() else "real"
                         current_exch = getattr(self, 'current_exchange', 'KRX')
+                        if d_func is None:
+                            raise Exception("d_func not available for order")
                         df = d_func.order_cash(env_type, "buy", self.trenv.my_acct, self.trenv.my_prod, self.ticker, ord_dvsn, str(int(cash_buy_qty)), ord_unpr, current_exch)
                         
                         # Check if cash order succeeded
@@ -1062,6 +1070,8 @@ class UniversalScalper:
                     if remaining_qty > 0 and self.credit_cash > 0:
                         logger.info(f"[LIVE] BUY {remaining_qty} of {self.ticker} (Credit {self.credit_type_code})")
                         today = datetime.now().strftime("%Y%m%d")
+                        if d_func is None:
+                            raise Exception("d_func not available for credit order")
                         df_credit = d_func.order_credit("buy", self.trenv.my_acct, self.trenv.my_prod, self.ticker, self.credit_type_code, today, ord_dvsn, str(int(remaining_qty)), ord_unpr)
                         
                         # Use credit result as primary if no cash order was made
@@ -1077,6 +1087,8 @@ class UniversalScalper:
                         if rem_qty <= 0: break
                         sell_qty_part = min(rem_qty, item['qty'])
                         logger.info(f"[LIVE] SELL {sell_qty_part} (Credit 상환, 대출일:{item['loan_dt']}) of {self.ticker}")
+                        if d_func is None:
+                            raise Exception("d_func not available for credit sell")
                         df = d_func.order_credit("sell", self.trenv.my_acct, self.trenv.my_prod, self.ticker, "25", item['loan_dt'], ord_dvsn, str(int(sell_qty_part)), ord_unpr)
                         if df is not None and not df.empty:
                             last_odno = str(df.iloc[0].get('ODNO', ''))
@@ -1091,6 +1103,8 @@ class UniversalScalper:
                         logger.info(f"[LIVE] SELL {sell_cash_qty} (Cash) of {self.ticker}")
                         env_type = "demo" if kis_auth.isPaperTrading() else "real"
                         current_exch = getattr(self, 'current_exchange', 'KRX')
+                        if d_func is None:
+                            raise Exception("d_func not available for cash sell")
                         df = d_func.order_cash(env_type, "sell", self.trenv.my_acct, self.trenv.my_prod, self.ticker, ord_dvsn, str(int(sell_cash_qty)), ord_unpr, current_exch)
                         if df is not None and not df.empty:
                             last_odno = str(df.iloc[0].get('ODNO', ''))
