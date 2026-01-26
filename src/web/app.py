@@ -231,7 +231,7 @@ def create_app(base_dir: str) -> FastAPI:
         return HTMLResponse("<h1>Deep Dive Platform</h1><p>Static files not found</p>")
     
     @app.post("/api/scalper/start")
-    async def start_scalper(req: StartScalperRequest, _: str = Depends(verify_password)):
+    async def start_scalper(req: StartScalperRequest):
         result = manager.start_scalper(
             ticker=req.ticker,
             budget=req.budget,
@@ -247,7 +247,7 @@ def create_app(base_dir: str) -> FastAPI:
         return result
     
     @app.post("/api/scalper/stop/{ticker}")
-    async def stop_scalper(ticker: str, _: str = Depends(verify_password)):
+    async def stop_scalper(ticker: str):
         result = manager.stop_scalper(ticker)
         if "error" in result:
             raise HTTPException(status_code=400, detail=result["error"])
@@ -628,7 +628,7 @@ def create_app(base_dir: str) -> FastAPI:
         return {"symbol": symbol, "history": history}
     
     @app.post("/api/journal/entry")
-    async def add_journal_entry(req: JournalEntryRequest, _: str = Depends(verify_password)):
+    async def add_journal_entry(req: JournalEntryRequest):
         entry_id = await journal.add_entry(
             ticker=req.ticker,
             side=req.side,
@@ -640,7 +640,7 @@ def create_app(base_dir: str) -> FastAPI:
         return {"id": entry_id, "status": "created"}
     
     @app.put("/api/journal/entry/{entry_id}")
-    async def update_journal_entry(entry_id: int, req: JournalUpdateRequest, _: str = Depends(verify_password)):
+    async def update_journal_entry(entry_id: int, req: JournalUpdateRequest):
         success = await journal.update_entry(
             entry_id=entry_id,
             ticker=req.ticker,
@@ -655,7 +655,7 @@ def create_app(base_dir: str) -> FastAPI:
         return {"status": "updated"}
 
     @app.delete("/api/journal/entry/{entry_id}")
-    async def delete_journal_entry(entry_id: int, _: str = Depends(verify_password)):
+    async def delete_journal_entry(entry_id: int):
         success = await journal.delete_entry(entry_id)
         return {"status": "deleted"}
     
@@ -725,7 +725,7 @@ def create_app(base_dir: str) -> FastAPI:
         return {"trades": trades, "count": len(trades)}
     
     @app.post("/api/simulator/reset")
-    async def reset_simulator(initial_capital: float = 10000000, _: str = Depends(verify_password)):
+    async def reset_simulator(initial_capital: float = 10000000):
         simulator.reset(initial_capital)
         return {"status": "reset", "initial_capital": initial_capital}
     
@@ -735,7 +735,7 @@ def create_app(base_dir: str) -> FastAPI:
         return state
     
     @app.post("/api/simulator/import")
-    async def import_simulator_state(data: dict, _: str = Depends(verify_password)):
+    async def import_simulator_state(data: dict):
         simulator.import_state(data)
         return {"status": "imported"}
     
@@ -760,7 +760,7 @@ def create_app(base_dir: str) -> FastAPI:
         return scheduler.get_status()
     
     @app.post("/api/admin/scheduler/start")
-    async def start_scheduler(hour: int = 15, minute: int = 50, _: str = Depends(verify_password)):
+    async def start_scheduler(hour: int = 15, minute: int = 50):
         scheduler.start(hour=hour, minute=minute)
         return {"status": "started", "schedule": f"{hour:02d}:{minute:02d}"}
     
@@ -770,7 +770,7 @@ def create_app(base_dir: str) -> FastAPI:
         return {"status": "stopped"}
     
     @app.post("/api/admin/collect")
-    async def trigger_collection(background_tasks: BackgroundTasks, force: bool = False, detect_changes: bool = False, _: str = Depends(verify_password)):
+    async def trigger_collection(background_tasks: BackgroundTasks, force: bool = False, detect_changes: bool = False):
         async def run_collection():
             await scheduler.run_now(force=force, detect_changes=detect_changes)
         
