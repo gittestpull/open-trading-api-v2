@@ -12,7 +12,7 @@ from .config import ScalperConfig, StrategyConfig, FeeConfig
 from .indicators import TechnicalIndicators
 from .state import StateManager
 from .base import BaseScalper
-from .universal import UniversalScalper
+# from .universal import UniversalScalper  # Removed (V2 deprecated)
 from .llm import LLMScalper
 
 __all__ = [
@@ -22,6 +22,6 @@ __all__ = [
     "TechnicalIndicators",
     "StateManager",
     "BaseScalper",
-    "UniversalScalper",
+    # "UniversalScalper",
     "LLMScalper",
 ]

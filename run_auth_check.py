@@ -1,8 +1,8 @@
 import sys
 import os
 
-# Add examples_user to path to import kis_auth
-sys.path.append(os.path.join(os.getcwd(), 'examples_user'))
+# kis_auth is now in the root directory, so no need to append examples_user
+# sys.path.append(os.path.join(os.getcwd(), 'examples_user'))
 
 try:
     import kis_auth

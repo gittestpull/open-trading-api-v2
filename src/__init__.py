@@ -13,11 +13,11 @@ Modules:
 __version__ = "2.0.0"
 __author__ = "Korea Investment & Securities"
 
-from .scalper import UniversalScalper, LLMScalper
+from .scalper import LLMScalper
 from .utils import setup_logging
 
 __all__ = [
-    "UniversalScalper",
+    # "UniversalScalper",
     "LLMScalper", 
     "setup_logging",
 ]

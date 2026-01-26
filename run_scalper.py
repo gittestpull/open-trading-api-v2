@@ -43,8 +43,17 @@ def main():
         from src.scalper.llm import LLMScalper
         scalper = LLMScalper(config)
     else:
-        from src.scalper.universal import UniversalScalper
-        scalper = UniversalScalper(config)
+        # USE PRODUCTION V1 LOGIC (monitor_scalp_universal.py)
+        from monitor_scalp_universal import UniversalScalper
+        scalper = UniversalScalper(
+            ticker=args.ticker,
+            budget=args.budget,
+            target_profit=args.target,
+            live_mode=args.live,
+            manual_buy_price=args.buy_price,
+            use_orderbook=args.orderbook,
+            use_momentum=args.momentum
+        )
     
     scalper.run()
 

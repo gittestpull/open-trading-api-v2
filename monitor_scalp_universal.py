@@ -8,12 +8,8 @@ import pytz
 
 KST = pytz.timezone('Asia/Seoul')
 
-warnings.warn(
-    "monitor_scalp_universal.py is deprecated. "
-    "Use 'from src.scalper import UniversalScalper' or 'python run_scalper.py' instead.",
-    DeprecationWarning,
-    stacklevel=2
-)
+# monitor_scalp_universal.py acts as the core production scalper (V1)
+# Main entry point: run_scalper.py
 
 # 1. Absolute First: Setup Logging before ANY other imports
 LOG_DIR = os.path.join(os.getcwd(), 'logs')

@@ -3,7 +3,7 @@ import logging
 
 import pandas as pd
 
-sys.path.extend(['..', '.'])
+sys.path.extend(['../..', '..', '.'])
 import kis_auth as ka
 from etfetn_functions_ws import *
 

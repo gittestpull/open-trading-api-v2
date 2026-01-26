@@ -1,7 +1,7 @@
 import logging
 import sys
 
-sys.path.extend(['..', '.'])
+sys.path.extend(['../..', '..', '.'])
 import kis_auth as ka
 
 # 로깅 설정
