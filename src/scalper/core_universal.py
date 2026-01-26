@@ -56,15 +56,22 @@ except ImportError:
 # Add examples_user to path for domestic_stock_functions
 sys.path.append(os.path.join(os.getcwd(), 'examples_user'))
 sys.path.append(os.path.join(os.getcwd(), 'examples_user', 'domestic_stock'))
+# Also add src/core so that legacy example files can find relocated modules like kis_auth
+sys.path.append(os.path.join(os.getcwd(), 'src', 'core'))
+sys.path.append(os.path.join(os.getcwd(), 'src', 'utils'))
+
 d_func = None  # Initialize to None
 try:
     import domestic_stock_functions as d_func
 except ImportError as e:
-    logger.warning(f"domestic_stock_functions not available: {e}")
+    logger.warning(f"domestic_stock_functions not available: {e}. Check if examples_user/domestic_stock/ is correctly mounted.")
     d_func = None
 
 def notify_user(msg, ticker=None):
     """Utility to provide audio and desktop notifications."""
+    import platform
+    if platform.system() != "Darwin":  # Only run on macOS
+        return
     try:
         title = f"Trading Bot ({ticker})" if ticker else "Trading Bot"
         os.system(f"osascript -e 'display notification \"{msg}\" with title \"{title}\"'")
