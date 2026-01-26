@@ -17,6 +17,31 @@ from ..api import (
 )
 from ..api.log_buffer import get_log_buffer
 
+import json
+import secrets
+import re
+from pathlib import Path
+from datetime import datetime
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi import Request, Depends, status
+
+# Security Constants
+MAX_LOGIN_ATTEMPTS = 5
+HONEYPOT_PASSWORD = "trading123"
+DEFAULT_SECURE_PASS = secrets.token_urlsafe(16)
+DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", DEFAULT_SECURE_PASS)
+
+if DASHBOARD_PASSWORD == DEFAULT_SECURE_PASS:
+    print(f"⚠️  NO PASSWORD SET! Generated secure password: {DASHBOARD_PASSWORD}")
+
+security = HTTPBasic()
+login_attempts: dict = {}
+blocked_ips: dict = {}
+
+# Paths
+BASE_DIR = Path(__file__).parent.parent.parent
+BLOCKED_IPS_FILE = BASE_DIR / "web" / "config" / "prod" / "blocked_ips.json" # Default path, adjusted dynamically usually
+
 
 class StartScalperRequest(BaseModel):
     ticker: str
@@ -90,8 +115,96 @@ class SectorUpdateRequest(BaseModel):
     data: dict
 
 
+
+# Security Helper Functions
+def load_blocked_ips() -> dict:
+    if BLOCKED_IPS_FILE.exists():
+        try:
+            with open(BLOCKED_IPS_FILE, "r") as f:
+                return json.load(f)
+        except:
+            pass
+    return {}
+
+def save_blocked_ips(blocked: dict):
+    try:
+        BLOCKED_IPS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(BLOCKED_IPS_FILE, "w") as f:
+            json.dump(blocked, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"Failed to save blocked IPs: {e}")
+
+# Initial Load
+if BLOCKED_IPS_FILE.exists():
+    blocked_ips.update(load_blocked_ips())
+
+def get_client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+def check_rate_limit(request: Request):
+    ip = get_client_ip(request)
+    if ip in blocked_ips:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="🚫 IP Permanently Blocked"
+        )
+    return ip
+
+def record_failed_attempt(ip: str):
+    if ip not in login_attempts:
+        login_attempts[ip] = 0
+    login_attempts[ip] += 1
+    
+    if login_attempts[ip] >= MAX_LOGIN_ATTEMPTS:
+        blocked_ips[ip] = {
+            "blocked_at": datetime.now().isoformat(),
+            "reason": "Excessive Login Failures"
+        }
+        save_blocked_ips(blocked_ips)
+        print(f"🚫 IP {ip} PERMANENTLY BLOCKED")
+
+def verify_password(request: Request, credentials: HTTPBasicCredentials = Depends(security)):
+    ip = check_rate_limit(request)
+    
+    # Honeypot Check
+    if secrets.compare_digest(credentials.password, HONEYPOT_PASSWORD):
+        blocked_ips[ip] = {
+            "blocked_at": datetime.now().isoformat(),
+            "reason": "HONEYPOT_TRIGGERED"
+        }
+        save_blocked_ips(blocked_ips)
+        print(f"🚨 HONEYPOT TRIGGERED! IP {ip} blocked.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect password",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+
+    correct = secrets.compare_digest(credentials.password, DASHBOARD_PASSWORD)
+    if not correct:
+        record_failed_attempt(ip)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect password",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    
+    if ip in login_attempts:
+        del login_attempts[ip]
+    return credentials.username
+
+
 def create_app(base_dir: str) -> FastAPI:
-    app = FastAPI(title="Deep Dive Investment Platform", version="2.0.0")
+    # Update BASE_DIR and BLOCKED_IPS_PATH based on runtime arg if needed
+    global BLOCKED_IPS_FILE
+    # Try multiple env locations for blocked_ips
+    env_type = os.getenv("ENV_TYPE", "prod")
+    potential_path = Path(base_dir) / "web" / "config" / env_type / "blocked_ips.json"
+    BLOCKED_IPS_FILE = potential_path
+    if BLOCKED_IPS_FILE.exists():
+        blocked_ips.update(load_blocked_ips())
+
+    app = FastAPI(title="Deep Dive Investment Platform", version="2.0.0", docs_url="/docs")
     manager = ProcessManager(base_dir)
     
     db = get_database()
@@ -118,7 +231,7 @@ def create_app(base_dir: str) -> FastAPI:
         return HTMLResponse("<h1>Deep Dive Platform</h1><p>Static files not found</p>")
     
     @app.post("/api/scalper/start")
-    async def start_scalper(req: StartScalperRequest):
+    async def start_scalper(req: StartScalperRequest, _: str = Depends(verify_password)):
         result = manager.start_scalper(
             ticker=req.ticker,
             budget=req.budget,
@@ -134,7 +247,7 @@ def create_app(base_dir: str) -> FastAPI:
         return result
     
     @app.post("/api/scalper/stop/{ticker}")
-    async def stop_scalper(ticker: str):
+    async def stop_scalper(ticker: str, _: str = Depends(verify_password)):
         result = manager.stop_scalper(ticker)
         if "error" in result:
             raise HTTPException(status_code=400, detail=result["error"])
@@ -515,7 +628,7 @@ def create_app(base_dir: str) -> FastAPI:
         return {"symbol": symbol, "history": history}
     
     @app.post("/api/journal/entry")
-    async def add_journal_entry(req: JournalEntryRequest):
+    async def add_journal_entry(req: JournalEntryRequest, _: str = Depends(verify_password)):
         entry_id = await journal.add_entry(
             ticker=req.ticker,
             side=req.side,
@@ -527,7 +640,7 @@ def create_app(base_dir: str) -> FastAPI:
         return {"id": entry_id, "status": "created"}
     
     @app.put("/api/journal/entry/{entry_id}")
-    async def update_journal_entry(entry_id: int, req: JournalUpdateRequest):
+    async def update_journal_entry(entry_id: int, req: JournalUpdateRequest, _: str = Depends(verify_password)):
         success = await journal.update_entry(
             entry_id=entry_id,
             ticker=req.ticker,
@@ -542,7 +655,7 @@ def create_app(base_dir: str) -> FastAPI:
         return {"status": "updated"}
 
     @app.delete("/api/journal/entry/{entry_id}")
-    async def delete_journal_entry(entry_id: int):
+    async def delete_journal_entry(entry_id: int, _: str = Depends(verify_password)):
         success = await journal.delete_entry(entry_id)
         return {"status": "deleted"}
     
@@ -612,17 +725,17 @@ def create_app(base_dir: str) -> FastAPI:
         return {"trades": trades, "count": len(trades)}
     
     @app.post("/api/simulator/reset")
-    async def reset_simulator(initial_capital: float = 10000000):
+    async def reset_simulator(initial_capital: float = 10000000, _: str = Depends(verify_password)):
         simulator.reset(initial_capital)
         return {"status": "reset", "initial_capital": initial_capital}
     
     @app.get("/api/simulator/export")
-    async def export_simulator_state():
+    async def export_simulator_state(_: str = Depends(verify_password)):
         state = simulator.export_state()
         return state
     
     @app.post("/api/simulator/import")
-    async def import_simulator_state(data: dict):
+    async def import_simulator_state(data: dict, _: str = Depends(verify_password)):
         simulator.import_state(data)
         return {"status": "imported"}
     
@@ -647,17 +760,17 @@ def create_app(base_dir: str) -> FastAPI:
         return scheduler.get_status()
     
     @app.post("/api/admin/scheduler/start")
-    async def start_scheduler(hour: int = 15, minute: int = 50):
+    async def start_scheduler(hour: int = 15, minute: int = 50, _: str = Depends(verify_password)):
         scheduler.start(hour=hour, minute=minute)
         return {"status": "started", "schedule": f"{hour:02d}:{minute:02d}"}
     
     @app.post("/api/admin/scheduler/stop")
-    async def stop_scheduler():
+    async def stop_scheduler(_: str = Depends(verify_password)):
         scheduler.stop()
         return {"status": "stopped"}
     
     @app.post("/api/admin/collect")
-    async def trigger_collection(background_tasks: BackgroundTasks, force: bool = False, detect_changes: bool = False):
+    async def trigger_collection(background_tasks: BackgroundTasks, force: bool = False, detect_changes: bool = False, _: str = Depends(verify_password)):
         async def run_collection():
             await scheduler.run_now(force=force, detect_changes=detect_changes)
         
@@ -666,7 +779,7 @@ def create_app(base_dir: str) -> FastAPI:
         return {"status": "collection_started", "force": force, "detect_changes": detect_changes, "message": f"{mode}Data collection started in background"}
     
     @app.post("/api/admin/load-stocks")
-    async def load_stocks():
+    async def load_stocks(_: str = Depends(verify_password)):
         count = await scheduler.load_stocks_only()
         return {"status": "success", "count": count}
 
