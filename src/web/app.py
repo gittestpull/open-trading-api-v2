@@ -730,7 +730,7 @@ def create_app(base_dir: str) -> FastAPI:
         return {"status": "reset", "initial_capital": initial_capital}
     
     @app.get("/api/simulator/export")
-    async def export_simulator_state(_: str = Depends(verify_password)):
+    async def export_simulator_state():
         state = simulator.export_state()
         return state
     
@@ -765,7 +765,7 @@ def create_app(base_dir: str) -> FastAPI:
         return {"status": "started", "schedule": f"{hour:02d}:{minute:02d}"}
     
     @app.post("/api/admin/scheduler/stop")
-    async def stop_scheduler(_: str = Depends(verify_password)):
+    async def stop_scheduler():
         scheduler.stop()
         return {"status": "stopped"}
     
@@ -779,7 +779,7 @@ def create_app(base_dir: str) -> FastAPI:
         return {"status": "collection_started", "force": force, "detect_changes": detect_changes, "message": f"{mode}Data collection started in background"}
     
     @app.post("/api/admin/load-stocks")
-    async def load_stocks(_: str = Depends(verify_password)):
+    async def load_stocks():
         count = await scheduler.load_stocks_only()
         return {"status": "success", "count": count}
 
