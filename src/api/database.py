@@ -361,6 +361,13 @@ class Database:
              print("[Database] Migrating stock_news: adding date column")
              cursor.execute("ALTER TABLE stock_news ADD COLUMN date TEXT")
              cursor.execute("CREATE INDEX IF NOT EXISTS idx_stock_news_date ON stock_news(date)")
+        
+        # 5. stock_info: fwd_eps 추가
+        try:
+            cursor.execute("SELECT fwd_eps FROM stock_info LIMIT 1")
+        except sqlite3.OperationalError:
+            print("[Database] Migrating stock_info: adding fwd_eps column")
+            cursor.execute("ALTER TABLE stock_info ADD COLUMN fwd_eps REAL")
     
     async def execute(self, query: str, params: tuple = ()) -> None:
         """비동기 쿼리 실행 (INSERT, UPDATE, DELETE)"""
@@ -393,11 +400,12 @@ class Database:
     async def upsert_stock_info(self, stocks: List[Dict]) -> int:
         """종목 정보 upsert"""
         query = """
-            INSERT INTO stock_info (ticker, name, market, sector, listed_shares, market_cap, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO stock_info (ticker, name, market, sector, listed_shares, market_cap, fwd_eps, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(ticker) DO UPDATE SET
                 name = excluded.name,
                 market = excluded.market,
+                fwd_eps = excluded.fwd_eps,
                 sector = excluded.sector,
                 listed_shares = excluded.listed_shares,
                 market_cap = excluded.market_cap,
@@ -406,7 +414,7 @@ class Database:
         now = datetime.now().isoformat()
         params = [
             (s['ticker'], s['name'], s['market'], s.get('sector'), 
-             s.get('listed_shares'), s.get('market_cap'), now)
+             s.get('listed_shares'), s.get('market_cap'), s.get('fwd_eps'), now)
             for s in stocks
         ]
         await self.execute_many(query, params)

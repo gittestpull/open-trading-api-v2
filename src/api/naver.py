@@ -204,14 +204,87 @@ class NaverCollector:
             
         return {'affected_dates': list(affected_dates), 'details': results}
     
+    async def fetch_fundamental_data(self, ticker: str) -> Optional[Dict]:
+        """네이버 금융에서 추정 실적(Forward EPS 등) 수집"""
+        try:
+            url = f"https://finance.naver.com/item/main.naver?code={ticker}"
+            loop = asyncio.get_running_loop()
+            response = await loop.run_in_executor(None, lambda: requests.get(url, headers=self.headers, timeout=10))
+            
+            if response.status_code != 200:
+                logger.debug(f"[Naver] Failed fetch fundamental {ticker}: {response.status_code}")
+                return None
+                
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # 1. Market Cap (시가총액)
+            # 2. Forward EPS (추정EPS)
+            
+            fwd_eps = None
+            
+            # Find the main financial table usually in div.section.cop_analysis
+            # But the quick summary is often in #content > div.section.trade_compare > ...
+            # Actually, "추정EPS" is in the aside section "PER/EPS" table often.
+            
+            # Look for table with th "추정EPS" or "EPS(202X.XX)"
+            # A robust way is looking for the dl.blind or specific class structures, 
+            # but Naver HTML is old. Let's look for the specific table area "펀더멘털"
+            
+            # Search for the "펀더멘털" section which contains PER | EPS / EstPER | EstEPS
+            # Use specific CSS selectors if possible, or text matching
+            
+            # Naver Finance Main page usually has:
+            # <div id="tab_con1" class="tab_con1"> ... <table summary="동일업종 PER, 동일업종 등락률"> ... </table> ...
+            # <table summary="시가총액, 시가총액순위, 상장주식수, 액면가, 매매단위, 외국인한도주식수(A), 외국인보유주식수(B), 외국인소진율(B/A), 투자의견, 목표주가, 52주최고, 52주최저, PER, EPS, 추정PER, 추정EPS, PBR, BPS, 배당수익률">
+            
+            # Try to find the "추정EPS" value directly by its label in the Summary Table
+            # Usually in a table with class "lwidth" or similar inside div.assess_summary (Investment opinion)
+            # Or in the side section .aside_invest_info
+            
+            # Let's target the right side table "PER/EPS"
+            # It has rows: PER, EPS, 추정PER, 추정EPS
+            
+            rows = soup.select('div.aside_invest_info table tbody tr')
+            for row in rows:
+                th = row.select_one('th')
+                if not th: continue
+                label = th.get_text(strip=True)
+                
+                if '추정EPS' in label or 'Fwd.EPS' in label:
+                    td = row.select_one('td')
+                    if td:
+                        val_text = td.get_text(strip=True).replace(',', '')
+                        if val_text and val_text.isdigit():
+                            fwd_eps = float(val_text)
+                            break
+                            
+            if fwd_eps is not None:
+                # Update DB directly here or return
+                await self.db.execute("""
+                    UPDATE stock_info
+                    SET fwd_eps = ?, updated_at = ?
+                    WHERE ticker = ?
+                """, (fwd_eps, datetime.now().isoformat(), ticker))
+                
+                return {'fwd_eps': fwd_eps}
+            
+            return None
+            
+        except Exception as e:
+            logger.debug(f"[Naver] Fundamental fetch error {ticker}: {e}")
+            return None
+
     async def collect_batch(self, tickers: List[str], delay: float = 0.5) -> Dict:
         success = 0
         failed = 0
         
         for ticker in tickers:
             try:
-                result = await self.collect_for_stock(ticker)
-                if result:
+                # Collect both discussion and fundamental
+                res1 = await self.collect_for_stock(ticker)
+                res2 = await self.fetch_fundamental_data(ticker)
+                
+                if res1 or res2:
                     success += 1
                 else:
                     failed += 1

@@ -16,6 +16,7 @@ from ..api import (
     get_telegram_notifier
 )
 from ..api.log_buffer import get_log_buffer
+from ..api.naver import get_naver_collector
 
 import json
 import secrets
@@ -446,6 +447,16 @@ def create_app(base_dir: str) -> FastAPI:
         stock = await stock_service.get_stock_info(ticker)
         if not stock:
             raise HTTPException(status_code=404, detail="Stock not found")
+
+        # On-demand fetch for Forward EPS if missing
+        if not stock.get('fwd_eps'):
+            try:
+                naver = get_naver_collector()
+                await naver.fetch_fundamental_data(ticker)
+                # Reload stock info
+                stock = await stock_service.get_stock_info(ticker)
+            except Exception as e:
+                print(f"Failed to fetch forward EPS: {e}")
         
         price_history = await db.fetch_all(
             "SELECT * FROM daily_price WHERE ticker = ? ORDER BY date DESC LIMIT 30",

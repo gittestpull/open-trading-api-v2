@@ -1773,6 +1773,17 @@
                     : '-'}
                         </span>
                     </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500 border-b border-dotted border-gray-600 has-tooltip cursor-help">
+                            Forward PER
+                            <span class="tooltip-text" style="width:200px; bottom: 100%;">Current Price / Forward EPS (Estimated)</span>
+                        </span>
+                        <span class="text-accent-purple font-medium">
+                            ${(latestPrice.close && stock.fwd_eps && stock.fwd_eps > 0)
+                    ? (latestPrice.close / stock.fwd_eps).toFixed(2)
+                    : '-'}
+                        </span>
+                    </div>
                     <div class="flex justify-between"><span class="text-gray-500">BPS</span><span>${latestStats.bps ? latestStats.bps.toLocaleString() : '-'}</span></div>
                     <div class="flex justify-between"><span class="text-gray-500">Foreign Ratio</span><span>${latestInvestor.foreign_ratio ? latestInvestor.foreign_ratio.toFixed(1) + '%' : '-'}</span></div>
                     <div class="border-t border-dark-600 pt-2 mt-2"></div>

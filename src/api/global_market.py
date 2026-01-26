@@ -19,9 +19,9 @@ class GlobalMarketCollector:
     def __init__(self, db: Database = None):
         self.db = db or get_database()
         self.symbols = {
-            'SPY': 'S&P 500 ETF',
-            'QQQ': 'Nasdaq 100 ETF',
-            'DIA': 'Dow Jones ETF',
+            '^GSPC': 'S&P 500',
+            '^NDX': 'Nasdaq 100',
+            '^DJI': 'Dow Jones 30',
             'VIX': 'Volatility Index',
             'DXY': 'US Dollar Index',
             'GLD': 'Gold ETF',
@@ -146,7 +146,7 @@ class GlobalMarketCollector:
         }
         
         category_map = {
-            'SPY': 'us_stocks', 'QQQ': 'us_stocks', 'DIA': 'us_stocks',
+            '^GSPC': 'us_stocks', '^NDX': 'us_stocks', '^DJI': 'us_stocks',
             'VIX': 'volatility',
             'GLD': 'commodities', 'USO': 'commodities',
             'TLT': 'bonds',
@@ -161,7 +161,7 @@ class GlobalMarketCollector:
                 'change': item['change_rate']
             }
         
-        spy_data = summary['us_stocks'].get('SPY', {})
+        spy_data = summary['us_stocks'].get('^GSPC', {})
         vix_data = summary['volatility'].get('VIX', {})
         
         market_sentiment = 'neutral'
