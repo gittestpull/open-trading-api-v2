@@ -68,20 +68,26 @@ class DataCollector:
         
         try:
             base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            sys.path.insert(0, base_dir)
-            sys.path.insert(0, os.path.join(base_dir, "examples_user"))
-            sys.path.insert(0, os.path.join(base_dir, "examples_user", "domestic_stock"))
+            # Add paths for unified importing
+            if os.path.join(base_dir, "src", "core") not in sys.path:
+                sys.path.insert(0, os.path.join(base_dir, "src", "core"))
+            if os.path.join(base_dir, "src", "utils") not in sys.path:
+                sys.path.insert(0, os.path.join(base_dir, "src", "utils"))
+            if os.path.join(base_dir, "examples_user") not in sys.path:
+                sys.path.insert(0, os.path.join(base_dir, "examples_user"))
+            if os.path.join(base_dir, "examples_user", "domestic_stock") not in sys.path:
+                sys.path.insert(0, os.path.join(base_dir, "examples_user", "domestic_stock"))
             
-            from src.core import kis_auth as ka
+            import kis_auth as ka
             self._ka = ka
             
-            svr = "prod" if self.is_live else "vps"
-            ka.auth(svr=svr, product="01")
+            # Use the default auth() which handles KIS_CONFIG_FILE or local kis_devlp.yaml
+            ka.auth() 
             
             import domestic_stock_functions as dsf
             self._functions = dsf
             
-            self._kis_initialized = True
+            svr = "prod" if self.is_live else "vps"
             logger.info(f"[Collector] KIS API initialized (mode: {svr})")
             return True
         except Exception as e:
@@ -145,9 +151,11 @@ class DataCollector:
                 data_date = None
                 
                 for idx, r in df.iterrows():
-                    frgn = str(r.get('frgn_ntby_qty', '')).strip()
-                    orgn = str(r.get('orgn_ntby_qty', '')).strip()
-                    prsn = str(r.get('prsn_ntby_qty', '')).strip()
+                    # KIS fields for net buy amount: prsn_ntby_tr_pbmn, frgn_ntby_tr_pbmn, orgn_ntby_tr_pbmn
+                    # Some versions use different field names. Check for presence.
+                    frgn = str(r.get('frgn_ntby_tr_pbmn') or r.get('frgn_ntby_qty', '')).strip()
+                    orgn = str(r.get('orgn_ntby_tr_pbmn') or r.get('orgn_ntby_qty', '')).strip()
+                    prsn = str(r.get('prsn_ntby_tr_pbmn') or r.get('prsn_ntby_qty', '')).strip()
                     
                     if frgn and orgn and prsn:
                         row = r
@@ -180,9 +188,9 @@ class DataCollector:
                 return {
                     'ticker': ticker,
                     'date': data_date or datetime.now().strftime("%Y-%m-%d"),
-                    'foreign_net': safe_int(row.get('frgn_ntby_qty', 0)),
-                    'inst_net': safe_int(row.get('orgn_ntby_qty', 0)),
-                    'retail_net': safe_int(row.get('prsn_ntby_qty', 0)),
+                    'foreign_net': safe_int(row.get('frgn_ntby_tr_pbmn', 0)), # Use Amount (won)
+                    'inst_net': safe_int(row.get('orgn_ntby_tr_pbmn', 0)),    # Use Amount (won)
+                    'retail_net': safe_int(row.get('prsn_ntby_tr_pbmn', 0)), # Use Amount (won)
                     'foreign_ratio': safe_float(row.get('frgn_hold_rate', 0)),
                 }
         except Exception as e:

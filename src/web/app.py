@@ -816,6 +816,7 @@ def create_app(base_dir: str) -> FastAPI:
     async def startup_event():
         db.create_tables()
         await scheduler.initialize()
+        scheduler.start()
     
     @app.on_event("shutdown")
     def shutdown_event():
