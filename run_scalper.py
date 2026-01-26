@@ -43,8 +43,14 @@ def main():
         from src.scalper.llm import LLMScalper
         scalper = LLMScalper(config)
     else:
-        # USE PRODUCTION V1 LOGIC (monitor_scalp_universal.py)
-        from monitor_scalp_universal import UniversalScalper
+        # USE PRODUCTION V1 LOGIC (moved to src/scalper/core_universal.py)
+        try:
+            from src.scalper.core_universal import UniversalScalper
+        except ImportError:
+            # Fallback for development if path issue
+            sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+            from scalper.core_universal import UniversalScalper
+            
         scalper = UniversalScalper(
             ticker=args.ticker,
             budget=args.budget,

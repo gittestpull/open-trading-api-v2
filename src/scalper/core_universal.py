@@ -42,14 +42,25 @@ import json
 import threading
 import asyncio
 
-# Add examples_user and subdirectories to path first
+# Fix imports for moved modules
+try:
+    from src.core import kis_auth
+    from src.utils.stock_code_lookup import StockMaster
+    # domestic_stock_functions is in examples_user, tricky dependency
+    # We should dynamically add examples_user path if not present (handled below)
+except ImportError:
+    # Development fallback
+    import kis_auth
+    from stock_code_lookup import StockMaster
+
+# Add examples_user to path for domestic_stock_functions
 sys.path.append(os.path.join(os.getcwd(), 'examples_user'))
 sys.path.append(os.path.join(os.getcwd(), 'examples_user', 'domestic_stock'))
-sys.path.append(os.path.join(os.getcwd(), 'examples_user', 'overseas_stock'))
-
-import kis_auth
-from stock_code_lookup import StockMaster
-import domestic_stock_functions as d_func
+try:
+    import domestic_stock_functions as d_func
+except ImportError:
+    # If using from src/scalper, might need to adjust path
+    pass
 
 def notify_user(msg, ticker=None):
     """Utility to provide audio and desktop notifications."""

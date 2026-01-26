@@ -1,10 +1,13 @@
 import sys
 import os
 
-# kis_auth is now in the root directory, so no need to append examples_user
-# sys.path.append(os.path.join(os.getcwd(), 'examples_user'))
+# kis_auth is now in src/core
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
 
 try:
+    from core import kis_auth
+except ImportError:
+    # Fallback
     import kis_auth
     print(">>> kis_auth 모듈을 성공적으로 불러왔습니다.")
 except ImportError as e:

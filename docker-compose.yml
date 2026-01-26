@@ -26,10 +26,11 @@ services:
       # web/ 디렉토리 마운트 (프론트엔드 + 백엔드)
       - ./web:/app/web:rw
       # Python 모듈 마운트 (소스 수정 즉시 반영)
-      - ./stock_cache.py:/app/stock_cache.py:rw
-      - ./stock_screener.py:/app/stock_screener.py:rw
-      - ./stock_master.py:/app/stock_master.py:rw
-      - ./monitor_scalp_universal.py:/app/monitor_scalp_universal.py:rw
+      # Python 모듈 마운트 (소스 수정 즉시 반영)
+      - ./src/services/stock_cache.py:/app/src/services/stock_cache.py:rw
+      - ./src/services/stock_screener.py:/app/src/services/stock_screener.py:rw
+      - ./src/services/stock_master:/app/src/services/stock_master:rw
+      - ./src/scalper/core_universal.py:/app/src/scalper/core_universal.py:rw
 
     environment:
       - TZ=Asia/Seoul

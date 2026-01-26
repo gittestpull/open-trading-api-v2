@@ -15,7 +15,7 @@ import numpy as np
 sys.path.append(os.path.join(os.getcwd(), 'examples_user'))
 sys.path.append(os.path.join(os.getcwd(), 'examples_user', 'domestic_stock'))
 
-import kis_auth
+from src.core import kis_auth
 import domestic_stock_functions as d_func
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ class StockScreener:
         self.last_scan_time: Optional[str] = None
         self.last_results: List[dict] = []
         self._auth_initialized = False
-        from stock_code_lookup import StockMaster
+        from src.utils.stock_code_lookup import StockMaster
         self.sm = StockMaster()
     
     def _ensure_auth(self):

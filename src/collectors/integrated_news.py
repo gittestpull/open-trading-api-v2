@@ -10,10 +10,10 @@ from typing import List, Dict, Optional
 import pandas as pd
 
 sys.path.append(os.path.join(os.getcwd(), "examples_user"))
-import kis_auth as ka
+from src.core import kis_auth as ka
 
-from youtube_news_collector import YouTubeNewsCollector
-from stock_code_lookup import get_stock_code
+from src.collectors.youtube_news import YouTubeNewsCollector
+from src.utils.stock_code_lookup import get_stock_code
 
 class IntegratedNewsCollector:
     """YouTube와 KIS API 뉴스를 통합 수집하는 클래스"""

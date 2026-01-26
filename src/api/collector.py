@@ -72,7 +72,7 @@ class DataCollector:
             sys.path.insert(0, os.path.join(base_dir, "examples_user"))
             sys.path.insert(0, os.path.join(base_dir, "examples_user", "domestic_stock"))
             
-            import kis_auth as ka
+            from src.core import kis_auth as ka
             self._ka = ka
             
             svr = "prod" if self.is_live else "vps"

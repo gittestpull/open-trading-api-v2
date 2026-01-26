@@ -13,7 +13,7 @@ from bs4 import BeautifulSoup
 from .database import Database, get_database
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from integrated_news_collector import IntegratedNewsCollector
+from src.collectors.integrated_news import IntegratedNewsCollector
 
 logger = logging.getLogger(__name__)
 

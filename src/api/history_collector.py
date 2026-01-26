@@ -6,7 +6,7 @@ from typing import Callable, Optional
 import pandas as pd
 from .database import Database, get_database
 from .stock_master import get_stock_master_service
-import kis_auth
+from src.core import kis_auth
 
 logger = logging.getLogger(__name__)
 

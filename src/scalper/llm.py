@@ -75,7 +75,7 @@ class LLMScalper(BaseScalper):
     
     def _detect_market(self, ticker: str) -> bool:
         """Detects if ticker is domestic (6-digit KR) or overseas."""
-        from stock_code_lookup import StockMaster
+        from src.utils.stock_code_lookup import StockMaster
         
         is_domestic = ticker.isdigit() and len(ticker) == 6
         
@@ -90,7 +90,7 @@ class LLMScalper(BaseScalper):
     
     def _initialize_api(self):
         """Initialize KIS API authentication."""
-        import kis_auth
+        from src.core import kis_auth
         kis_auth.auth()
         self.trenv = kis_auth.getTREnv()
         self.kis_auth = kis_auth
