@@ -56,11 +56,12 @@ except ImportError:
 # Add examples_user to path for domestic_stock_functions
 sys.path.append(os.path.join(os.getcwd(), 'examples_user'))
 sys.path.append(os.path.join(os.getcwd(), 'examples_user', 'domestic_stock'))
+d_func = None  # Initialize to None
 try:
     import domestic_stock_functions as d_func
-except ImportError:
-    # If using from src/scalper, might need to adjust path
-    pass
+except ImportError as e:
+    logger.warning(f"domestic_stock_functions not available: {e}")
+    d_func = None
 
 def notify_user(msg, ticker=None):
     """Utility to provide audio and desktop notifications."""
@@ -615,6 +616,9 @@ class UniversalScalper:
             return self.cached_holiday_status
         
         try:
+            if d_func is None:
+                logger.warning("d_func not available, skipping holiday check")
+                return False
             logger.info(f"Checking holiday status for {now_date}...")
             df = d_func.chk_holiday(bass_dt=now_date, max_depth=1)
             if not df.empty:
