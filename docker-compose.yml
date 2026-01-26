@@ -4,7 +4,7 @@ services:
   trading-web:
     build:
       context: .
-      dockerfile: Dockerfile.web
+      dockerfile: Dockerfile
     image: trading-web:${ENV_TYPE:-prod}
     restart: unless-stopped
     ports:
