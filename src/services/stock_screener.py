@@ -275,8 +275,9 @@ class StockScreener:
             inst_buys = []
             
             for _, row in recent.iterrows():
-                frgn = int(row.get('frgn_ntby_qty', 0)) if row.get('frgn_ntby_qty') else 0
-                orgn = int(row.get('orgn_ntby_qty', 0)) if row.get('orgn_ntby_qty') else 0
+                # Use Transaction Amount (pbmn) instead of Quantity (qty) for better accuracy
+                frgn = int(row.get('frgn_ntby_tr_pbmn', 0)) if row.get('frgn_ntby_tr_pbmn') else int(row.get('frgn_ntby_qty', 0))
+                orgn = int(row.get('orgn_ntby_tr_pbmn', 0)) if row.get('orgn_ntby_tr_pbmn') else int(row.get('orgn_ntby_qty', 0))
                 foreign_buys.append(frgn)
                 inst_buys.append(orgn)
             

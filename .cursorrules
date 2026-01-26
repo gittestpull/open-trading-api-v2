@@ -158,3 +158,6 @@ gh auth switch -u gittestpull && git push origin main
 - No comments unless absolutely necessary
 - Korean comments for complex business logic only
 - Use existing patterns in codebase
+
+## Agent Protocol (Global Rules)
+- **Context Persistence**: Always organize key learnings, new procedures, and environmental changes into **Skills**, **Workflows**, and **Rules** for future continuity. Update `.agent/skills` and `.agent/workflows` before finishing a session.
