@@ -17,13 +17,13 @@ def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     app = create_app(base_dir)
     
-    print(\"=\" * 50)
-    print(\"  Deep Dive Investment Platform\")
-    print(\"=\" * 50)
-    print(f\"  URL: http://localhost:8080\")
-    print(\"=\" * 50)
+    print("=" * 50)
+    print("  Deep Dive Investment Platform")
+    print("=" * 50)
+    print(f"  URL: http://localhost:8080")
+    print("=" * 50)
     
-    uvicorn.run(app, host=\"0.0.0.0\", port=8080, log_level=\"info\")
+    uvicorn.run(app, host="0.0.0.0", port=8080, log_level="info")
 
 
 if __name__ == "__main__":
