@@ -368,6 +368,13 @@ class Database:
         except sqlite3.OperationalError:
             print("[Database] Migrating stock_info: adding fwd_eps column")
             cursor.execute("ALTER TABLE stock_info ADD COLUMN fwd_eps REAL")
+
+        # 6. stock_info: opentalk_users 추가
+        try:
+            cursor.execute("SELECT opentalk_users FROM stock_info LIMIT 1")
+        except sqlite3.OperationalError:
+            print("[Database] Migrating stock_info: adding opentalk_users column")
+            cursor.execute("ALTER TABLE stock_info ADD COLUMN opentalk_users INTEGER")
     
     async def execute(self, query: str, params: tuple = ()) -> None:
         """비동기 쿼리 실행 (INSERT, UPDATE, DELETE)"""
@@ -400,12 +407,13 @@ class Database:
     async def upsert_stock_info(self, stocks: List[Dict]) -> int:
         """종목 정보 upsert"""
         query = """
-            INSERT INTO stock_info (ticker, name, market, sector, listed_shares, market_cap, fwd_eps, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO stock_info (ticker, name, market, sector, listed_shares, market_cap, fwd_eps, opentalk_users, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(ticker) DO UPDATE SET
                 name = excluded.name,
                 market = excluded.market,
                 fwd_eps = excluded.fwd_eps,
+                opentalk_users = excluded.opentalk_users,
                 sector = excluded.sector,
                 listed_shares = excluded.listed_shares,
                 market_cap = excluded.market_cap,
@@ -414,7 +422,7 @@ class Database:
         now = datetime.now().isoformat()
         params = [
             (s['ticker'], s['name'], s['market'], s.get('sector'), 
-             s.get('listed_shares'), s.get('market_cap'), s.get('fwd_eps'), now)
+             s.get('listed_shares'), s.get('market_cap'), s.get('fwd_eps'), s.get('opentalk_users'), now)
             for s in stocks
         ]
         await self.execute_many(query, params)

@@ -274,6 +274,66 @@ class NaverCollector:
             logger.debug(f"[Naver] Fundamental fetch error {ticker}: {e}")
             return None
 
+    async def fetch_opentalk_info(self, ticker: str) -> Optional[Dict]:
+        """네이버 모바일 토론방 페이지에서 오픈톡 참여자 수 수집"""
+        try:
+            url = f"https://m.stock.naver.com/domestic/stock/{ticker}/discussion"
+            # 모바일 User-Agent 필수
+            mobile_headers = {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1'
+            }
+            
+            loop = asyncio.get_running_loop()
+            response = await loop.run_in_executor(None, lambda: requests.get(url, headers=mobile_headers, timeout=10))
+            
+            if response.status_code != 200:
+                logger.debug(f"[Naver] Failed fetch opentalk {ticker}: {response.status_code}")
+                return None
+            
+            # __NEXT_DATA__ JSON 파싱
+            import json
+            soup = BeautifulSoup(response.text, 'html.parser')
+            next_data_script = soup.find('script', {'id': '__NEXT_DATA__'})
+            
+            if not next_data_script:
+                logger.debug(f"[Naver] __NEXT_DATA__ not found for {ticker}")
+                return None
+                
+            data = json.loads(next_data_script.string)
+            
+            # 경로: props -> pageProps -> dehydratedState -> queries -> [queryKey with /opentalk/channelInfo] -> state -> data -> result
+            queries = data.get('props', {}).get('pageProps', {}).get('dehydratedState', {}).get('queries', [])
+            
+            opentalk_users = None
+            
+            for query in queries:
+                q_key = query.get('queryKey', [])
+                # queryKey가 리스트이고 첫번째 요소가 dict인 경우 확인
+                if q_key and isinstance(q_key, list) and isinstance(q_key[0], dict) and '/opentalk/channelInfo' in q_key[0].get('url', ''):
+                    result_data = query.get('state', {}).get('data', {}).get('result', {})
+                    if result_data:
+                        # result가 두 번 중첩된 경우도 있음
+                         if 'result' in result_data:
+                             opentalk_users = result_data['result'].get('userCount')
+                         else:
+                             opentalk_users = result_data.get('userCount')
+                    break
+            
+            if opentalk_users is not None and isinstance(opentalk_users, int):
+                await self.db.execute("""
+                    UPDATE stock_info
+                    SET opentalk_users = ?, updated_at = ?
+                    WHERE ticker = ?
+                """, (opentalk_users, datetime.now().isoformat(), ticker))
+                
+                return {'opentalk_users': opentalk_users}
+                
+            return None
+            
+        except Exception as e:
+            logger.debug(f"[Naver] Opentalk fetch error {ticker}: {e}")
+            return None
+
     async def collect_batch(self, tickers: List[str], delay: float = 0.5) -> Dict:
         success = 0
         failed = 0

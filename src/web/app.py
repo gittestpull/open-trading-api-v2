@@ -458,6 +458,16 @@ def create_app(base_dir: str) -> FastAPI:
             except Exception as e:
                 print(f"Failed to fetch forward EPS: {e}")
         
+        # On-demand fetch for Open Talk Users if missing
+        if not stock.get('opentalk_users'):
+            try:
+                naver = get_naver_collector()
+                await naver.fetch_opentalk_info(ticker)
+                # Reload stock info
+                stock = await stock_service.get_stock_info(ticker)
+            except Exception as e:
+                print(f"Failed to fetch opentalk users: {e}")
+        
         price_history = await db.fetch_all(
             "SELECT * FROM daily_price WHERE ticker = ? ORDER BY date DESC LIMIT 30",
             (ticker,)
