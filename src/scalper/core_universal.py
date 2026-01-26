@@ -42,23 +42,16 @@ import json
 import threading
 import asyncio
 
-# Fix imports for moved modules
-try:
-    from src.core import kis_auth
-    from src.utils.stock_code_lookup import StockMaster
-    # domestic_stock_functions is in examples_user, tricky dependency
-    # We should dynamically add examples_user path if not present (handled below)
-except ImportError:
-    # Development fallback
-    import kis_auth
-    from stock_code_lookup import StockMaster
-
-# Add examples_user to path for domestic_stock_functions
-sys.path.append(os.path.join(os.getcwd(), 'examples_user'))
-sys.path.append(os.path.join(os.getcwd(), 'examples_user', 'domestic_stock'))
-# Also add src/core so that legacy example files can find relocated modules like kis_auth
+# Add paths FIRST so imports find the same module instances
 sys.path.append(os.path.join(os.getcwd(), 'src', 'core'))
 sys.path.append(os.path.join(os.getcwd(), 'src', 'utils'))
+sys.path.append(os.path.join(os.getcwd(), 'examples_user'))
+sys.path.append(os.path.join(os.getcwd(), 'examples_user', 'domestic_stock'))
+
+import kis_auth
+from stock_code_lookup import StockMaster
+
+# domestic_stock_functions is in examples_user, tricky dependency
 
 d_func = None  # Initialize to None
 try:
