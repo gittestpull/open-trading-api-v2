@@ -793,32 +793,33 @@ class UniversalScalper:
                     max_credit = 0
                     best_credit_type = "21"
 
-                    for c_type in ["21", "23"]: # Check both Self-financing and Brokerage loans
-                        try:
-                            cre_df = d_func.inquire_credit_psamount(
-                                cano=self.trenv.my_acct,
-                                acnt_prdt_cd=self.trenv.my_prod,
-                                pdno=self.ticker,
-                                ord_dvsn="01", # Market
-                                crdt_type=c_type,
-                                cma_evlu_amt_icld_yn="N",
-                                ovrs_icld_yn="N",
-                                ord_unpr="0"
-                            )
-                            if not cre_df.empty:
-                                output = cre_df.iloc[0].to_dict()
-                                amt = int(output.get('crdt_buy_psbl_amt', 
-                                          output.get('max_buy_amt', 
-                                          output.get('ord_psbl_cash', 0))))
-                                
-                                # Use MAX instead of SUM to prevent double counting shared limit
-                                if amt > max_credit:
-                                    max_credit = amt
-                                    best_credit_type = c_type
+                    if d_func is not None:
+                        for c_type in ["21", "23"]: # Check both Self-financing and Brokerage loans
+                            try:
+                                cre_df = d_func.inquire_credit_psamount(
+                                    cano=self.trenv.my_acct,
+                                    acnt_prdt_cd=self.trenv.my_prod,
+                                    pdno=self.ticker,
+                                    ord_dvsn="01", # Market
+                                    crdt_type=c_type,
+                                    cma_evlu_amt_icld_yn="N",
+                                    ovrs_icld_yn="N",
+                                    ord_unpr="0"
+                                )
+                                if not cre_df.empty:
+                                    output = cre_df.iloc[0].to_dict()
+                                    amt = int(output.get('crdt_buy_psbl_amt', 
+                                              output.get('max_buy_amt', 
+                                              output.get('ord_psbl_cash', 0))))
+                                    
+                                    # Use MAX instead of SUM to prevent double counting shared limit
+                                    if amt > max_credit:
+                                        max_credit = amt
+                                        best_credit_type = c_type
 
-                                logger.debug(f"[DEBUG] Credit Type {c_type} amt: {amt}")
-                        except Exception as e:
-                            logger.error(f"Credit inquiry for {c_type} failed: {e}")
+                                    logger.debug(f"[DEBUG] Credit Type {c_type} amt: {amt}")
+                            except Exception as e:
+                                logger.error(f"Credit inquiry for {c_type} failed: {e}")
                     
                     self.credit_cash = max_credit
                     self.credit_type_code = best_credit_type
