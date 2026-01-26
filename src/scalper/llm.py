@@ -23,9 +23,13 @@ KST = pytz.timezone('Asia/Seoul')
 import pandas as pd
 
 # KIS API imports
+sys.path.append(os.path.join(os.getcwd(), 'src', 'core'))
+sys.path.append(os.path.join(os.getcwd(), 'src', 'utils'))
 sys.path.append(os.path.join(os.getcwd(), 'examples_user'))
 sys.path.append(os.path.join(os.getcwd(), 'examples_user', 'domestic_stock'))
 sys.path.append(os.path.join(os.getcwd(), 'examples_user', 'overseas_stock'))
+
+import kis_auth
 
 from .base import BaseScalper
 from .config import ScalperConfig
@@ -90,7 +94,6 @@ class LLMScalper(BaseScalper):
     
     def _initialize_api(self):
         """Initialize KIS API authentication."""
-        from src.core import kis_auth
         kis_auth.auth()
         self.trenv = kis_auth.getTREnv()
         self.kis_auth = kis_auth
