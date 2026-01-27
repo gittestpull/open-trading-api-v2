@@ -43,12 +43,12 @@ class HumanIndexCalculator:
         score = 0.0
         
         if youtube:
-            video_score = min(youtube.get('video_count', 0) / 10, 30)
+            video_score = min((youtube.get('video_count') or 0) / 10, 30)
             views_score = min(youtube.get('total_views', 0) / 100000, 30)
             score += video_score + views_score
         
         if naver:
-            post_score = min(naver.get('post_count', 0) / 5, 20)
+            post_score = min((naver.get('post_count') or 0) / 5, 20)
             views_score = min(naver.get('avg_views', 0) / 500, 20)
             score += post_score + views_score
         
@@ -87,25 +87,25 @@ class HumanIndexCalculator:
         fomo = 0.0
         
         if price:
-            change = price.get('change_rate', 0)
+            change = price.get('change_rate') or 0
             if change > 5:
                 fomo += min(change * 3, 30)
             elif change > 2:
                 fomo += change * 2
         
         if youtube:
-            if youtube.get('video_count', 0) > 15:
+            if (youtube.get('video_count') or 0) > 15:
                 fomo += 25
-            elif youtube.get('video_count', 0) > 8:
+            elif (youtube.get('video_count') or 0) > 8:
                 fomo += 15
             
-            if youtube.get('sentiment_score', 0) > 0.5:
+            if (youtube.get('sentiment_score') or 0) > 0.5:
                 fomo += 15
         
         if naver:
-            if naver.get('like_ratio', 0.5) > 0.7:
+            if (naver.get('like_ratio') or 0.5) > 0.7:
                 fomo += 15
-            if naver.get('post_count', 0) > 30:
+            if (naver.get('post_count') or 0) > 30:
                 fomo += 15
         
         return min(fomo, 100)
