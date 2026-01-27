@@ -16,6 +16,9 @@ from ..api import (
     get_telegram_notifier
 )
 from ..api.log_buffer import get_log_buffer
+from ..api.ai_analyst_v2 import get_ai_analyst_v2
+from ..api.technical_indicators import get_technical_calculator
+from ..api.human_sentiment_analyst import get_sentiment_analyst
 from ..api.naver import get_naver_collector
 
 import json
@@ -218,6 +221,9 @@ def create_app(base_dir: str) -> FastAPI:
     journal = get_trade_journal()
     simulator = get_trading_simulator()
     telegram = get_telegram_notifier()
+    ai_analyst_v2 = get_ai_analyst_v2()
+    tech_calculator = get_technical_calculator()
+    sentiment_analyst = get_sentiment_analyst()
     log_buffer = get_log_buffer()
     
     static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -592,6 +598,55 @@ def create_app(base_dir: str) -> FastAPI:
             raise HTTPException(status_code=500, detail="Failed to update sector data")
         return {"status": "updated"}
 
+
+    # ============== AI Analyst V2 Endpoints ==============
+
+    class AnalyzeV2Request(BaseModel):
+        mode: str = "short"
+        include_news: bool = True
+
+    @app.post("/api/ai/v2/analyze/{ticker}")
+    async def ai_analyze_v2(ticker: str, req: AnalyzeV2Request = None):
+        if req is None:
+            req = AnalyzeV2Request()
+        mode = req.mode if req.mode in ["short", "mid"] else "short"
+        result = await ai_analyst_v2.analyze(ticker, mode=mode, include_news=req.include_news)
+        if "error" in result and result.get("error") == "Stock not found":
+            raise HTTPException(status_code=404, detail=result["error"])
+        return result
+
+    @app.get("/api/ai/v2/analyze/{ticker}")
+    async def ai_analyze_v2_get(ticker: str, mode: str = "short"):
+        if mode not in ["short", "mid"]:
+            mode = "short"
+        result = await ai_analyst_v2.analyze(ticker, mode=mode)
+        if "error" in result and result.get("error") == "Stock not found":
+            raise HTTPException(status_code=404, detail=result["error"])
+        return result
+
+    @app.get("/api/ai/v2/technical/{ticker}")
+    async def get_technical_indicators(ticker: str):
+        summary = await tech_calculator.calculate_for_ticker(ticker)
+        if not summary:
+            raise HTTPException(status_code=404, detail="Insufficient price data")
+        return summary.to_dict()
+
+    @app.get("/api/ai/v2/sentiment/{ticker}")
+    async def get_sentiment_indicators(ticker: str):
+        summary = await sentiment_analyst.analyze_for_ticker(ticker)
+        if not summary:
+            raise HTTPException(status_code=404, detail="No sentiment data")
+        return summary.to_dict()
+
+    @app.get("/api/ai/v2/fomo-alert")
+    async def get_fomo_alerts(threshold: float = 70):
+        stocks = await sentiment_analyst.get_fomo_alert_stocks(threshold)
+        return {"threshold": threshold, "count": len(stocks), "stocks": [dict(s) for s in stocks]}
+
+    @app.get("/api/ai/v2/contrarian")
+    async def get_contrarian_opportunities(attention_threshold: float = 20):
+        stocks = await sentiment_analyst.get_contrarian_opportunities(attention_threshold)
+        return {"attention_threshold": attention_threshold, "count": len(stocks), "stocks": [dict(s) for s in stocks]}
     @app.post("/api/history/collect-sector")
     async def collect_sector_history(req: SectorUpdateRequest, background_tasks: BackgroundTasks):
         async def run_collection():
