@@ -229,20 +229,26 @@ class DataCollector:
                         short_ratio = ratio
                         break  # 가장 최근 유효 데이터 사용
 
-            # 신용 조회
-            # daily_credit_balance는 일별 추이를 반환
-            df_credit = self._functions.daily_credit_balance("J", "20476", ticker, today_str)
+            # 신용 조회 - 공매도와 동일하게 7일 범위 조회 후 최신 유효 데이터 사용
+            # daily_credit_balance는 일별 추이를 반환 (신용 데이터도 T-1~2 지연됨)
+            df_credit = self._functions.daily_credit_balance("J", "20476", ticker, start_date)
             
             credit_balance = 0
             credit_ratio = 0.0
             
             if not df_credit.empty:
-                row = df_credit.iloc[0]
-                # 실제 KIS API 필드명 (2026-01 기준 검증됨)
-                # whol_loan_rmnd_stcn: 융자 잔고 수량
-                # whol_loan_rmnd_rate: 융자 잔고 비율 (%)
-                credit_balance = int(float(row.get('whol_loan_rmnd_stcn', 0) or 0))
-                credit_ratio = float(row.get('whol_loan_rmnd_rate', 0) or 0)
+                # 날짜 기준 내림차순 정렬 (최신 먼저)
+                if "stck_bsop_date" in df_credit.columns:
+                    df_credit_sorted = df_credit.sort_values("stck_bsop_date", ascending=False)
+                else:
+                    df_credit_sorted = df_credit
+                for _, row in df_credit_sorted.iterrows():
+                    ratio = float(row.get("whol_loan_rmnd_rate", 0) or 0)
+                    if ratio > 0:
+                        credit_balance = int(float(row.get("whol_loan_rmnd_stcn", 0) or 0))
+                        credit_ratio = ratio
+                        break  # 가장 최근 유효 데이터 사용
+
             
             return {
                 'ticker': ticker,
