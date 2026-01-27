@@ -123,7 +123,7 @@ def load_blocked_ips() -> dict:
         try:
             with open(BLOCKED_IPS_FILE, "r") as f:
                 return json.load(f)
-        except:
+        except (json.JSONDecodeError, IOError):
             pass
     return {}
 

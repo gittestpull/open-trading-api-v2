@@ -27,4 +27,23 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "ruff>=0.8.0",
 ]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I"]
+ignore = ["E501"]  # line too long (handled by line-length)
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B"]
+"legacy/*" = ["E", "F", "W", "B", "I"]
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = true
+warn_return_any = false
+check_untyped_defs = false

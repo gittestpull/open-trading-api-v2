@@ -69,7 +69,7 @@ def notify_user(msg, ticker=None):
         title = f"Trading Bot ({ticker})" if ticker else "Trading Bot"
         os.system(f"osascript -e 'display notification \"{msg}\" with title \"{title}\"'")
         os.system("afplay /System/Library/Sounds/Glass.aiff")
-    except:
+    except Exception:
         pass
 
 def check_log_health(filename, limit_minutes=5, max_errors=3):
@@ -109,7 +109,7 @@ def check_log_health(filename, limit_minutes=5, max_errors=3):
                             # If we have too many generic [ERROR]s in a short time, maybe something is wrong, 
                             # but let's be lenient as per user request.
                             pass
-                    except:
+                    except Exception:
                         continue
         
         if recent_critical_errors >= max_errors:
@@ -361,7 +361,7 @@ class UniversalScalper:
                 
                 def safe_int(val):
                     try: return int(val) if val else 0
-                    except: return 0
+                    except (ValueError, TypeError): return 0
 
                 frgn = safe_int(row.get('frgn_fake_ntby_qty', 0))
                 orgn = safe_int(row.get('orgn_fake_ntby_qty', 0))

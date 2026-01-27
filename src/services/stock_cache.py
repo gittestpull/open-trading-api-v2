@@ -107,7 +107,7 @@ class StockCache:
                 # Naver Finance usually uses EUC-KR
                 try:
                     return data.decode('euc-kr')
-                except:
+                except (UnicodeDecodeError, LookupError):
                     return data.decode('utf-8', errors='ignore')
         except Exception as e:
             logger.error(f"Failed to fetch {url}: {e}")
@@ -190,7 +190,7 @@ class StockCache:
                             if per_text and per_text != 'N/A':
                                 try:
                                     per = float(per_text.replace(',', ''))
-                                except:
+                                except (UnicodeDecodeError, LookupError):
                                     per = 0.0
 
                     stocks.append({
@@ -234,7 +234,7 @@ class StockCache:
             match = re.search(r'PER.*?<em>([0-9,.]+)</em>', html, re.DOTALL)
             if match:
                 return float(match.group(1).replace(',', ''))
-        except:
+        except Exception:
             pass
         return 0.0
     
@@ -508,7 +508,7 @@ class StockCache:
             if pbr_match:
                 try:
                     result['pbr'] = float(pbr_match.group(1).replace(',', ''))
-                except:
+                except (UnicodeDecodeError, LookupError):
                     pass
             
             # 업종 파싱
@@ -542,7 +542,7 @@ class StockCache:
                                 if clean_text and clean_text != '-' and clean_text != '':
                                     try:
                                         valid_values.append(float(clean_text.replace(',', '')))
-                                    except:
+                                    except (UnicodeDecodeError, LookupError):
                                         pass
                             
                             if valid_values:
