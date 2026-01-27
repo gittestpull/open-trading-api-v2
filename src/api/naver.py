@@ -2,6 +2,7 @@
 import asyncio
 import logging
 import re
+import time
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from urllib.parse import quote
@@ -104,12 +105,9 @@ class NaverCollector:
                 
                 # Small delay to be polite
                 if page % 10 == 0:
-                    asyncio.sleep(0.5) 
+                    time.sleep(0.5) 
                     # Note: we are in a sync function here called by async. 
-                    # requests is sync. time.sleep is better but blocks loop.
-                    # Since this is running in threadpool usually (FastAPI), time.sleep is ok?
-                    # But here we are just calling it directly.
-                    # Let's use no sleep for now as requests takes time.
+                    # requests is sync. time.sleep is ok as it runs in executor.
                 
             return posts
         except Exception as e:

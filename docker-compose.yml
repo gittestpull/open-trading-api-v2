@@ -32,6 +32,7 @@ services:
       - ./src/services/stock_master:/app/src/services/stock_master:rw
       - ./src/scalper/core_universal.py:/app/src/scalper/core_universal.py:rw
       - ./src/api:/app/src/api:rw
+      - ./src/web/static:/app/src/web/static:rw
       - ./tools:/app/tools:rw
 
     environment:

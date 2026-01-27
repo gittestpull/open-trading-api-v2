@@ -1,0 +1,76 @@
+.glass {
+    background: rgba(22, 27, 34, 0.8);
+    backdrop-filter: blur(10px);
+}
+
+.tab-active {
+    border-bottom: 2px solid #58a6ff;
+    color: #58a6ff;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #30363d;
+    border-radius: 3px;
+}
+
+.heatmap-hot {
+    background: linear-gradient(135deg, #f85149 0%, #ff6b6b 100%);
+}
+
+.heatmap-warm {
+    background: linear-gradient(135deg, #d29922 0%, #ffc107 100%);
+}
+
+.heatmap-cool {
+    background: linear-gradient(135deg, #3fb950 0%, #58a6ff 100%);
+}
+
+/* Modal Animation */
+.modal-enter {
+    opacity: 0;
+    transform: scale(0.95);
+}
+
+.modal-enter-active {
+    opacity: 1;
+    transform: scale(1);
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.modal-exit {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.modal-exit-active {
+    opacity: 0;
+    transform: scale(0.95);
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+/* Tooltip styles */
+.has-tooltip {
+    position: relative;
+}
+
+.has-tooltip .tooltip-text {
+    visibility: hidden;
+    position: absolute;
+    z-index: 100;
+    background-color: #21262d;
+    color: #e5e7eb;
+    padding: 0.5rem;
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    white-space: normal;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    border: 1px solid #30363d;
+}
+
+.has-tooltip:hover .tooltip-text {
+    visibility: visible;
+}

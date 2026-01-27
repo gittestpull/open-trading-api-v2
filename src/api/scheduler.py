@@ -14,7 +14,10 @@ from .stock_master import get_stock_master_service
 from .human_index import get_human_index_calculator
 from .log_buffer import get_log_buffer
 from .history_collector import get_history_collector
+from .log_buffer import get_log_buffer
+from .history_collector import get_history_collector
 from .news import get_news_collector
+from .naver import get_naver_collector
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +30,10 @@ class CollectionScheduler:
         self.collector = get_collector(is_live=is_live)
         self.human_index = get_human_index_calculator()
         self.history_collector = get_history_collector()
+        self.human_index = get_human_index_calculator()
+        self.history_collector = get_history_collector()
         self.news_collector = get_news_collector()
+        self.naver_collector = get_naver_collector()
         self._is_running = False
         self._last_collection: Optional[datetime] = None
         self._on_complete_callback: Optional[Callable] = None
@@ -80,6 +86,43 @@ class CollectionScheduler:
             log_msg = f"[{datetime.now().strftime('%H:%M')}] Daily collection failed: {e}"
             logger.error(f"[Scheduler] {log_msg}")
             self._log_buffer.add_sync(log_msg, "ERROR")
+    
+    async def _run_midnight_collection(self):
+        """Midnight collection for daily trend data (e.g. OpenTalk Users)"""
+        start_time = datetime.now()
+        log_msg = f"[{start_time.strftime('%H:%M')}] Midnight collection triggered"
+        logger.info(f"[Scheduler] {log_msg}")
+        self._log_buffer.add_sync(log_msg)
+        
+        try:
+            # OpenTalk Users Collection
+            stock_service = get_stock_master_service()
+            stocks = await stock_service.get_all_stocks() # Collect for ALL stocks
+            total = len(stocks)
+            success = 0
+            
+            self._log_buffer.add_sync(f"[Midnight] Collecting OpenTalk users for {total} stocks...")
+            
+            for i, stock in enumerate(stocks):
+                try:
+                    res = await self.naver_collector.fetch_opentalk_info(stock['ticker'])
+                    if res: success += 1
+                except Exception as e:
+                    pass
+                
+                # Rate limit protection (0.2s delay -> ~5/sec -> 3600 stocks in 12 mins)
+                await asyncio.sleep(0.2)
+                
+                if i % 100 == 0:
+                     logger.info(f"[Midnight] Progress {i}/{total}")
+
+            duration = (datetime.now() - start_time).total_seconds()
+            log_msg = f"[{datetime.now().strftime('%H:%M')}] Midnight collection complete: {success}/{total} in {duration:.1f}s"
+            logger.info(f"[Scheduler] {log_msg}")
+            self._log_buffer.add_sync(log_msg)
+            
+        except Exception as e:
+            logger.error(f"[Scheduler] Midnight collection failed: {e}")
     
     async def _collect_human_index(self, tickers: list = None, force: bool = False) -> dict:
         stock_service = get_stock_master_service()
@@ -236,6 +279,11 @@ class CollectionScheduler:
         self.scheduler.start()
         self._is_running = True
         logger.info(f"[Scheduler] Started - Daily collection at {hour:02d}:{minute:02d} (Mon-Fri)")
+        
+        # Schedule Midnight Collection (Daily 00:00)
+        midnight_trigger = CronTrigger(hour=0, minute=0, timezone=ZoneInfo('Asia/Seoul'))
+        self._schedule_job(self._run_midnight_collection, midnight_trigger)
+        logger.info(f"[Scheduler] Started - Midnight collection at 00:00 (Daily)")
         
         # Start minute collection if configured
         if self._minute_tickers:

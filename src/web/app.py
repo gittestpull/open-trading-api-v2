@@ -493,13 +493,16 @@ def create_app(base_dir: str) -> FastAPI:
             (ticker,)
         )
         
+        opentalk_history = await db.get_naver_talk_history(ticker, days=30)
+        
         return {
             "stock": stock,
             "price_history": price_history,
             "stats_history": stats_history,
             "investor_history": investor_history,
             "short_credit": short_credit,
-            "news": news
+            "news": news,
+            "opentalk_history": opentalk_history
         }
     
     @app.get("/api/human-index/fomo-alerts")

@@ -5,7 +5,7 @@ Deep Dive 투자 분석 플랫폼 - SQLite Database Manager
 import os
 import sqlite3
 import aiosqlite
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 
 
@@ -32,6 +32,29 @@ class Database:
         conn.row_factory = aiosqlite.Row
         return conn
     
+    async def get_naver_talk_history(self, ticker: str, days: int = 30) -> List[Dict]:
+        """네이버 토론방 인원 히스토리 조회"""
+        start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        query = """
+            SELECT date, user_count 
+            FROM naver_talk_history 
+            WHERE ticker = ? AND date >= ? 
+            ORDER BY date ASC
+        """
+        return await self.fetch_all(query, (ticker, start_date))
+
+    async def upsert_naver_talk_history(self, ticker: str, user_count: int):
+        """네이버 토론방 인원 히스토리 저장"""
+        today = datetime.now().strftime("%Y-%m-%d")
+        query = """
+            INSERT INTO naver_talk_history (date, ticker, user_count, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(date, ticker) DO UPDATE SET
+                user_count = excluded.user_count,
+                updated_at = excluded.updated_at
+        """
+        await self.execute(query, (today, ticker, user_count))
+
     def create_tables(self):
         """모든 테이블 생성"""
         conn = self.get_connection()
@@ -201,6 +224,17 @@ class Database:
                 attention_score REAL,   -- 관심도 0~100
                 fomo_level REAL,        -- FOMO 지수 0~100
                 crowd_sentiment REAL,   -- 군중 감성 -1~1
+                UNIQUE(date, ticker)
+            )
+        """)
+        
+        # 11. 네이버 토론방 히스토리 (Daily)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS naver_talk_history (
+                date TEXT NOT NULL,
+                ticker TEXT NOT NULL,
+                user_count INTEGER,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(date, ticker)
             )
         """)

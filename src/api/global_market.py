@@ -147,22 +147,26 @@ class GlobalMarketCollector:
         
         category_map = {
             '^GSPC': 'us_stocks', '^NDX': 'us_stocks', '^DJI': 'us_stocks',
-            'VIX': 'volatility',
+            'SPY': 'us_stocks', 'QQQ': 'us_stocks', 'DIA': 'us_stocks',
+            'VIX': 'volatility', '^VIX': 'volatility',
             'GLD': 'commodities', 'USO': 'commodities',
             'TLT': 'bonds',
-            'DXY': 'currency'
+            'DXY': 'currency', 'DX-Y.NYB': 'currency'
         }
         
         for item in latest:
             symbol = item['symbol']
             category = category_map.get(symbol, 'other')
+            if category not in summary:
+                summary[category] = {}
             summary[category][symbol] = {
                 'price': item['close_price'],
                 'change': item['change_rate']
             }
         
-        spy_data = summary['us_stocks'].get('^GSPC', {})
-        vix_data = summary['volatility'].get('VIX', {})
+        # Use either index or ETF for sentiment
+        spy_data = summary['us_stocks'].get('^GSPC') or summary['us_stocks'].get('SPY', {})
+        vix_data = summary['volatility'].get('VIX') or summary['volatility'].get('^VIX', {})
         
         market_sentiment = 'neutral'
         if spy_data.get('change', 0) > 1 and vix_data.get('change', 0) < 0:

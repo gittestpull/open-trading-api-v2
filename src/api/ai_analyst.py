@@ -62,6 +62,8 @@ class AIAnalyst:
             (ticker,)
         )
         
+        opentalk_history = await self.db.get_naver_talk_history(ticker, days=30)
+        
         context = self._build_context(stock, price_history, stats, investor, human_index, news, disclosures)
         
         is_deep = (mode == "deep")
@@ -83,7 +85,8 @@ class AIAnalyst:
                 "investor": investor[0] if investor else None,
                 "human_index": human_index,
                 "recent_news": news[:3],
-                "disclosures": disclosures[:3]
+                "disclosures": disclosures[:3],
+                "opentalk_history": opentalk_history
             }
         }
     
