@@ -446,7 +446,23 @@ def create_app(base_dir: str) -> FastAPI:
         params.append(req.limit)
         
         results = await db.fetch_all(base_query, tuple(params))
-        return {"stocks": results, "count": len(results)}
+        
+        # Get data freshness info
+        freshness_query = """
+            SELECT 
+                (SELECT MAX(date) FROM daily_price) as price_date,
+                (SELECT MAX(date) FROM daily_stats) as stats_date,
+                (SELECT MAX(date) FROM daily_investor) as investor_date,
+                (SELECT MAX(date) FROM daily_short_credit) as short_credit_date,
+                (SELECT MAX(date) FROM human_index) as human_index_date
+        """
+        freshness = await db.fetch_one(freshness_query)
+        
+        return {
+            "data_freshness": dict(freshness) if freshness else {},
+            "stocks": results,
+            "count": len(results)
+        }
     
     @app.get("/api/deepdive/{ticker}")
     async def deep_dive(ticker: str):
