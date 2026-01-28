@@ -521,33 +521,87 @@ class SectorAnalysisCollector:
         """, (sector_code, start_date))
 
     async def get_rotation_heatmap(self) -> List[Dict]:
-        """업종 순환매 히트맵 데이터"""
-        sectors = ["1001", "1013", "1009", "1008", "1021", "2001", "2068", "2030"]
-
+        """업종 순환매 히트맵 데이터 - 실시간 PyKRX에서 가져오기"""
+        import asyncio
+        from concurrent.futures import ThreadPoolExecutor
+        
+        sectors = [
+            ("1001", "코스피"),
+            ("1013", "전기전자"),
+            ("1009", "의약품"),
+            ("1008", "화학"),
+            ("1021", "금융업"),
+            ("1015", "운수장비"),
+            ("1018", "건설업"),
+            ("2001", "코스닥"),
+            ("2068", "반도체"),
+            ("2030", "제약"),
+        ]
+        
+        end_date = datetime.now().strftime("%Y%m%d")
+        start_date = (datetime.now() - timedelta(days=90)).strftime("%Y%m%d")
+        
         results = []
-        for sector_code in sectors:
-            sector_name = SECTOR_CODE_MAP.get(sector_code, sector_code)
-
-            # 각 기간별 수익률 계산
-            for period, days in [("1W", 5), ("1M", 20), ("3M", 60)]:
-                data = await self.db.fetch_all("""
-                    SELECT close FROM sector_ohlcv
-                    WHERE sector_code = ?
-                    ORDER BY date DESC LIMIT ?
-                """, (sector_code, days + 1))
-
-                if len(data) > 1:
-                    returns = (data[0]['close'] / data[-1]['close'] - 1) * 100
-                else:
-                    returns = 0
-
-                results.append({
-                    "sector_code": sector_code,
-                    "sector_name": sector_name,
-                    "period": period,
-                    "returns": round(returns, 2)
-                })
-
+        
+        def fetch_sector_data(sector_code: str) -> pd.DataFrame:
+            """동기 함수로 PyKRX 데이터 가져오기"""
+            try:
+                return stock.get_index_ohlcv_by_date(start_date, end_date, sector_code)
+            except Exception as e:
+                logger.error(f"[Heatmap] Failed to fetch {sector_code}: {e}")
+                return pd.DataFrame()
+        
+        # ThreadPoolExecutor로 병렬 처리
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = {
+                sector_code: loop.run_in_executor(executor, fetch_sector_data, sector_code)
+                for sector_code, _ in sectors
+            }
+            
+            for sector_code, sector_name in sectors:
+                try:
+                    df = await futures[sector_code]
+                    
+                    if df.empty or len(df) < 2:
+                        for period in ["1W", "1M", "3M"]:
+                            results.append({
+                                "sector_code": sector_code,
+                                "sector_name": sector_name,
+                                "period": period,
+                                "returns": 0
+                            })
+                        continue
+                    
+                    # 종가 컬럼 확인
+                    close_col = "종가" if "종가" in df.columns else "close"
+                    
+                    # 각 기간별 수익률 계산
+                    for period, days in [("1W", 5), ("1M", 20), ("3M", 60)]:
+                        if len(df) > days:
+                            latest_close = df[close_col].iloc[-1]
+                            past_close = df[close_col].iloc[-(days+1)]
+                            returns = (latest_close / past_close - 1) * 100
+                        else:
+                            returns = 0
+                        
+                        results.append({
+                            "sector_code": sector_code,
+                            "sector_name": sector_name,
+                            "period": period,
+                            "returns": round(returns, 2)
+                        })
+                        
+                except Exception as e:
+                    logger.error(f"[Heatmap] Error processing {sector_code}: {e}")
+                    for period in ["1W", "1M", "3M"]:
+                        results.append({
+                            "sector_code": sector_code,
+                            "sector_name": sector_name,
+                            "period": period,
+                            "returns": 0
+                        })
+        
         return results
 
 
