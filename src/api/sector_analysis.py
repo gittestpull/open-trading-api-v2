@@ -521,21 +521,24 @@ class SectorAnalysisCollector:
         """, (sector_code, start_date))
 
     async def get_rotation_heatmap(self) -> List[Dict]:
-        """업종 순환매 히트맵 데이터 - 실시간 PyKRX에서 가져오기"""
+        """업종 순환매 히트맵 데이터 - KIS API 사용"""
         import asyncio
         from concurrent.futures import ThreadPoolExecutor
+        import sys
+        import os
         
+        # KIS API 업종 코드 매핑
         sectors = [
-            ("1001", "코스피"),
-            ("1013", "전기전자"),
-            ("1009", "의약품"),
-            ("1008", "화학"),
-            ("1021", "금융업"),
-            ("1015", "운수장비"),
-            ("1018", "건설업"),
-            ("2001", "코스닥"),
-            ("2068", "반도체"),
-            ("2030", "제약"),
+            ("0001", "코스피"),
+            ("0007", "화학"),
+            ("0008", "의약품"),
+            ("0010", "철강금속"),
+            ("0011", "기계"),
+            ("0012", "전기전자"),
+            ("0014", "운수장비"),
+            ("0017", "건설업"),
+            ("0019", "금융업"),
+            ("1001", "코스닥"),
         ]
         
         end_date = datetime.now().strftime("%Y%m%d")
@@ -544,16 +547,30 @@ class SectorAnalysisCollector:
         results = []
         
         def fetch_sector_data(sector_code: str) -> pd.DataFrame:
-            """동기 함수로 PyKRX 데이터 가져오기"""
+            """KIS API로 업종 데이터 가져오기"""
             try:
-                return stock.get_index_ohlcv_by_date(start_date, end_date, sector_code)
+                sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../examples_user/domestic_stock"))
+                sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
+                
+                import kis_auth as ka
+                ka.auth()
+                import domestic_stock_functions as dsf
+                
+                df1, df2 = dsf.inquire_daily_indexchartprice(
+                    fid_cond_mrkt_div_code="U",
+                    fid_input_iscd=sector_code,
+                    fid_input_date_1=start_date,
+                    fid_input_date_2=end_date,
+                    fid_period_div_code="D",
+                    env_dv="real"
+                )
+                return df2
             except Exception as e:
-                logger.error(f"[Heatmap] Failed to fetch {sector_code}: {e}")
+                logger.error(f"[Heatmap] KIS API failed for {sector_code}: {e}")
                 return pd.DataFrame()
         
-        # ThreadPoolExecutor로 병렬 처리
         loop = asyncio.get_event_loop()
-        with ThreadPoolExecutor(max_workers=5) as executor:
+        with ThreadPoolExecutor(max_workers=3) as executor:
             futures = {
                 sector_code: loop.run_in_executor(executor, fetch_sector_data, sector_code)
                 for sector_code, _ in sectors
@@ -573,15 +590,26 @@ class SectorAnalysisCollector:
                             })
                         continue
                     
-                    # 종가 컬럼 확인
-                    close_col = "종가" if "종가" in df.columns else "close"
+                    close_col = None
+                    for col in ["bstp_nmix_prpr", "bstp_nmix_prdy_clpr", "stck_clpr"]:
+                        if col in df.columns:
+                            close_col = col
+                            break
                     
-                    # 각 기간별 수익률 계산
+                    if not close_col:
+                        close_col = df.columns[0]
+                    
+                    df[close_col] = pd.to_numeric(df[close_col], errors="coerce")
+                    df = df.dropna(subset=[close_col])
+                    
                     for period, days in [("1W", 5), ("1M", 20), ("3M", 60)]:
                         if len(df) > days:
-                            latest_close = df[close_col].iloc[-1]
-                            past_close = df[close_col].iloc[-(days+1)]
-                            returns = (latest_close / past_close - 1) * 100
+                            latest_close = float(df[close_col].iloc[0])
+                            past_close = float(df[close_col].iloc[min(days, len(df)-1)])
+                            if past_close > 0:
+                                returns = (latest_close / past_close - 1) * 100
+                            else:
+                                returns = 0
                         else:
                             returns = 0
                         
@@ -603,6 +631,7 @@ class SectorAnalysisCollector:
                         })
         
         return results
+
 
 
 # 싱글톤 인스턴스
