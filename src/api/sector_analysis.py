@@ -230,7 +230,7 @@ class SectorAnalysisCollector:
             logger.warning(f"[SectorAnalysis] Stock not found: {ticker}")
             return None
 
-        sector_name = stock_info.get('sector', '')
+        sector_name = stock_info.get('sector') or ''
         market = stock_info.get('market', 'KOSPI')
 
         # 2. 섹터 키워드로 업종 코드 매핑
