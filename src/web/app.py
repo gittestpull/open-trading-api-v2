@@ -663,6 +663,92 @@ def create_app(base_dir: str) -> FastAPI:
     async def get_contrarian_opportunities(attention_threshold: float = 20):
         stocks = await sentiment_analyst.get_contrarian_opportunities(attention_threshold)
         return {"attention_threshold": attention_threshold, "count": len(stocks), "stocks": [dict(s) for s in stocks]}
+
+    # ============== Raw Data Explorer Endpoints ==============
+
+    ALLOWED_TABLES = {
+        "daily_price", "daily_stats", "daily_investor", "daily_short_credit",
+        "human_index", "youtube_metrics", "naver_discussion", "naver_talk_history",
+        "stock_news", "dart_disclosure", "global_market", "sector_daily",
+        "collection_log", "stock_info"
+    }
+
+    @app.get("/api/data/tables")
+    async def list_data_tables():
+        """List available data tables with row counts and date ranges."""
+        result = []
+        for table in sorted(ALLOWED_TABLES):
+            count_row = await db.fetch_one(f"SELECT COUNT(*) as cnt FROM {table}")
+            count = count_row["cnt"] if count_row else 0
+            
+            date_range = None
+            if table != "stock_info":
+                range_row = await db.fetch_one(f"SELECT MIN(date) as min_date, MAX(date) as max_date FROM {table}")
+                if range_row and range_row["min_date"]:
+                    date_range = {"from": range_row["min_date"], "to": range_row["max_date"]}
+            
+            result.append({"table": table, "row_count": count, "date_range": date_range})
+        return {"tables": result}
+
+    @app.get("/api/data/{table_name}")
+    async def get_table_data(
+        table_name: str,
+        ticker: Optional[str] = None,
+        date: Optional[str] = None,
+        days: int = 30,
+        limit: int = 100
+    ):
+        """Get raw data from a specific table."""
+        if table_name not in ALLOWED_TABLES:
+            raise HTTPException(status_code=400, detail=f"Table not allowed. Use: {sorted(ALLOWED_TABLES)}")
+        
+        conditions = []
+        params = []
+        
+        if ticker:
+            conditions.append("ticker = ?")
+            params.append(ticker)
+        
+        if date:
+            conditions.append("date = ?")
+            params.append(date)
+        
+        where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
+        order_clause = "ORDER BY date DESC" if table_name != "stock_info" else "ORDER BY ticker"
+        
+        query = f"SELECT * FROM {table_name} {where_clause} {order_clause} LIMIT ?"
+        params.append(min(limit, 500))
+        
+        rows = await db.fetch_all(query, tuple(params))
+        
+        return {
+            "table": table_name,
+            "filters": {"ticker": ticker, "date": date},
+            "count": len(rows),
+            "data": [dict(r) for r in rows]
+        }
+
+    @app.get("/api/data/{table_name}/summary")
+    async def get_table_summary(table_name: str):
+        """Get summary statistics for a table."""
+        if table_name not in ALLOWED_TABLES:
+            raise HTTPException(status_code=400, detail=f"Table not allowed")
+        
+        count_row = await db.fetch_one(f"SELECT COUNT(*) as cnt FROM {table_name}")
+        ticker_row = await db.fetch_one(f"SELECT COUNT(DISTINCT ticker) as cnt FROM {table_name}")
+        
+        summary = {
+            "table": table_name,
+            "total_rows": count_row["cnt"] if count_row else 0,
+            "unique_tickers": ticker_row["cnt"] if ticker_row else 0
+        }
+        
+        if table_name != "stock_info":
+            date_row = await db.fetch_one(f"SELECT MIN(date) as min_d, MAX(date) as max_d FROM {table_name}")
+            if date_row:
+                summary["date_range"] = {"from": date_row["min_d"], "to": date_row["max_d"]}
+        
+        return summary
     @app.post("/api/history/collect-sector")
     async def collect_sector_history(req: SectorUpdateRequest, background_tasks: BackgroundTasks):
         async def run_collection():
@@ -1006,5 +1092,61 @@ def create_app(base_dir: str) -> FastAPI:
             "total_records": total,
             "results": results
         }
+
+
+    # ==================== Sector Analysis Endpoints ====================
+    from ..api import get_sector_analysis_collector
+    sector_analyzer = get_sector_analysis_collector()
+
+    class SectorAnalysisRequest(BaseModel):
+        ticker: str
+        days: int = 365
+
+    @app.post("/api/sector-analysis/{ticker}/collect")
+    async def collect_sector_analysis(ticker: str, background_tasks: BackgroundTasks, days: int = 365):
+        """특정 종목의 섹터 1년간 데이터 수집 시작"""
+        async def run_collection():
+            return await sector_analyzer.analyze_sector(ticker, days)
+        background_tasks.add_task(run_collection)
+        return {"status": "started", "ticker": ticker, "days": days, "message": f"Collecting sector data for {ticker}"}
+
+    @app.get("/api/sector-analysis/{ticker}/summary")
+    async def get_sector_summary(ticker: str):
+        """섹터 요약 정보 조회"""
+        result = await sector_analyzer.get_sector_summary(ticker)
+        if "error" in result:
+            raise HTTPException(status_code=404, detail=result["error"])
+        return result
+
+    @app.get("/api/sector-analysis/{ticker}/history")
+    async def get_sector_history(ticker: str, days: int = 365):
+        """섹터 히스토리 데이터 조회"""
+        sector_info = await sector_analyzer.find_sector_for_stock(ticker)
+        if not sector_info:
+            raise HTTPException(status_code=404, detail="Stock not found")
+        history = await sector_analyzer.get_sector_history(sector_info.sector_code, days)
+        return {"sector_code": sector_info.sector_code, "sector_name": sector_info.sector_name, "history": history, "count": len(history)}
+
+    @app.get("/api/sector-analysis/{ticker}/relative-strength")
+    async def get_relative_strength(ticker: str, days: int = 20):
+        """상대 강도 조회"""
+        sector_info = await sector_analyzer.find_sector_for_stock(ticker)
+        if not sector_info:
+            raise HTTPException(status_code=404, detail="Stock not found")
+        rs = await sector_analyzer.calculate_relative_strength(ticker, sector_info.sector_code, days)
+        return {"ticker": ticker, "sector": sector_info.sector_name, "relative_strength": rs}
+
+    @app.get("/api/sector-analysis/rotation-heatmap")
+    async def get_rotation_heatmap():
+        """업종 순환매 히트맵"""
+        return {"heatmap": await sector_analyzer.get_rotation_heatmap()}
+
+    @app.post("/api/sector-analysis/{ticker}/analyze")
+    async def run_sector_analysis(ticker: str, days: int = 365):
+        """섹터 종합 분석 실행 (동기)"""
+        result = await sector_analyzer.analyze_sector(ticker, days)
+        if "error" in result:
+            raise HTTPException(status_code=400, detail=result["error"])
+        return result
 
     return app

@@ -20,6 +20,8 @@ from .history_collector import HistoryCollector, get_history_collector
 from .journal import TradeJournal, get_trade_journal
 from .simulator import TradingSimulator, SimulationState, get_trading_simulator
 
+from .sector_analysis import SectorAnalysisCollector, get_sector_analysis_collector
+
 __all__ = [
     'Database',
     'get_database',
@@ -56,4 +58,6 @@ __all__ = [
     'TradingSimulator',
     'SimulationState',
     'get_trading_simulator',
+    'SectorAnalysisCollector',
+    'get_sector_analysis_collector',
 ]

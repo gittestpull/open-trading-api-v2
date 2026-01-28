@@ -2502,3 +2502,289 @@ document.getElementById('sectorEditForm').addEventListener('submit', async (e) =
     }
 });
 
+
+// ==================== Sector Analysis Functions ====================
+
+let currentSectorAnalysisTicker = null;
+let sectorAnalysisChart = null;
+
+async function analyzeSectorForStock() {
+    const ticker = document.getElementById('sectorAnalysisTicker')?.value?.trim();
+    if (!ticker) {
+        alert('종목 코드를 입력하세요');
+        return;
+    }
+    
+    currentSectorAnalysisTicker = ticker;
+    const resultDiv = document.getElementById('sectorAnalysisResult');
+    resultDiv.innerHTML = '<div class="text-center py-8 text-gray-500">분석 중... (1년치 데이터 수집에 시간이 걸릴 수 있습니다)</div>';
+    
+    try {
+        const res = await fetch(`/api/sector-analysis/${ticker}/analyze?days=365`, { method: 'POST' });
+        const data = await res.json();
+        
+        if (data.error) {
+            resultDiv.innerHTML = `<div class="text-center py-8 text-accent-red">${data.error}</div>`;
+            return;
+        }
+        
+        renderSectorAnalysisResult(data);
+    } catch (err) {
+        resultDiv.innerHTML = `<div class="text-center py-8 text-accent-red">오류: ${err.message}</div>`;
+    }
+}
+
+function renderSectorAnalysisResult(data) {
+    const resultDiv = document.getElementById('sectorAnalysisResult');
+    const rs = data.relative_strength || {};
+    
+    const rsColor = rs.rs_vs_market > 0 ? 'text-accent-green' : 'text-accent-red';
+    const sectorColor = rs.sector_vs_market > 0 ? 'text-accent-green' : 'text-accent-red';
+    
+    resultDiv.innerHTML = `
+        <div class="grid md:grid-cols-2 gap-6">
+            <!-- 섹터 정보 -->
+            <div class="glass rounded-lg p-5 border border-dark-600">
+                <h3 class="text-lg font-bold text-white mb-4">📊 섹터 정보</h3>
+                <div class="space-y-3">
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">종목</span>
+                        <span class="text-white font-semibold">${data.stock_name || data.ticker}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">섹터</span>
+                        <span class="text-accent-blue font-semibold">${data.sector_name}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">시장</span>
+                        <span class="text-white">${data.market}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">수집 레코드</span>
+                        <span class="text-gray-300">${data.ohlcv_records}일치</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 상대 강도 -->
+            <div class="glass rounded-lg p-5 border border-dark-600">
+                <h3 class="text-lg font-bold text-white mb-4">💪 상대 강도 (${rs.period_days || 20}일)</h3>
+                <div class="space-y-3">
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">종목 수익률</span>
+                        <span class="${rs.stock_return >= 0 ? 'text-accent-green' : 'text-accent-red'}">${rs.stock_return || 0}%</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">섹터 수익률</span>
+                        <span class="${rs.sector_return >= 0 ? 'text-accent-green' : 'text-accent-red'}">${rs.sector_return || 0}%</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">시장(KOSPI) 수익률</span>
+                        <span class="${rs.market_return >= 0 ? 'text-accent-green' : 'text-accent-red'}">${rs.market_return || 0}%</span>
+                    </div>
+                    <div class="border-t border-dark-600 pt-3 mt-3">
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">섹터 대비 RS</span>
+                            <span class="${rs.rs_vs_sector >= 0 ? 'text-accent-green' : 'text-accent-red'} font-bold">${rs.rs_vs_sector || 0}%p</span>
+                        </div>
+                        <div class="flex justify-between mt-2">
+                            <span class="text-gray-400">시장 대비 RS</span>
+                            <span class="${rsColor} font-bold">${rs.rs_vs_market || 0}%p</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 섹터 상태 배지 -->
+        <div class="flex gap-3 mt-6 flex-wrap">
+            ${rs.is_sector_leader ? '<span class="px-3 py-1 bg-accent-green/20 text-accent-green rounded-full text-sm">🏆 섹터 리더</span>' : '<span class="px-3 py-1 bg-accent-red/20 text-accent-red rounded-full text-sm">섹터 내 약세</span>'}
+            ${rs.is_market_leader ? '<span class="px-3 py-1 bg-accent-blue/20 text-accent-blue rounded-full text-sm">📈 시장 상회</span>' : '<span class="px-3 py-1 bg-gray-600/20 text-gray-400 rounded-full text-sm">시장 하회</span>'}
+            ${rs.sector_is_strong ? '<span class="px-3 py-1 bg-accent-purple/20 text-accent-purple rounded-full text-sm">🔥 섹터 강세</span>' : '<span class="px-3 py-1 bg-gray-600/20 text-gray-400 rounded-full text-sm">섹터 약세</span>'}
+        </div>
+        
+        <!-- 차트 영역 -->
+        <div class="glass rounded-lg p-5 border border-dark-600 mt-6">
+            <h3 class="text-lg font-bold text-white mb-4">📈 섹터 히스토리 차트</h3>
+            <canvas id="sectorHistoryChart" height="300"></canvas>
+        </div>
+    `;
+    
+    // 히스토리 차트 로드
+    loadSectorHistoryChart(data.ticker, data.sector_code);
+}
+
+async function loadSectorHistoryChart(ticker, sectorCode) {
+    try {
+        const res = await fetch(`/api/sector-analysis/${ticker}/history?days=90`);
+        const data = await res.json();
+        
+        if (!data.history || data.history.length === 0) {
+            return;
+        }
+        
+        const ctx = document.getElementById('sectorHistoryChart');
+        if (!ctx) return;
+        
+        if (sectorAnalysisChart) {
+            sectorAnalysisChart.destroy();
+        }
+        
+        const labels = data.history.map(h => h.date);
+        const closeData = data.history.map(h => h.close);
+        const foreignCumData = data.history.map(h => (h.foreign_cum || 0) / 100000000); // 억 단위
+        
+        sectorAnalysisChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: '섹터 지수',
+                        data: closeData,
+                        borderColor: '#58a6ff',
+                        backgroundColor: 'rgba(88, 166, 255, 0.1)',
+                        yAxisID: 'y',
+                        tension: 0.1
+                    },
+                    {
+                        label: '외인 누적 순매수 (억)',
+                        data: foreignCumData,
+                        borderColor: '#3fb950',
+                        backgroundColor: 'rgba(63, 185, 80, 0.1)',
+                        yAxisID: 'y1',
+                        tension: 0.1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                interaction: { mode: 'index', intersect: false },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: { display: true, text: '섹터 지수', color: '#58a6ff' },
+                        grid: { color: 'rgba(255,255,255,0.1)' }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: { display: true, text: '외인 순매수 (억)', color: '#3fb950' },
+                        grid: { drawOnChartArea: false }
+                    },
+                    x: {
+                        grid: { color: 'rgba(255,255,255,0.1)' },
+                        ticks: { maxTicksLimit: 10 }
+                    }
+                },
+                plugins: {
+                    legend: { labels: { color: '#9ca3af' } }
+                }
+            }
+        });
+    } catch (err) {
+        console.error('Failed to load sector history chart:', err);
+    }
+}
+
+async function loadRotationHeatmap() {
+    const container = document.getElementById('rotationHeatmapContainer');
+    if (!container) return;
+    
+    container.innerHTML = '<div class="text-center py-4 text-gray-500">로딩 중...</div>';
+    
+    try {
+        const res = await fetch('/api/sector-analysis/rotation-heatmap');
+        const data = await res.json();
+        
+        if (!data.heatmap || data.heatmap.length === 0) {
+            container.innerHTML = '<div class="text-center py-4 text-gray-500">데이터 없음</div>';
+            return;
+        }
+        
+        // 섹터별로 그룹화
+        const sectors = {};
+        data.heatmap.forEach(item => {
+            if (!sectors[item.sector_code]) {
+                sectors[item.sector_code] = { name: item.sector_name, periods: {} };
+            }
+            sectors[item.sector_code].periods[item.period] = item.returns;
+        });
+        
+        let html = '<table class="w-full text-sm"><thead><tr class="text-gray-400">';
+        html += '<th class="text-left py-2">섹터</th>';
+        html += '<th class="text-center py-2">1주</th>';
+        html += '<th class="text-center py-2">1개월</th>';
+        html += '<th class="text-center py-2">3개월</th>';
+        html += '</tr></thead><tbody>';
+        
+        Object.entries(sectors).forEach(([code, sec]) => {
+            const w1 = sec.periods['1W'] || 0;
+            const m1 = sec.periods['1M'] || 0;
+            const m3 = sec.periods['3M'] || 0;
+            
+            const colorClass = (val) => val >= 0 ? 'text-accent-green' : 'text-accent-red';
+            const bgClass = (val) => {
+                if (val >= 5) return 'bg-green-900/30';
+                if (val <= -5) return 'bg-red-900/30';
+                return '';
+            };
+            
+            html += `<tr class="border-t border-dark-600">`;
+            html += `<td class="py-2 text-white">${sec.name}</td>`;
+            html += `<td class="py-2 text-center ${colorClass(w1)} ${bgClass(w1)}">${w1.toFixed(1)}%</td>`;
+            html += `<td class="py-2 text-center ${colorClass(m1)} ${bgClass(m1)}">${m1.toFixed(1)}%</td>`;
+            html += `<td class="py-2 text-center ${colorClass(m3)} ${bgClass(m3)}">${m3.toFixed(1)}%</td>`;
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    } catch (err) {
+        container.innerHTML = `<div class="text-center py-4 text-accent-red">오류: ${err.message}</div>`;
+    }
+}
+
+async function collectSectorDataBackground() {
+    const ticker = document.getElementById('sectorAnalysisTicker')?.value?.trim();
+    if (!ticker) {
+        alert('종목 코드를 입력하세요');
+        return;
+    }
+    
+    try {
+        const res = await fetch(`/api/sector-analysis/${ticker}/collect?days=365`, { method: 'POST' });
+        const data = await res.json();
+        alert(`수집 시작: ${data.message}`);
+    } catch (err) {
+        alert(`오류: ${err.message}`);
+    }
+}
+
+// Sector Sub Tab Handler
+function showSectorSubTab(subTab) {
+    // Hide all sub panels
+    document.querySelectorAll('[id^="sector-subpanel-"]').forEach(panel => {
+        panel.classList.add('hidden');
+    });
+    
+    // Reset all sub tab buttons
+    document.querySelectorAll('[id^="sector-subtab-"]').forEach(btn => {
+        btn.classList.remove('bg-accent-blue', 'text-white');
+        btn.classList.add('bg-dark-700', 'text-gray-400');
+    });
+    
+    // Show selected panel
+    const panel = document.getElementById('sector-subpanel-' + subTab);
+    if (panel) panel.classList.remove('hidden');
+    
+    // Activate selected button
+    const btn = document.getElementById('sector-subtab-' + subTab);
+    if (btn) {
+        btn.classList.remove('bg-dark-700', 'text-gray-400');
+        btn.classList.add('bg-accent-blue', 'text-white');
+    }
+}

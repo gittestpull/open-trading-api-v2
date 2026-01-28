@@ -587,40 +587,105 @@
 
             <!-- Sector Panel -->
             <div id="panel-sector" class="hidden">
-                <div class="grid md:grid-cols-4 gap-6">
-                    <!-- Sidebar -->
-                    <div class="glass rounded-lg p-5 border border-dark-600 h-fit">
-                        <h2 class="text-sm font-semibold text-gray-400 mb-4 pb-2 border-b border-dark-600">Saved
-                            Sectors
-                        </h2>
-                        <div id="savedSectorsList"
-                            class="space-y-2 max-h-[600px] overflow-y-auto scrollbar-thin text-sm">
-                            <div class="text-center text-gray-600 py-4">No saved sectors</div>
+                <!-- Sub Tabs -->
+                <div class="flex gap-2 mb-6 border-b border-dark-600 pb-3">
+                    <button onclick="showSectorSubTab('leaders')" id="sector-subtab-leaders" 
+                        class="px-4 py-2 text-sm font-medium bg-accent-blue text-white rounded-md">
+                        🌐 글로벌 리더
+                    </button>
+                    <button onclick="showSectorSubTab('analysis')" id="sector-subtab-analysis"
+                        class="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white bg-dark-700 rounded-md">
+                        📊 1년 섹터 분석
+                    </button>
+                    <button onclick="showSectorSubTab('rotation')" id="sector-subtab-rotation"
+                        class="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white bg-dark-700 rounded-md">
+                        🔄 업종 순환매
+                    </button>
+                </div>
+
+                <!-- Leaders Sub Panel (기존) -->
+                <div id="sector-subpanel-leaders">
+                    <div class="grid md:grid-cols-4 gap-6">
+                        <!-- Sidebar -->
+                        <div class="glass rounded-lg p-5 border border-dark-600 h-fit">
+                            <h2 class="text-sm font-semibold text-gray-400 mb-4 pb-2 border-b border-dark-600">Saved Sectors</h2>
+                            <div id="savedSectorsList" class="space-y-2 max-h-[600px] overflow-y-auto scrollbar-thin text-sm">
+                                <div class="text-center text-gray-600 py-4">No saved sectors</div>
+                            </div>
+                        </div>
+
+                        <!-- Main Content -->
+                        <div class="md:col-span-3">
+                            <div class="glass rounded-lg p-5 border border-dark-600 mb-6">
+                                <div class="flex gap-3">
+                                    <div class="relative flex-1 flex items-center">
+                                        <input type="text" id="sectorInput"
+                                            placeholder="Enter sector (e.g., Shipbuilding, AI, Semiconductor)..."
+                                            class="w-full pl-4 pr-10 py-2 bg-dark-900 border border-dark-600 rounded-md focus:border-accent-blue focus:outline-none"
+                                            onkeypress="if(event.key==='Enter') loadSectorLeaders()">
+                                    </div>
+                                    <button onclick="loadSectorLeaders()"
+                                        class="px-6 py-2 bg-accent-blue hover:bg-blue-600 text-white font-medium rounded-md transition">
+                                        Find Leaders
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="sectorResults" class="grid md:grid-cols-4 gap-4">
+                                <div class="glass rounded-lg p-4 border border-dark-600 text-center text-gray-500 col-span-4 py-12">
+                                    Enter a sector name to find global leading companies.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analysis Sub Panel (신규) -->
+                <div id="sector-subpanel-analysis" class="hidden">
+                    <div class="glass rounded-lg p-5 border border-dark-600 mb-6">
+                        <h2 class="text-lg font-bold text-white mb-4">📊 종목 기반 섹터 분석 (1년)</h2>
+                        <p class="text-sm text-gray-400 mb-4">종목 코드를 입력하면 해당 종목이 속한 섹터의 1년간 OHLCV, 투자자 수급, 상대강도를 분석합니다.</p>
+                        <div class="flex gap-3">
+                            <div class="relative flex-1 flex items-center">
+                                <input type="text" id="sectorAnalysisTicker"
+                                    placeholder="종목 코드 입력 (예: 005930, 삼성전자)"
+                                    class="w-full pl-4 pr-10 py-2 bg-dark-900 border border-dark-600 rounded-md focus:border-accent-blue focus:outline-none"
+                                    onkeypress="if(event.key==='Enter') analyzeSectorForStock()">
+                                <button type="button" onclick="openStockSearch('sectorAnalysisTicker')"
+                                    class="absolute right-2 text-gray-400 hover:text-white">🔍</button>
+                            </div>
+                            <button onclick="analyzeSectorForStock()"
+                                class="px-6 py-2 bg-accent-green hover:bg-green-600 text-white font-medium rounded-md transition">
+                                섹터 분석
+                            </button>
+                            <button onclick="collectSectorDataBackground()"
+                                class="px-4 py-2 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-md transition">
+                                백그라운드 수집
+                            </button>
                         </div>
                     </div>
 
-                    <!-- Main Content -->
-                    <div class="md:col-span-3">
-                        <div class="glass rounded-lg p-5 border border-dark-600 mb-6">
-                            <div class="flex gap-3">
-                                <div class="relative flex-1 flex items-center">
-                                    <input type="text" id="sectorInput"
-                                        placeholder="Enter sector (e.g., Shipbuilding, AI, Semiconductor)..."
-                                        class="w-full pl-4 pr-10 py-2 bg-dark-900 border border-dark-600 rounded-md focus:border-accent-blue focus:outline-none"
-                                        onkeypress="if(event.key==='Enter') loadSectorLeaders()">
-                                </div>
-                                <button onclick="loadSectorLeaders()"
-                                    class="px-6 py-2 bg-accent-blue hover:bg-blue-600 text-white font-medium rounded-md transition">
-                                    Find Leaders
-                                </button>
-                            </div>
+                    <div id="sectorAnalysisResult" class="">
+                        <div class="glass rounded-lg p-8 border border-dark-600 text-center text-gray-500">
+                            종목을 입력하고 "섹터 분석" 버튼을 클릭하세요.<br>
+                            <span class="text-xs">1년치 데이터 수집 시 최초 실행에 시간이 걸릴 수 있습니다.</span>
                         </div>
+                    </div>
+                </div>
 
-                        <div id="sectorResults" class="grid md:grid-cols-4 gap-4">
-                            <div
-                                class="glass rounded-lg p-4 border border-dark-600 text-center text-gray-500 col-span-4 py-12">
-                                Enter a sector name to find global leading companies.
-                            </div>
+                <!-- Rotation Sub Panel (신규) -->
+                <div id="sector-subpanel-rotation" class="hidden">
+                    <div class="glass rounded-lg p-5 border border-dark-600">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-lg font-bold text-white">🔄 업종 순환매 히트맵</h2>
+                            <button onclick="loadRotationHeatmap()"
+                                class="px-4 py-2 bg-accent-blue hover:bg-blue-600 text-white text-sm font-medium rounded-md transition">
+                                새로고침
+                            </button>
+                        </div>
+                        <p class="text-sm text-gray-400 mb-4">주요 섹터별 기간별 수익률을 비교합니다. 자금의 흐름을 파악하세요.</p>
+                        <div id="rotationHeatmapContainer" class="">
+                            <div class="text-center py-8 text-gray-500">"새로고침" 버튼을 클릭하세요</div>
                         </div>
                     </div>
                 </div>

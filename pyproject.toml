@@ -22,6 +22,8 @@ dependencies = [
     "beautifulsoup4>=4.14.3",
     "google-api-python-client>=2.187.0",
     "pytz>=2024.1",
+    "setuptools>=70.0.0",
+    "pykrx>=1.0.45",
 ]
 
 [dependency-groups]
