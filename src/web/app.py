@@ -799,9 +799,31 @@ def create_app(base_dir: str) -> FastAPI:
     async def collect_global_market(background_tasks: BackgroundTasks):
         async def run_collection():
             await global_market.collect_all()
-        
         background_tasks.add_task(run_collection)
-        return {"status": "collection_started"}
+        return {"status": "started", "message": "Global market data collection started"}
+
+    @app.get("/api/market-analysis/chart")
+    async def get_market_analysis_chart(days: int = 180):
+        """Generates and returns the market funds flow analysis chart."""
+        try:
+            # Lazy import to avoid circular dependencies or startup overhead
+            from ..api.market_funds_analysis import MarketFundsAnalyst
+            
+            analyst = MarketFundsAnalyst()
+            # Save to a temporary or static location
+            save_path = os.path.join(static_dir, "market_analysis.png")
+            
+            # Run analysis (this might take a few seconds, ideally background task but synchronous for now)
+            generated_path = analyst.generate_report(days=days, save_path=save_path)
+            
+            if generated_path and os.path.exists(generated_path):
+                return FileResponse(generated_path)
+            else:
+                raise HTTPException(status_code=500, detail="Failed to generate chart")
+        except Exception as e:
+            print(f"Market Analysis Error: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+            
     
     @app.get("/api/global-market/history/{symbol}")
     async def get_global_market_history(symbol: str, days: int = 30):
@@ -1148,5 +1170,14 @@ def create_app(base_dir: str) -> FastAPI:
         if "error" in result:
             raise HTTPException(status_code=400, detail=result["error"])
         return result
+
+
+
+    @app.get("/api/market-analysis/insight")
+    async def get_market_analysis_insight(days: int = 180, force: bool = False):
+        from ..api.market_funds_analysis import MarketFundsAnalyst
+        analyst = MarketFundsAnalyst()
+        insight = await analyst.generate_ai_insight(days=days, force_refresh=force)
+        return {"analysis": insight}
 
     return app

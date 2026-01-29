@@ -62,6 +62,7 @@ const translations = {
         login: 'Login', login_title: 'Welcome Back', username: 'Username', username_placeholder: 'Enter your username',
         password: 'Password', password_placeholder: 'Enter your password', forgot_password: 'Forgot?',
         login_btn: 'Sign In', or_continue: 'Or continue with', no_account: "Don't have an account?", signup: 'Sign up',
+        market_flow: 'Market Flow',
     },
     ko: {
         subtitle: 'AI 기반 투자 분석 플랫폼',
@@ -122,6 +123,7 @@ const translations = {
         login: '로그인', login_title: '환영합니다', username: '아이디', username_placeholder: '아이디를 입력하세요',
         password: '비밀번호', password_placeholder: '비밀번호를 입력하세요', forgot_password: '비밀번호 찾기',
         login_btn: '로그인', or_continue: '또는', no_account: '계정이 없으신가요?', signup: '회원가입',
+        market_flow: '자금 동향',
     }
 };
 
@@ -167,6 +169,7 @@ function showTab(tab) {
         document.getElementById("histEnd").value = today.toISOString().slice(0, 10).replace(/-/g, "");
         document.getElementById("histStart").value = start.toISOString().slice(0, 10).replace(/-/g, "");
     }
+    if (tab === 'market_flow') loadMarketAnalysis();
 }
 
 async function fetchStatus() {
@@ -2514,20 +2517,20 @@ async function analyzeSectorForStock() {
         alert('종목 코드를 입력하세요');
         return;
     }
-    
+
     currentSectorAnalysisTicker = ticker;
     const resultDiv = document.getElementById('sectorAnalysisResult');
     resultDiv.innerHTML = '<div class="text-center py-8 text-gray-500">분석 중... (1년치 데이터 수집에 시간이 걸릴 수 있습니다)</div>';
-    
+
     try {
         const res = await fetch(`/api/sector-analysis/${ticker}/analyze?days=365`, { method: 'POST' });
         const data = await res.json();
-        
+
         if (data.error) {
             resultDiv.innerHTML = `<div class="text-center py-8 text-accent-red">${data.error}</div>`;
             return;
         }
-        
+
         renderSectorAnalysisResult(data);
     } catch (err) {
         resultDiv.innerHTML = `<div class="text-center py-8 text-accent-red">오류: ${err.message}</div>`;
@@ -2537,10 +2540,10 @@ async function analyzeSectorForStock() {
 function renderSectorAnalysisResult(data) {
     const resultDiv = document.getElementById('sectorAnalysisResult');
     const rs = data.relative_strength || {};
-    
+
     const rsColor = rs.rs_vs_market > 0 ? 'text-accent-green' : 'text-accent-red';
     const sectorColor = rs.sector_vs_market > 0 ? 'text-accent-green' : 'text-accent-red';
-    
+
     resultDiv.innerHTML = `
         <div class="grid md:grid-cols-2 gap-6">
             <!-- 섹터 정보 -->
@@ -2609,7 +2612,7 @@ function renderSectorAnalysisResult(data) {
             <canvas id="sectorHistoryChart" height="300"></canvas>
         </div>
     `;
-    
+
     // 히스토리 차트 로드
     loadSectorHistoryChart(data.ticker, data.sector_code);
 }
@@ -2618,22 +2621,22 @@ async function loadSectorHistoryChart(ticker, sectorCode) {
     try {
         const res = await fetch(`/api/sector-analysis/${ticker}/history?days=90`);
         const data = await res.json();
-        
+
         if (!data.history || data.history.length === 0) {
             return;
         }
-        
+
         const ctx = document.getElementById('sectorHistoryChart');
         if (!ctx) return;
-        
+
         if (sectorAnalysisChart) {
             sectorAnalysisChart.destroy();
         }
-        
+
         const labels = data.history.map(h => h.date);
         const closeData = data.history.map(h => h.close);
         const foreignCumData = data.history.map(h => (h.foreign_cum || 0) / 100000000); // 억 단위
-        
+
         sectorAnalysisChart = new Chart(ctx, {
             type: 'line',
             data: {
@@ -2693,18 +2696,18 @@ async function loadSectorHistoryChart(ticker, sectorCode) {
 async function loadRotationHeatmap() {
     const container = document.getElementById('rotationHeatmapContainer');
     if (!container) return;
-    
+
     container.innerHTML = '<div class="text-center py-4 text-gray-500">로딩 중...</div>';
-    
+
     try {
         const res = await fetch('/api/sector-analysis/rotation-heatmap');
         const data = await res.json();
-        
+
         if (!data.heatmap || data.heatmap.length === 0) {
             container.innerHTML = '<div class="text-center py-4 text-gray-500">데이터 없음</div>';
             return;
         }
-        
+
         // 섹터별로 그룹화
         const sectors = {};
         data.heatmap.forEach(item => {
@@ -2713,26 +2716,26 @@ async function loadRotationHeatmap() {
             }
             sectors[item.sector_code].periods[item.period] = item.returns;
         });
-        
+
         let html = '<table class="w-full text-sm"><thead><tr class="text-gray-400">';
         html += '<th class="text-left py-2">섹터</th>';
         html += '<th class="text-center py-2">1주</th>';
         html += '<th class="text-center py-2">1개월</th>';
         html += '<th class="text-center py-2">3개월</th>';
         html += '</tr></thead><tbody>';
-        
+
         Object.entries(sectors).forEach(([code, sec]) => {
             const w1 = sec.periods['1W'] || 0;
             const m1 = sec.periods['1M'] || 0;
             const m3 = sec.periods['3M'] || 0;
-            
+
             const colorClass = (val) => val >= 0 ? 'text-accent-green' : 'text-accent-red';
             const bgClass = (val) => {
                 if (val >= 5) return 'bg-green-900/30';
                 if (val <= -5) return 'bg-red-900/30';
                 return '';
             };
-            
+
             html += `<tr class="border-t border-dark-600">`;
             html += `<td class="py-2 text-white">${sec.name}</td>`;
             html += `<td class="py-2 text-center ${colorClass(w1)} ${bgClass(w1)}">${w1.toFixed(1)}%</td>`;
@@ -2740,7 +2743,7 @@ async function loadRotationHeatmap() {
             html += `<td class="py-2 text-center ${colorClass(m3)} ${bgClass(m3)}">${m3.toFixed(1)}%</td>`;
             html += '</tr>';
         });
-        
+
         html += '</tbody></table>';
         container.innerHTML = html;
     } catch (err) {
@@ -2754,7 +2757,7 @@ async function collectSectorDataBackground() {
         alert('종목 코드를 입력하세요');
         return;
     }
-    
+
     try {
         const res = await fetch(`/api/sector-analysis/${ticker}/collect?days=365`, { method: 'POST' });
         const data = await res.json();
@@ -2770,21 +2773,115 @@ function showSectorSubTab(subTab) {
     document.querySelectorAll('[id^="sector-subpanel-"]').forEach(panel => {
         panel.classList.add('hidden');
     });
-    
+
     // Reset all sub tab buttons
     document.querySelectorAll('[id^="sector-subtab-"]').forEach(btn => {
         btn.classList.remove('bg-accent-blue', 'text-white');
         btn.classList.add('bg-dark-700', 'text-gray-400');
     });
-    
+
     // Show selected panel
     const panel = document.getElementById('sector-subpanel-' + subTab);
     if (panel) panel.classList.remove('hidden');
-    
+
     // Activate selected button
     const btn = document.getElementById('sector-subtab-' + subTab);
     if (btn) {
         btn.classList.remove('bg-dark-700', 'text-gray-400');
         btn.classList.add('bg-accent-blue', 'text-white');
+    }
+}
+
+
+
+async function loadMarketAnalysis(forceRefresh = false) {
+    const container = document.getElementById('marketAnalysisContainer');
+    // Only show full loading state if container is empty
+    if (!container.innerHTML.includes('Market Funds Flow')) {
+        container.innerHTML = '<div class="text-center text-gray-500 py-8">Loading market flow analysis...</div>';
+    }
+
+    try {
+        const timestamp = new Date().getTime();
+        // 1. Fetch Chart Image (Always refresh chart image on forceRefresh or first load)
+        const chartRes = await fetch(`/api/market-analysis/chart?days=180&t=${timestamp}`);
+        if (!chartRes.ok) throw new Error('Failed to load chart');
+
+        const blob = await chartRes.blob();
+        const url = URL.createObjectURL(blob);
+
+        // 2. Render Layout
+        let aiContent = "";
+        const existingAi = document.getElementById('aiMarketInsight');
+        if (existingAi) aiContent = existingAi.innerHTML;
+
+        container.innerHTML = `
+            <div class="flex flex-col lg:flex-row gap-6">
+                <!-- Chart Section -->
+                <div class="flex-1 p-4 bg-dark-800 rounded-lg">
+                    <h3 class="text-lg font-bold text-white mb-2" data-i18n="market_flow">Market Funds Flow</h3>
+                    <div class="text-sm text-gray-400 mb-4">Deposits/Credit vs KOSPI/KOSDAQ & Key Sectors (Bio, Service, etc.)</div>
+                    <img src="${url}" alt="Market Analysis Chart" class="w-full h-auto rounded border border-dark-600">
+                    <div class="mt-4 text-xs text-gray-500">
+                        * Data Sources: Naver Finance (Deposits), KIS API (Indices). 
+                    </div>
+                </div>
+                
+                <!-- AI Insight Section -->
+                <div class="w-full lg:w-1/3 p-4 bg-dark-800 rounded-lg flex flex-col">
+                    <div class="flex items-center gap-2 mb-4">
+                        <span class="text-xl">🤖</span>
+                        <h3 class="text-lg font-bold text-accent-purple">AI Market Insight</h3>
+                        ${forceRefresh ? '<span class="text-xs text-gray-500 animate-pulse">(Refreshing...)</span>' : '<span class="text-xs text-gray-500">(Cached)</span>'}
+                    </div>
+                    <div id="aiMarketInsight" class="flex-1 p-4 bg-dark-900 rounded border border-dark-700 text-sm text-gray-300 leading-relaxed overflow-y-auto" style="min-height: 200px;">
+                        ${aiContent || `
+                        <div class="flex items-center justify-center h-full text-gray-500 gap-2">
+                            <div class="w-2 h-2 bg-accent-purple rounded-full animate-bounce"></div>
+                            <div class="w-2 h-2 bg-accent-purple rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                            <div class="w-2 h-2 bg-accent-purple rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                            <span>Analyzing...</span>
+                        </div>`}
+                    </div>
+                    <div class="mt-4 text-right">
+                        <button onclick="loadMarketAnalysis(true)" class="px-3 py-1 text-sm bg-accent-blue hover:bg-blue-600 rounded text-white">Refresh All (Updates AI)</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        applyTranslations();
+
+        // 3. Fetch AI Insight (Async)
+        try {
+            if (forceRefresh) {
+                const aiContainer = document.getElementById('aiMarketInsight');
+                if (aiContainer) {
+                    aiContainer.innerHTML = `
+                        <div class="flex items-center justify-center h-full text-gray-500 gap-2">
+                             <div class="w-2 h-2 bg-accent-purple rounded-full animate-bounce"></div>
+                             <div class="w-2 h-2 bg-accent-purple rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                             <div class="w-2 h-2 bg-accent-purple rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                             <span>Regenerating AI Analysis...</span>
+                         </div>
+                     `;
+                }
+            }
+
+            const insightRes = await fetch(`/api/market-analysis/insight?days=180&force=${forceRefresh}`);
+            if (insightRes.ok) {
+                const data = await insightRes.json();
+                const formattedHtml = data.analysis.replace(/\n/g, '<br>');
+                const aiContainer = document.getElementById('aiMarketInsight');
+                if (aiContainer) aiContainer.innerHTML = formattedHtml;
+            } else {
+                throw new Error("API Error");
+            }
+        } catch (aiErr) {
+            const aiContainer = document.getElementById('aiMarketInsight');
+            if (aiContainer) aiContainer.innerHTML = `<span class="text-accent-red">Failed to load AI insight.</span>`;
+        }
+
+    } catch (e) {
+        container.innerHTML = `<div class="text-center text-accent-red py-8">Error: ${e.message}</div>`;
     }
 }

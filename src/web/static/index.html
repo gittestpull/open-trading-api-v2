@@ -63,6 +63,9 @@
             <button onclick="showTab('sector')" id="tab-sector"
                 class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300"
                 data-i18n="tab_sector">Sector</button>
+            <button onclick="showTab('market_flow')" id="tab-market_flow"
+                class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300" data-i18n="market_flow">Market
+                Flow</button>
             <button onclick="showTab('journal')" id="tab-journal"
                 class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300"
                 data-i18n="tab_journal">Journal</button>
@@ -344,1109 +347,1109 @@
                 </div>
             </div>
         </div>
-            <!-- Human Index Panel -->
-            <div id="panel-human" class="hidden">
-                <div class="grid md:grid-cols-2 gap-6 mb-6">
-                    <div class="glass rounded-lg p-5 border border-dark-600">
-                        <div class="flex justify-between items-center mb-4">
-                            <h2 class="text-sm font-semibold text-accent-red" data-i18n="fomo_alerts">FOMO Alerts
-                                (Overheated)</h2>
-                            <button onclick="loadFomoAlerts()"
-                                class="px-3 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded"
-                                data-i18n="refresh">Refresh</button>
-                        </div>
-                        <div id="fomoAlerts" class="space-y-2 max-h-80 overflow-y-auto scrollbar-thin">
-                            <div class="text-center text-gray-600 py-8" data-i18n="click_refresh">Click Refresh to
-                                load
-                            </div>
-                        </div>
+        <!-- Human Index Panel -->
+        <div id="panel-human" class="hidden">
+            <div class="grid md:grid-cols-2 gap-6 mb-6">
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-sm font-semibold text-accent-red" data-i18n="fomo_alerts">FOMO Alerts
+                            (Overheated)</h2>
+                        <button onclick="loadFomoAlerts()"
+                            class="px-3 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded"
+                            data-i18n="refresh">Refresh</button>
                     </div>
-                    <div class="glass rounded-lg p-5 border border-dark-600">
-                        <div class="flex justify-between items-center mb-4">
-                            <h2 class="text-sm font-semibold text-accent-green" data-i18n="bottom_signals">Bottom
-                                Signals
-                                (Opportunity)</h2>
-                            <button onclick="loadBottomSignals()"
-                                class="px-3 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded"
-                                data-i18n="refresh">Refresh</button>
-                        </div>
-                        <div id="bottomSignals" class="space-y-2 max-h-80 overflow-y-auto scrollbar-thin">
-                            <div class="text-center text-gray-600 py-8" data-i18n="click_refresh">Click Refresh to
-                                load
-                            </div>
+                    <div id="fomoAlerts" class="space-y-2 max-h-80 overflow-y-auto scrollbar-thin">
+                        <div class="text-center text-gray-600 py-8" data-i18n="click_refresh">Click Refresh to
+                            load
                         </div>
                     </div>
                 </div>
                 <div class="glass rounded-lg p-5 border border-dark-600">
-                    <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="individual_human">Individual
-                        Stock Human
-                        Index</h2>
-                    <div class="flex gap-3 mb-4">
-                        <div class="relative flex-1 flex items-center">
-                            <input type="text" id="humanIndexTicker" placeholder="Enter ticker..."
-                                class="w-full pl-4 pr-10 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
-                            <button type="button" onclick="openStockSearch('humanIndexTicker')"
-                                class="absolute right-3 text-gray-400 hover:text-white">🔍</button>
-                        </div>
-                        <div class="w-24 flex items-center">
-                            <input type="number" id="humanIndexDays" value="60" min="1" max="365"
-                                class="w-full py-2 px-2 bg-dark-900 border border-dark-600 rounded-md text-sm text-center"
-                                placeholder="Days">
-                            <span class="ml-1 text-xs text-gray-500">days</span>
-                        </div>
-                        <button onclick="loadHumanIndex()"
-                            class="px-6 py-2 bg-accent-blue hover:bg-blue-600 text-white font-medium rounded-md transition"
-                            data-i18n="check">Check</button>
-                        <button onclick="collectHumanIndexNow()" id="btnCollectHumanNow"
-                            class="px-6 py-2 bg-accent-purple hover:bg-purple-600 text-white font-medium rounded-md transition"
-                            data-i18n="collect">Collect</button>
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-sm font-semibold text-accent-green" data-i18n="bottom_signals">Bottom
+                            Signals
+                            (Opportunity)</h2>
+                        <button onclick="loadBottomSignals()"
+                            class="px-3 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded"
+                            data-i18n="refresh">Refresh</button>
                     </div>
-                    <div id="humanIndexResult" class="grid grid-cols-3 gap-4">
-                        <div class="p-4 bg-dark-900 rounded-lg text-center">
-                            <div class="text-2xl font-bold text-accent-blue" id="hiAttention">-</div>
-                            <div class="text-xs text-gray-500" data-i18n="attention_score">Attention Score</div>
-                        </div>
-                        <div class="p-4 bg-dark-900 rounded-lg text-center">
-                            <div class="text-2xl font-bold text-accent-red" id="hiFomo">-</div>
-                            <div class="text-xs text-gray-500" data-i18n="fomo_level">FOMO Level</div>
-                        </div>
-                        <div class="p-4 bg-dark-900 rounded-lg text-center">
-                            <div class="text-2xl font-bold text-accent-purple" id="hiSentiment">-</div>
-                            <div class="text-xs text-gray-500" data-i18n="crowd_sentiment">Crowd Sentiment</div>
+                    <div id="bottomSignals" class="space-y-2 max-h-80 overflow-y-auto scrollbar-thin">
+                        <div class="text-center text-gray-600 py-8" data-i18n="click_refresh">Click Refresh to
+                            load
                         </div>
                     </div>
-                    <div id="humanIndexDetails" class="mt-6 hidden space-y-4"></div>
-                    <div id="humanIndexChartSection" class="mt-6 hidden">
+                </div>
+            </div>
+            <div class="glass rounded-lg p-5 border border-dark-600">
+                <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="individual_human">Individual
+                    Stock Human
+                    Index</h2>
+                <div class="flex gap-3 mb-4">
+                    <div class="relative flex-1 flex items-center">
+                        <input type="text" id="humanIndexTicker" placeholder="Enter ticker..."
+                            class="w-full pl-4 pr-10 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
+                        <button type="button" onclick="openStockSearch('humanIndexTicker')"
+                            class="absolute right-3 text-gray-400 hover:text-white">🔍</button>
+                    </div>
+                    <div class="w-24 flex items-center">
+                        <input type="number" id="humanIndexDays" value="60" min="1" max="365"
+                            class="w-full py-2 px-2 bg-dark-900 border border-dark-600 rounded-md text-sm text-center"
+                            placeholder="Days">
+                        <span class="ml-1 text-xs text-gray-500">days</span>
+                    </div>
+                    <button onclick="loadHumanIndex()"
+                        class="px-6 py-2 bg-accent-blue hover:bg-blue-600 text-white font-medium rounded-md transition"
+                        data-i18n="check">Check</button>
+                    <button onclick="collectHumanIndexNow()" id="btnCollectHumanNow"
+                        class="px-6 py-2 bg-accent-purple hover:bg-purple-600 text-white font-medium rounded-md transition"
+                        data-i18n="collect">Collect</button>
+                </div>
+                <div id="humanIndexResult" class="grid grid-cols-3 gap-4">
+                    <div class="p-4 bg-dark-900 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-accent-blue" id="hiAttention">-</div>
+                        <div class="text-xs text-gray-500" data-i18n="attention_score">Attention Score</div>
+                    </div>
+                    <div class="p-4 bg-dark-900 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-accent-red" id="hiFomo">-</div>
+                        <div class="text-xs text-gray-500" data-i18n="fomo_level">FOMO Level</div>
+                    </div>
+                    <div class="p-4 bg-dark-900 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-accent-purple" id="hiSentiment">-</div>
+                        <div class="text-xs text-gray-500" data-i18n="crowd_sentiment">Crowd Sentiment</div>
+                    </div>
+                </div>
+                <div id="humanIndexDetails" class="mt-6 hidden space-y-4"></div>
+                <div id="humanIndexChartSection" class="mt-6 hidden">
+                    <div class="glass rounded-lg p-5 border border-dark-600">
+                        <h3 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="human_index_trend">Human
+                            Index
+                            Trend (30 days)</h3>
+                        <div class="h-64">
+                            <canvas id="humanIndexChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div id="youtubeNaverChartSection" class="mt-6 hidden">
+                    <div class="grid md:grid-cols-2 gap-6">
                         <div class="glass rounded-lg p-5 border border-dark-600">
-                            <h3 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="human_index_trend">Human
-                                Index
-                                Trend (30 days)</h3>
-                            <div class="h-64">
-                                <canvas id="humanIndexChart"></canvas>
+                            <h3 class="text-sm font-semibold text-accent-red mb-4 flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                    <path
+                                        d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z" />
+                                </svg>
+                                <span data-i18n="youtube_trend">YouTube Trend</span>
+                            </h3>
+                            <div class="h-48">
+                                <canvas id="youtubeChart"></canvas>
                             </div>
                         </div>
-                    </div>
-                    <div id="youtubeNaverChartSection" class="mt-6 hidden">
-                        <div class="grid md:grid-cols-2 gap-6">
-                            <div class="glass rounded-lg p-5 border border-dark-600">
-                                <h3 class="text-sm font-semibold text-accent-red mb-4 flex items-center gap-2">
-                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                        <path
-                                            d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z" />
-                                    </svg>
-                                    <span data-i18n="youtube_trend">YouTube Trend</span>
-                                </h3>
-                                <div class="h-48">
-                                    <canvas id="youtubeChart"></canvas>
-                                </div>
+                        <div class="glass rounded-lg p-5 border border-dark-600">
+                            <h3 class="text-sm font-semibold text-accent-green mb-4 flex items-center gap-2">
+                                <span class="font-bold text-lg">N</span>
+                                <span data-i18n="naver_trend">Naver Trend</span>
+                            </h3>
+                            <div class="h-48">
+                                <canvas id="naverChart"></canvas>
                             </div>
-                            <div class="glass rounded-lg p-5 border border-dark-600">
-                                <h3 class="text-sm font-semibold text-accent-green mb-4 flex items-center gap-2">
-                                    <span class="font-bold text-lg">N</span>
-                                    <span data-i18n="naver_trend">Naver Trend</span>
-                                </h3>
-                                <div class="h-48">
-                                    <canvas id="naverChart"></canvas>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Backtest Panel -->
-            <div id="panel-backtest" class="hidden">
-                <div class="glass rounded-lg p-5 border border-dark-600 mb-6">
-                    <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="run_backtest">Run Backtest</h2>
-                    <form id="backtestForm" class="grid md:grid-cols-4 gap-4">
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1" data-i18n="ticker">Ticker</label>
-                            <div class="relative flex items-center">
-                                <input type="text" id="btTicker" placeholder="005930" required
-                                    class="w-full pl-3 pr-8 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
-                                <button type="button" onclick="openStockSearch('btTicker')"
-                                    class="absolute right-2 text-gray-400 hover:text-white">🔍</button>
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1" data-i18n="start_date">Start
-                                Date</label>
-                            <input type="date" id="btStartDate" required
-                                class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1" data-i18n="end_date">End Date</label>
-                            <input type="date" id="btEndDate" required
-                                class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1" data-i18n="strategy">Strategy</label>
-                            <select id="btStrategy"
-                                class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
-                                <option value="ma">Moving Average (5/20)</option>
-                                <option value="rsi">RSI (14)</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1" data-i18n="initial_capital">Initial
-                                Capital</label>
-                            <input type="number" id="btCapital" value="10000000"
-                                class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
-                        </div>
-                        <div class="md:col-span-3 flex items-end">
-                            <button type="submit"
-                                class="px-8 py-2 bg-accent-yellow hover:bg-yellow-600 text-black font-medium rounded-md transition"
-                                data-i18n="run_backtest_btn">Run Backtest</button>
-                        </div>
-                    </form>
-                </div>
-                <div id="backtestResult" class="glass rounded-lg p-5 border border-dark-600 hidden">
-                    <h3 class="text-lg font-semibold text-gray-300 mb-4" data-i18n="backtest_result">Backtest Result
-                    </h3>
-                    <div class="grid grid-cols-4 gap-4 mb-6">
-                        <div class="p-4 bg-dark-900 rounded-lg text-center">
-                            <div class="text-2xl font-bold" id="btReturn">-</div>
-                            <div class="text-xs text-gray-500" data-i18n="total_return">Total Return</div>
-                        </div>
-                        <div class="p-4 bg-dark-900 rounded-lg text-center">
-                            <div class="text-2xl font-bold text-accent-green" id="btWinRate">-</div>
-                            <div class="text-xs text-gray-500" data-i18n="win_rate">Win Rate</div>
-                        </div>
-                        <div class="p-4 bg-dark-900 rounded-lg text-center">
-                            <div class="text-2xl font-bold text-accent-red" id="btMDD">-</div>
-                            <div class="text-xs text-gray-500" data-i18n="max_drawdown">Max Drawdown</div>
-                        </div>
-                        <div class="p-4 bg-dark-900 rounded-lg text-center">
-                            <div class="text-2xl font-bold text-accent-purple" id="btSharpe">-</div>
-                            <div class="text-xs text-gray-500" data-i18n="sharpe_ratio">Sharpe Ratio</div>
-                        </div>
-                    </div>
-                    <div id="btTrades" class="max-h-64 overflow-y-auto scrollbar-thin"></div>
-                </div>
-                <div class="glass rounded-lg p-5 border border-dark-600 mt-6">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-sm font-semibold text-gray-400" data-i18n="past_results">Past Results</h3>
-                        <button onclick="loadBacktestHistory()"
-                            class="px-3 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded"
-                            data-i18n="refresh">Refresh</button>
-                    </div>
-                    <div id="backtestHistory" class="space-y-2 max-h-48 overflow-y-auto scrollbar-thin">
-                        <div class="text-center text-gray-600 py-4" data-i18n="no_past_results">No past results
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Global Panel -->
-            <div id="panel-global" class="hidden">
-                <div class="grid md:grid-cols-4 gap-4 mb-6">
-                    <div class="glass rounded-lg p-5 border border-dark-600 text-center">
-                        <div class="text-xs text-gray-500 mb-2">S&P 500</div>
-                        <div class="text-2xl font-bold" id="globalSPY">-</div>
-                        <div class="text-sm" id="globalSPYChange">-</div>
-                    </div>
-                    <div class="glass rounded-lg p-5 border border-dark-600 text-center">
-                        <div class="text-xs text-gray-500 mb-2">Nasdaq 100</div>
-                        <div class="text-2xl font-bold" id="globalQQQ">-</div>
-                        <div class="text-sm" id="globalQQQChange">-</div>
-                    </div>
-                    <div class="glass rounded-lg p-5 border border-dark-600 text-center">
-                        <div class="text-xs text-gray-500 mb-2" data-i18n="vix_fear">VIX (Fear)</div>
-                        <div class="text-2xl font-bold" id="globalVIX">-</div>
-                        <div class="text-sm" id="globalVIXChange">-</div>
-                    </div>
-                    <div class="glass rounded-lg p-5 border border-dark-600 text-center">
-                        <div class="text-xs text-gray-500 mb-2" data-i18n="market_sentiment">Market Sentiment</div>
-                        <div class="text-2xl font-bold" id="globalSentiment">-</div>
-                    </div>
-                </div>
-                <div class="grid md:grid-cols-2 gap-6">
-                    <div class="glass rounded-lg p-5 border border-dark-600">
-                        <div class="flex justify-between items-center mb-4">
-                            <h2 class="text-sm font-semibold text-gray-400" data-i18n="commodities_bonds">
-                                Commodities &
-                                Bonds</h2>
-                            <button onclick="loadGlobalMarket()"
-                                class="px-3 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded"
-                                data-i18n="refresh">Refresh</button>
-                        </div>
-                        <div id="globalOther" class="space-y-2">
-                            <div class="text-center text-gray-600 py-4" data-i18n="click_refresh">Click Refresh to
-                                load
-                            </div>
-                        </div>
-                    </div>
-                    <div class="glass rounded-lg p-5 border border-dark-600">
-                        <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="analysis">Analysis</h2>
-                        <div id="globalAnalysis" class="text-gray-500" data-i18n="market_data_refresh">
-                            Market data will appear after refresh
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Sector Panel -->
-            <div id="panel-sector" class="hidden">
-                <!-- Sub Tabs -->
-                <div class="flex gap-2 mb-6 border-b border-dark-600 pb-3">
-                    <button onclick="showSectorSubTab('leaders')" id="sector-subtab-leaders" 
-                        class="px-4 py-2 text-sm font-medium bg-accent-blue text-white rounded-md">
-                        🌐 글로벌 리더
-                    </button>
-                    <button onclick="showSectorSubTab('analysis')" id="sector-subtab-analysis"
-                        class="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white bg-dark-700 rounded-md">
-                        📊 1년 섹터 분석
-                    </button>
-                    <button onclick="showSectorSubTab('rotation')" id="sector-subtab-rotation"
-                        class="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white bg-dark-700 rounded-md">
-                        🔄 업종 순환매
-                    </button>
-                </div>
-
-                <!-- Leaders Sub Panel (기존) -->
-                <div id="sector-subpanel-leaders">
-                    <div class="grid md:grid-cols-4 gap-6">
-                        <!-- Sidebar -->
-                        <div class="glass rounded-lg p-5 border border-dark-600 h-fit">
-                            <h2 class="text-sm font-semibold text-gray-400 mb-4 pb-2 border-b border-dark-600">Saved Sectors</h2>
-                            <div id="savedSectorsList" class="space-y-2 max-h-[600px] overflow-y-auto scrollbar-thin text-sm">
-                                <div class="text-center text-gray-600 py-4">No saved sectors</div>
-                            </div>
-                        </div>
-
-                        <!-- Main Content -->
-                        <div class="md:col-span-3">
-                            <div class="glass rounded-lg p-5 border border-dark-600 mb-6">
-                                <div class="flex gap-3">
-                                    <div class="relative flex-1 flex items-center">
-                                        <input type="text" id="sectorInput"
-                                            placeholder="Enter sector (e.g., Shipbuilding, AI, Semiconductor)..."
-                                            class="w-full pl-4 pr-10 py-2 bg-dark-900 border border-dark-600 rounded-md focus:border-accent-blue focus:outline-none"
-                                            onkeypress="if(event.key==='Enter') loadSectorLeaders()">
-                                    </div>
-                                    <button onclick="loadSectorLeaders()"
-                                        class="px-6 py-2 bg-accent-blue hover:bg-blue-600 text-white font-medium rounded-md transition">
-                                        Find Leaders
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div id="sectorResults" class="grid md:grid-cols-4 gap-4">
-                                <div class="glass rounded-lg p-4 border border-dark-600 text-center text-gray-500 col-span-4 py-12">
-                                    Enter a sector name to find global leading companies.
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Analysis Sub Panel (신규) -->
-                <div id="sector-subpanel-analysis" class="hidden">
-                    <div class="glass rounded-lg p-5 border border-dark-600 mb-6">
-                        <h2 class="text-lg font-bold text-white mb-4">📊 종목 기반 섹터 분석 (1년)</h2>
-                        <p class="text-sm text-gray-400 mb-4">종목 코드를 입력하면 해당 종목이 속한 섹터의 1년간 OHLCV, 투자자 수급, 상대강도를 분석합니다.</p>
-                        <div class="flex gap-3">
-                            <div class="relative flex-1 flex items-center">
-                                <input type="text" id="sectorAnalysisTicker"
-                                    placeholder="종목 코드 입력 (예: 005930, 삼성전자)"
-                                    class="w-full pl-4 pr-10 py-2 bg-dark-900 border border-dark-600 rounded-md focus:border-accent-blue focus:outline-none"
-                                    onkeypress="if(event.key==='Enter') analyzeSectorForStock()">
-                                <button type="button" onclick="openStockSearch('sectorAnalysisTicker')"
-                                    class="absolute right-2 text-gray-400 hover:text-white">🔍</button>
-                            </div>
-                            <button onclick="analyzeSectorForStock()"
-                                class="px-6 py-2 bg-accent-green hover:bg-green-600 text-white font-medium rounded-md transition">
-                                섹터 분석
-                            </button>
-                            <button onclick="collectSectorDataBackground()"
-                                class="px-4 py-2 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-md transition">
-                                백그라운드 수집
-                            </button>
-                        </div>
-                    </div>
-
-                    <div id="sectorAnalysisResult" class="">
-                        <div class="glass rounded-lg p-8 border border-dark-600 text-center text-gray-500">
-                            종목을 입력하고 "섹터 분석" 버튼을 클릭하세요.<br>
-                            <span class="text-xs">1년치 데이터 수집 시 최초 실행에 시간이 걸릴 수 있습니다.</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Rotation Sub Panel (신규) -->
-                <div id="sector-subpanel-rotation" class="hidden">
-                    <div class="glass rounded-lg p-5 border border-dark-600">
-                        <div class="flex justify-between items-center mb-4">
-                            <h2 class="text-lg font-bold text-white">🔄 업종 순환매 히트맵</h2>
-                            <button onclick="loadRotationHeatmap()"
-                                class="px-4 py-2 bg-accent-blue hover:bg-blue-600 text-white text-sm font-medium rounded-md transition">
-                                새로고침
-                            </button>
-                        </div>
-                        <p class="text-sm text-gray-400 mb-4">주요 섹터별 기간별 수익률을 비교합니다. 자금의 흐름을 파악하세요.</p>
-                        <div id="rotationHeatmapContainer" class="">
-                            <div class="text-center py-8 text-gray-500">"새로고침" 버튼을 클릭하세요</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Edit Sector Modal -->
-            <div id="modal-sector-edit"
-                class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                <div class="glass w-full max-w-2xl p-6 rounded-xl border border-dark-600 shadow-2xl">
-                    <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-lg font-bold text-white">Edit Sector Analysis</h3>
-                        <button onclick="closeEditSectorModal()"
-                            class="text-gray-400 hover:text-white transition">✕</button>
-                    </div>
-                    <form id="sectorEditForm" class="space-y-4">
-                        <input type="hidden" id="editSectorName">
-                        <div id="editSectorContainer" class="max-h-[60vh] overflow-y-auto scrollbar-thin space-y-6">
-                            <!-- Dynamic Content -->
-                        </div>
-                        <div class="flex gap-3 mt-6 pt-4 border-t border-dark-600">
-                            <button type="button" onclick="closeEditSectorModal()"
-                                class="flex-1 py-2 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-md transition">Cancel</button>
-                            <button type="submit"
-                                class="flex-1 py-2 bg-accent-blue hover:bg-blue-600 text-white font-medium rounded-md transition">Save
-                                Changes</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <!-- Journal Panel -->
-            <div id="panel-journal" class="hidden">
-                <div class="grid md:grid-cols-3 gap-6 mb-6">
-                    <div class="glass rounded-lg p-5 border border-dark-600 col-span-2">
-                        <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="add_trade">Add Trade Entry
-                        </h2>
-                        <form id="journalForm" class="grid grid-cols-5 gap-3">
-                            <!-- Ticker input with search button -->
-                            <div class="relative flex items-center">
-                                <input type="text" id="jTicker" placeholder="Ticker" required
-                                    class="w-full pl-3 pr-8 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm"
-                                    data-i18n-placeholder="ticker">
-                                <button type="button" onclick="openStockSearch('jTicker')"
-                                    class="absolute right-2 text-gray-400 hover:text-white">🔍</button>
-                            </div>
-                            <select id="jSide" class="px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
-                                <option value="BUY" data-i18n="buy">BUY</option>
-                                <option value="SELL" data-i18n="sell">SELL</option>
-                            </select>
-                            <input type="number" id="jPrice" placeholder="Price" required
-                                class="px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm"
-                                data-i18n-placeholder="price">
-                            <input type="number" id="jQty" placeholder="Qty" required
-                                class="px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm"
-                                data-i18n-placeholder="qty">
-                            <button type="submit"
-                                class="bg-accent-green hover:bg-green-600 text-white font-medium rounded-md transition"
-                                data-i18n="add">Add</button>
-                            <input type="text" id="jThesis" placeholder="Thesis (optional)"
-                                class="col-span-4 px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm"
-                                data-i18n-placeholder="thesis">
-                            <input type="number" id="jPnl" placeholder="P&L"
-                                class="px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm"
-                                data-i18n-placeholder="pnl">
-                        </form>
-                    </div>
-                    <div class="glass rounded-lg p-5 border border-dark-600">
-                        <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="statistics">Statistics</h2>
-                        <div id="journalStats" class="space-y-2 text-sm">
-                            <div class="flex justify-between"><span class="text-gray-500" data-i18n="total_trades">Total
-                                    Trades</span><span id="jsTotal">-</span></div>
-                            <div class="flex justify-between"><span class="text-gray-500" data-i18n="win_rate">Win
-                                    Rate</span><span id="jsWinRate">-</span></div>
-                            <div class="flex justify-between"><span class="text-gray-500" data-i18n="total_pnl">Total
-                                    P&L</span><span id="jsPnl">-</span></div>
-                            <div class="flex justify-between"><span class="text-gray-500" data-i18n="best_trade">Best
-                                    Trade</span><span id="jsBest" class="text-accent-green">-</span></div>
-                            <div class="flex justify-between"><span class="text-gray-500" data-i18n="worst_trade">Worst
-                                    Trade</span><span id="jsWorst" class="text-accent-red">-</span></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="glass rounded-lg p-5 border border-dark-600">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-sm font-semibold text-gray-400" data-i18n="trade_history">Trade History</h2>
-                        <button onclick="loadJournalEntries()"
-                            class="px-3 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded"
-                            data-i18n="refresh">Refresh</button>
-                    </div>
-                    <div id="journalEntries" class="space-y-2 max-h-80 overflow-y-auto scrollbar-thin">
-                        <div class="text-center text-gray-600 py-8" data-i18n="no_entries">No entries yet</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Simulator Panel -->
-            <div id="panel-simulator" class="hidden">
-                <div class="grid md:grid-cols-4 gap-4 mb-6">
-                    <div class="glass rounded-lg p-5 border border-dark-600 text-center">
-                        <div class="text-xs text-gray-500 mb-2" data-i18n="total_value">Total Value</div>
-                        <div class="text-2xl font-bold text-accent-blue" id="simValue">-</div>
-                    </div>
-                    <div class="glass rounded-lg p-5 border border-dark-600 text-center">
-                        <div class="text-xs text-gray-500 mb-2" data-i18n="total_pnl">Total P&L</div>
-                        <div class="text-2xl font-bold" id="simPnl">-</div>
-                    </div>
-                    <div class="glass rounded-lg p-5 border border-dark-600 text-center">
-                        <div class="text-xs text-gray-500 mb-2" data-i18n="return_pct">Return %</div>
-                        <div class="text-2xl font-bold" id="simReturn">-</div>
-                    </div>
-                    <div class="glass rounded-lg p-5 border border-dark-600 text-center">
-                        <div class="text-xs text-gray-500 mb-2" data-i18n="win_rate">Win Rate</div>
-                        <div class="text-2xl font-bold text-accent-green" id="simWinRate">-</div>
-                    </div>
-                </div>
-                <div class="grid md:grid-cols-2 gap-6 mb-6">
-                    <div class="glass rounded-lg p-5 border border-dark-600">
-                        <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="trade">Trade</h2>
-                        <form id="simTradeForm" class="space-y-3">
-                            <div class="grid grid-cols-3 gap-3">
-                                <div class="relative flex items-center">
-                                    <input type="text" id="simTicker" placeholder="Ticker" required
-                                        class="w-full pl-3 pr-8 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm"
-                                        data-i18n-placeholder="ticker">
-                                    <button type="button" onclick="openStockSearch('simTicker')"
-                                        class="absolute right-2 text-gray-400 hover:text-white">🔍</button>
-                                </div>
-                                <input type="number" id="simPrice" placeholder="Price" required
-                                    class="px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm"
-                                    data-i18n-placeholder="price">
-                                <input type="number" id="simQty" placeholder="Qty (optional)"
-                                    class="px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm"
-                                    data-i18n-placeholder="qty_optional">
-                            </div>
-                            <div class="flex gap-3">
-                                <button type="button" onclick="simBuy()"
-                                    class="flex-1 py-2 bg-accent-green hover:bg-green-600 text-white font-medium rounded-md transition"
-                                    data-i18n="buy">BUY</button>
-                                <button type="button" onclick="simSell()"
-                                    class="flex-1 py-2 bg-accent-red hover:bg-red-600 text-white font-medium rounded-md transition"
-                                    data-i18n="sell">SELL</button>
-                            </div>
-                        </form>
-                        <div class="mt-4 pt-4 border-t border-dark-600">
-                            <button onclick="resetSimulator()"
-                                class="w-full py-2 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-md transition text-sm"
-                                data-i18n="reset_simulator">Reset Simulator</button>
-                        </div>
-                    </div>
-                    <div class="glass rounded-lg p-5 border border-dark-600">
-                        <div class="flex justify-between items-center mb-4">
-                            <h2 class="text-sm font-semibold text-gray-400" data-i18n="positions">Positions</h2>
-                            <button onclick="loadSimulatorPortfolio()"
-                                class="px-3 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded"
-                                data-i18n="refresh">Refresh</button>
-                        </div>
-                        <div id="simPositions" class="space-y-2 max-h-48 overflow-y-auto scrollbar-thin">
-                            <div class="text-center text-gray-600 py-4" data-i18n="no_positions">No positions</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="glass rounded-lg p-5 border border-dark-600">
-                    <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="recent_trades">Recent Trades
-                    </h2>
-                    <div id="simTrades" class="space-y-2 max-h-48 overflow-y-auto scrollbar-thin">
-                        <div class="text-center text-gray-600 py-4" data-i18n="no_trades">No trades yet</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Admin Panel -->
-            <!-- History Tool Panel -->
-            <div id="panel-history" class="hidden">
-                <div class="grid md:grid-cols-4 gap-6">
-                    <!-- Control Panel -->
-                    <div class="glass rounded-lg p-5 border border-dark-600 md:col-span-1 h-fit">
-                        <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="history_settings">History
-                            Settings
-                        </h2>
-                        <form id="historyForm" class="space-y-4">
-                            <div>
-                                <label class="block text-xs text-gray-500 mb-1" data-i18n="ticker">Ticker</label>
-                                <div class="relative">
-                                    <input type="text" id="histTicker" required
-                                        class="w-full pl-3 pr-10 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none placeholder-gray-600"
-                                        placeholder="e.g. 005930">
-                                    <button type="button" onclick="openStockSearch('histTicker')"
-                                        class="absolute right-2 top-2 text-gray-400 hover:text-white transition">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label class="block text-xs text-gray-500 mb-1" data-i18n="start_date">Start
-                                        Date</label>
-                                    <input type="text" id="histStart"
-                                        class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none text-xs"
-                                        placeholder="YYYYMMDD">
-                                </div>
-                                <div>
-                                    <label class="block text-xs text-gray-500 mb-1" data-i18n="end_date">End
-                                        Date</label>
-                                    <input type="text" id="histEnd"
-                                        class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none text-xs"
-                                        placeholder="YYYYMMDD">
-                                </div>
-                            </div>
-                            <div>
-                                <div>
-                                    <label class="block text-xs text-gray-500 mb-1" data-i18n="base_time">Base Time
-                                        (for
-                                        1m)</label>
-                                    <input type="text" id="histTime" value="153000"
-                                        class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none placeholder-gray-600"
-                                        placeholder="HHMMSS">
-                                </div>
-                                <label class="block text-xs text-gray-500 mb-1" data-i18n="timeframe">Timeframe</label>
-                                <div class="grid grid-cols-3 gap-2">
-                                    <label class="cursor-pointer">
-                                        <input type="radio" name="histTimeframe" value="D" checked class="peer sr-only">
-                                        <div
-                                            class="text-center py-2 bg-dark-800 peer-checked:bg-accent-blue peer-checked:text-white rounded text-xs transition">
-                                            Daily</div>
-                                    </label>
-                                    <label class="cursor-pointer">
-                                        <input type="radio" name="histTimeframe" value="W" class="peer sr-only">
-                                        <div
-                                            class="text-center py-2 bg-dark-800 peer-checked:bg-accent-blue peer-checked:text-white rounded text-xs transition">
-                                            Weekly</div>
-                                    </label>
-                                    <label class="cursor-pointer">
-                                        <input type="radio" name="histTimeframe" value="M" class="peer sr-only">
-                                        <div
-                                            class="text-center py-2 bg-dark-800 peer-checked:bg-accent-blue peer-checked:text-white rounded text-xs transition">
-                                            Monthly</div>
-                                    </label>
-                                </div>
-                            </div>
-                            <button type="submit"
-                                class="w-full py-2 bg-accent-blue hover:bg-blue-600 text-white font-medium rounded-md transition mt-2">
-                                <span id="histBtnText" data-i18n="collect_data">Collect Data</span>
-                            </button>
-
-                            <div class="flex gap-2 mt-2">
-                                <div class="w-24 flex items-center bg-dark-900 border border-dark-600 rounded-md px-2">
-                                    <input type="number" id="histHumanDays" value="60" min="1" max="365"
-                                        class="w-full bg-transparent text-white text-sm text-center focus:outline-none"
-                                        placeholder="60">
-                                    <span class="text-xs text-gray-500">days</span>
-                                </div>
-                                <button type="button" id="btnCollectHuman"
-                                    class="flex-1 py-2 bg-accent-purple hover:bg-purple-600 text-white font-medium rounded-md transition">
-                                    <span id="humanBtnText" data-i18n="collect_human_index">Collect Human
-                                        Index</span>
-                                </button>
-                            </div>
-
-                            <!-- Log Area -->
-                            <div class="mt-4">
-                                <div class="flex justify-between items-center mb-1">
-                                    <label class="text-xs text-gray-500">Collection Logs</label>
-                                    <button type="button" id="btnClearHistoryLogs"
-                                        class="text-xs text-gray-600 hover:text-white">Clear</button>
-                                </div>
-                                <div id="historyLogs"
-                                    class="h-32 bg-dark-900 rounded border border-dark-700 p-2 text-xs font-mono overflow-y-auto scrollbar-thin">
-                                    <div class="text-gray-600 italic text-center py-10">Logs will appear here...
-                                    </div>
-                                </div>
-                            </div>
-                        </form>
-
-                        <!-- Bulk Collection Section -->
-                        <div class="mt-6 pt-4 border-t border-dark-600">
-                            <h3 class="text-sm font-semibold text-accent-green mb-3">📦 Bulk Collection</h3>
-                            <div class="space-y-3">
-                                <div>
-                                    <label class="block text-xs text-gray-500 mb-1">Selected Stocks</label>
-                                    <div id="bulkTickerTags"
-                                        class="flex flex-wrap gap-1 min-h-[40px] p-2 bg-dark-900 border border-dark-600 rounded-md">
-                                        <span class="text-xs text-gray-600">Click + to add</span>
-                                    </div>
-                                    <button type="button" onclick="openBulkStockSearch()"
-                                        class="w-full mt-2 py-2 bg-dark-700 hover:bg-dark-600 text-white text-xs rounded-md transition flex items-center justify-center gap-1">
-                                        <span class="text-lg">+</span> Add Stocks
-                                    </button>
-                                </div>
-                                <div>
-                                    <label class="block text-xs text-gray-500 mb-1">Timeframes</label>
-                                    <div class="flex flex-wrap gap-2">
-                                        <label class="flex items-center gap-1 text-xs text-gray-400 cursor-pointer">
-                                            <input type="checkbox" id="bulk1m" class="rounded"> <span
-                                                class="text-accent-yellow">1m</span>
-                                        </label>
-                                        <label class="flex items-center gap-1 text-xs text-gray-400 cursor-pointer">
-                                            <input type="checkbox" id="bulkD" checked class="rounded"> D
-                                        </label>
-                                        <label class="flex items-center gap-1 text-xs text-gray-400 cursor-pointer">
-                                            <input type="checkbox" id="bulkW" checked class="rounded"> W
-                                        </label>
-                                        <label class="flex items-center gap-1 text-xs text-gray-400 cursor-pointer">
-                                            <input type="checkbox" id="bulkM" checked class="rounded"> M
-                                        </label>
-                                    </div>
-                                    <p class="text-xs text-gray-600 mt-1">1m = 하루 전체 분봉</p>
-                                </div>
-                                <button onclick="collectBulk()"
-                                    class="w-full py-2 bg-accent-green hover:bg-green-600 text-white font-medium rounded-md transition">
-                                    <span id="bulkBtnText">Collect 1 Year</span>
-                                </button>
-                                <div id="bulkProgress" class="hidden text-xs text-accent-green text-center"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Results Panel -->
-                    <div class="glass rounded-lg p-5 border border-dark-600 md:col-span-3 min-h-[500px]">
-                        <div class="flex justify-between items-center mb-4">
-                            <h2 class="text-sm font-semibold text-gray-400" data-i18n="collected_data">Collected
-                                Data</h2>
-                            <span id="histCount" class="text-xs text-accent-blue"></span>
-                        </div>
-                        <div class="overflow-x-auto max-h-[300px] scrollbar-thin">
-                            <table class="w-full text-sm text-left">
-                                <thead class="text-xs text-gray-500 uppercase bg-dark-800 sticky top-0">
-                                    <tr>
-                                        <th class="px-4 py-3">Date</th>
-                                        <th class="px-4 py-3 text-right">Open</th>
-                                        <th class="px-4 py-3 text-right">High</th>
-                                        <th class="px-4 py-3 text-right">Low</th>
-                                        <th class="px-4 py-3 text-right">Close</th>
-                                        <th class="px-4 py-3 text-right">Volume</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="histTableBody" class="divide-y divide-dark-700">
-                                    <tr>
-                                        <td colspan="6" class="px-4 py-8 text-center text-gray-600" data-i18n="no_data">
-                                            No
-                                            data loaded</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <!-- Data Overview -->
-                        <div class="mt-6 pt-4 border-t border-dark-600">
-                            <div class="flex justify-between items-center mb-3">
-                                <h3 class="text-sm font-semibold text-gray-400">📊 Data Overview</h3>
-                                <button onclick="loadHistoryOverview()"
-                                    class="px-2 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded">Refresh</button>
-                            </div>
-                            <div class="overflow-x-auto max-h-[200px] scrollbar-thin">
-                                <table class="w-full text-xs text-left">
-                                    <thead class="text-gray-500 uppercase bg-dark-800 sticky top-0">
-                                        <tr>
-                                            <th class="px-3 py-2">Ticker</th>
-                                            <th class="px-3 py-2">Name</th>
-                                            <th class="px-3 py-2">TF</th>
-                                            <th class="px-3 py-2 text-right">Count</th>
-                                            <th class="px-3 py-2">Range</th>
-                                            <th class="px-3 py-2 text-center">View</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="histOverviewBody" class="divide-y divide-dark-700">
-                                        <tr>
-                                            <td colspan="6" class="px-3 py-4 text-center text-gray-600">Click
-                                                Refresh</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Bulk Stock Search Modal -->
-            <div id="modal-bulk-stock-search"
-                class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                <div class="glass w-full max-w-md p-6 rounded-xl border border-dark-600 shadow-2xl">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-lg font-bold text-white">Add Stocks</h3>
-                        <button onclick="closeBulkStockSearch()"
-                            class="text-gray-400 hover:text-white text-2xl">&times;</button>
-                    </div>
-                    <input type="text" id="bulkSearchInput" placeholder="Search stocks..."
-                        class="w-full px-4 py-2 bg-dark-900 border border-dark-600 rounded-md text-white mb-4"
-                        oninput="searchBulkStocks(this.value)">
-                    <div id="bulkSearchResults" class="max-h-60 overflow-y-auto space-y-1">
-                        <div class="text-center text-gray-500 py-4">Type to search</div>
-                    </div>
-                    <button onclick="closeBulkStockSearch()"
-                        class="w-full mt-4 py-2 bg-accent-green hover:bg-green-600 text-white font-medium rounded-md">
-                        Done
-                    </button>
-                </div>
-            </div>
-
-            <div id="panel-admin" class="hidden">
-                <div class="grid md:grid-cols-2 gap-6">
-                    <div class="glass rounded-lg p-5 border border-dark-600">
-                        <h2 class="text-sm font-semibold text-gray-400 mb-4 pb-2 border-b border-dark-600"
-                            data-i18n="data_collection">Data Collection</h2>
-                        <div class="space-y-4">
-                            <div id="schedulerStatus" class="p-3 bg-dark-900 rounded-md text-sm">
-                                <div class="text-gray-500" data-i18n="loading">Loading scheduler status...</div>
-                            </div>
-                            <div class="flex gap-3">
-                                <button onclick="loadStocks()"
-                                    class="flex-1 py-2 bg-dark-700 hover:bg-dark-600 text-white rounded-md transition"
-                                    data-i18n="load_stocks">Load Stocks</button>
-                                <button onclick="triggerCollection()"
-                                    class="flex-1 py-2 bg-accent-yellow hover:bg-yellow-600 text-black font-medium rounded-md transition"
-                                    data-i18n="collect_data">Collect Data</button>
-                            </div>
-                            <div class="flex gap-3">
-                                <button onclick="startScheduler()"
-                                    class="flex-1 py-2 bg-accent-green hover:bg-green-600 text-white rounded-md transition"
-                                    data-i18n="start_scheduler">Start Scheduler</button>
-                                <button onclick="stopScheduler()"
-                                    class="flex-1 py-2 bg-accent-red hover:bg-red-600 text-white rounded-md transition"
-                                    data-i18n="stop_scheduler">Stop Scheduler</button>
-                            </div>
-                            <div class="flex gap-3">
-                                <button onclick="collectGlobalMarket()"
-                                    class="flex-1 py-2 bg-accent-purple hover:bg-purple-600 text-white rounded-md transition"
-                                    data-i18n="collect_global">Collect Global Market</button>
-                                <button onclick="testTelegram()"
-                                    class="flex-1 py-2 bg-accent-blue hover:bg-blue-600 text-white rounded-md transition"
-                                    data-i18n="test_telegram">Test Telegram</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="glass rounded-lg p-5 border border-dark-600">
-                        <div class="flex justify-between items-center mb-4 pb-2 border-b border-dark-600">
-                            <h2 class="text-sm font-semibold text-gray-400" data-i18n="realtime_logs">Real-time Logs
-                            </h2>
-                            <div class="flex gap-2">
-                                <span id="logConnectionStatus"
-                                    class="px-2 py-1 text-xs rounded bg-dark-700 text-gray-500">Disconnected</span>
-                                <button onclick="toggleCollectionLogStream()" id="btnToggleLogStream"
-                                    class="px-3 py-1 text-xs bg-accent-green hover:bg-green-600 text-white rounded"
-                                    data-i18n="connect">Connect</button>
-                                <button onclick="clearCollectionLogs()"
-                                    class="px-3 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded"
-                                    data-i18n="clear">Clear</button>
-                            </div>
-                        </div>
-                        <div id="realtimeLogs"
-                            class="h-64 overflow-y-auto scrollbar-thin bg-dark-900 rounded p-3 font-mono text-xs">
-                            <div class="text-gray-600" data-i18n="click_connect">Click Connect to start streaming
-                                logs</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="glass rounded-lg p-5 border border-dark-600 mt-6">
-                    <h2 class="text-sm font-semibold text-gray-400 mb-4 pb-2 border-b border-dark-600"
-                        data-i18n="db_stats">
-                        Database Stats</h2>
-                    <div id="dbStats" class="grid grid-cols-4 gap-4">
-                        <div class="p-4 bg-dark-900 rounded-lg text-center">
-                            <div class="text-2xl font-bold text-accent-blue" id="statTotal">-</div>
-                            <div class="text-xs text-gray-500" data-i18n="total_stocks">Total Stocks</div>
-                        </div>
-                        <div class="p-4 bg-dark-900 rounded-lg text-center">
-                            <div class="text-2xl font-bold text-accent-green" id="statKospi">-</div>
-                            <div class="text-xs text-gray-500">KOSPI</div>
-                        </div>
-                        <div class="p-4 bg-dark-900 rounded-lg text-center">
-                            <div class="text-2xl font-bold text-accent-purple" id="statKosdaq">-</div>
-                            <div class="text-xs text-gray-500">KOSDAQ</div>
-                        </div>
-                        <div class="p-4 bg-dark-900 rounded-lg text-center">
-                            <div class="text-2xl font-bold text-accent-yellow" id="statScheduler">-</div>
-                            <div class="text-xs text-gray-500" data-i18n="scheduler">Scheduler</div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Login Modal -->
-        <div id="modal-login"
-            class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-enter">
-            <div
-                class="glass w-full max-w-sm p-8 rounded-2xl border border-dark-600 shadow-2xl relative overflow-hidden">
-                <!-- Decorative background elements -->
-                <div
-                    class="absolute top-0 right-0 w-32 h-32 bg-accent-blue/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none">
-                </div>
-                <div
-                    class="absolute bottom-0 left-0 w-32 h-32 bg-accent-purple/10 rounded-full blur-3xl -ml-16 -mb-16 pointer-events-none">
-                </div>
-
-                <div class="relative z-10">
-                    <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-2xl font-bold text-white tracking-tight" data-i18n="login_title">Welcome
-                            Back</h3>
-                        <button onclick="closeLoginModal()"
-                            class="text-gray-400 hover:text-white transition p-1 rounded-full hover:bg-dark-700">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                        </button>
-                    </div>
-
-                    <form id="loginForm" class="space-y-5">
-                        <div>
-                            <label class="block text-xs font-medium text-gray-400 mb-1.5 ml-1"
-                                data-i18n="username">Username</label>
-                            <div class="relative group">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <svg class="h-4 w-4 text-gray-500 group-focus-within:text-accent-blue transition-colors"
-                                        fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                    </svg>
-                                </div>
-                                <input type="text" id="loginUsername" required
-                                    class="w-full pl-10 pr-4 py-2.5 bg-dark-900/50 border border-dark-600 rounded-lg text-sm text-white focus:border-accent-blue focus:ring-1 focus:ring-accent-blue focus:outline-none transition-all placeholder-gray-600"
-                                    data-i18n-placeholder="username_placeholder" placeholder="Enter your username">
-                            </div>
-                        </div>
-
-                        <div>
-                            <div class="flex justify-between items-center mb-1.5 ml-1">
-                                <label class="block text-xs font-medium text-gray-400"
-                                    data-i18n="password">Password</label>
-                                <a href="#" class="text-xs text-accent-blue hover:text-blue-400 transition-colors"
-                                    data-i18n="forgot_password">Forgot?</a>
-                            </div>
-                            <div class="relative group">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <svg class="h-4 w-4 text-gray-500 group-focus-within:text-accent-blue transition-colors"
-                                        fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                    </svg>
-                                </div>
-                                <input type="password" id="loginPassword" required
-                                    class="w-full pl-10 pr-4 py-2.5 bg-dark-900/50 border border-dark-600 rounded-lg text-sm text-white focus:border-accent-blue focus:ring-1 focus:ring-accent-blue focus:outline-none transition-all placeholder-gray-600"
-                                    data-i18n-placeholder="password_placeholder" placeholder="Enter your password">
-                            </div>
-                        </div>
-
-                        <button type="submit"
-                            class="w-full py-2.5 bg-gradient-to-r from-accent-blue to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white font-bold rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-blue-900/30 flex justify-center items-center gap-2">
-                            <span data-i18n="login_btn">Sign In</span>
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
-                            </svg>
-                        </button>
-
-                        <div class="relative my-6">
-                            <div class="absolute inset-0 flex items-center">
-                                <div class="w-full border-t border-dark-600"></div>
-                            </div>
-                            <div class="relative flex justify-center text-xs">
-                                <span class="px-2 bg-dark-800 text-gray-500 rounded-full" data-i18n="or_continue">Or
-                                    continue with</span>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-3">
-                            <button type="button"
-                                class="flex items-center justify-center gap-2 py-2 bg-dark-700 hover:bg-dark-600 border border-dark-600 rounded-lg transition-colors group">
-                                <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
-                                    <path
-                                        d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .533 5.333.533 12S5.867 24 12.48 24c3.44 0 6.147-1.133 8.213-3.293 2.093-2.16 2.707-5.467 2.707-8.227 0-.747-.08-1.48-.213-2.187h-10.707z" />
-                                </svg>
-                                <span class="text-xs font-medium text-gray-300 group-hover:text-white">Google</span>
-                            </button>
-                            <button type="button"
-                                class="flex items-center justify-center gap-2 py-2 bg-dark-700 hover:bg-dark-600 border border-dark-600 rounded-lg transition-colors group">
-                                <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
-                                    <path
-                                        d="M12 0C5.373 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z" />
-                                </svg>
-                                <span class="text-xs font-medium text-gray-300 group-hover:text-white">GitHub</span>
-                            </button>
-                        </div>
-
-                        <div class="text-center mt-6">
-                            <p class="text-xs text-gray-500">
-                                <span data-i18n="no_account">Don't have an account?</span>
-                                <a href="#"
-                                    class="text-accent-blue hover:text-blue-400 font-medium transition-colors ml-1"
-                                    data-i18n="signup">Sign up</a>
-                            </p>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- History Viewer Modal -->
-        <div id="modal-history-viewer"
-            class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div class="glass w-full max-w-4xl p-6 rounded-xl border border-dark-600 shadow-2xl relative">
-                <div class="flex justify-between items-center mb-6">
+        <!-- Backtest Panel -->
+        <div id="panel-backtest" class="hidden">
+            <div class="glass rounded-lg p-5 border border-dark-600 mb-6">
+                <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="run_backtest">Run Backtest</h2>
+                <form id="backtestForm" class="grid md:grid-cols-4 gap-4">
                     <div>
-                        <h3 class="text-xl font-bold text-white" id="histViewTitle">Stock History</h3>
-                        <p class="text-xs text-gray-500" id="histViewSubtitle">Ticker</p>
-                    </div>
-                    <button onclick="closeHistoryViewer()"
-                        class="text-gray-400 hover:text-white transition p-2">✕</button>
-                </div>
-
-                <!-- Tabs -->
-                <div class="flex gap-2 mb-4 border-b border-dark-600 pb-1">
-                    <button onclick="switchHistTab('1m')" id="tab-hist-1m"
-                        class="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors border-b-2 border-transparent">1
-                        Min</button>
-                    <button onclick="switchHistTab('D')" id="tab-hist-D"
-                        class="px-4 py-2 text-sm text-accent-blue border-b-2 border-accent-blue font-medium">Daily</button>
-                    <button onclick="switchHistTab('W')" id="tab-hist-W"
-                        class="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors border-b-2 border-transparent">Weekly</button>
-                    <button onclick="switchHistTab('M')" id="tab-hist-M"
-                        class="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors border-b-2 border-transparent">Monthly</button>
-                    <button onclick="switchHistTab('C')" id="tab-hist-C"
-                        class="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors border-b-2 border-transparent">Coverage
-                        Map</button>
-                    <button onclick="switchHistTab('H')" id="tab-hist-H"
-                        class="px-4 py-2 text-sm text-accent-purple hover:text-white transition-colors border-b-2 border-transparent">Human
-                        Index Map</button>
-                </div>
-
-                <!-- Actions -->
-                <div class="flex justify-end mb-4">
-                    <button onclick="refreshHistoryData()"
-                        class="px-3 py-1.5 bg-dark-700 hover:bg-dark-600 rounded text-xs text-white flex items-center gap-1">
-                        <span>↻</span> Refresh Data
-                    </button>
-                </div>
-
-                <!-- Data Table -->
-                <!-- Coverage View (Hidden by default) -->
-                <div id="histCoverageView" class="hidden h-[500px] overflow-y-auto">
-                    <div class="mb-4 text-center">
-                        <h4 class="text-sm font-medium text-gray-300">Data Availability Heatmap (Last 1 Year)</h4>
-                        <div class="flex justify-center gap-4 text-xs text-gray-500 mt-2">
-                            <span class="flex items-center"><span class="w-3 h-3 bg-dark-700 rounded-sm mr-1"></span> No
-                                Data</span>
-                            <span class="flex items-center"><span
-                                    class="w-3 h-3 bg-accent-green/50 rounded-sm mr-1"></span>
-                                Collected</span>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="ticker">Ticker</label>
+                        <div class="relative flex items-center">
+                            <input type="text" id="btTicker" placeholder="005930" required
+                                class="w-full pl-3 pr-8 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
+                            <button type="button" onclick="openStockSearch('btTicker')"
+                                class="absolute right-2 text-gray-400 hover:text-white">🔍</button>
                         </div>
                     </div>
-                    <div id="coverageCalendar" class="grid grid-cols-1 gap-4 p-2"></div>
-                </div>
-                <div class="overflow-y-auto max-h-[500px] scrollbar-thin">
-                    <table class="w-full text-sm text-left">
-                        <thead class="text-xs text-gray-500 uppercase bg-dark-800 sticky top-0">
-                            <tr>
-                                <th class="px-4 py-3">Time</th>
-                                <th class="px-4 py-3 text-right">Open</th>
-                                <th class="px-4 py-3 text-right">High</th>
-                                <th class="px-4 py-3 text-right">Low</th>
-                                <th class="px-4 py-3 text-right">Close</th>
-                                <th class="px-4 py-3 text-right">Volume</th>
-                            </tr>
-                        </thead>
-                        <tbody id="histViewBody" class="divide-y divide-dark-700">
-                            <tr>
-                                <td colspan="6" class="px-4 py-8 text-center text-gray-600">Loading...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="start_date">Start
+                            Date</label>
+                        <input type="date" id="btStartDate" required
+                            class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="end_date">End Date</label>
+                        <input type="date" id="btEndDate" required
+                            class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="strategy">Strategy</label>
+                        <select id="btStrategy"
+                            class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
+                            <option value="ma">Moving Average (5/20)</option>
+                            <option value="rsi">RSI (14)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="initial_capital">Initial
+                            Capital</label>
+                        <input type="number" id="btCapital" value="10000000"
+                            class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
+                    </div>
+                    <div class="md:col-span-3 flex items-end">
+                        <button type="submit"
+                            class="px-8 py-2 bg-accent-yellow hover:bg-yellow-600 text-black font-medium rounded-md transition"
+                            data-i18n="run_backtest_btn">Run Backtest</button>
+                    </div>
+                </form>
             </div>
-        </div>
-
-        <!-- Stock Search Modal -->
-        <div id="modal-stock-search"
-            class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div class="glass w-full max-w-lg p-6 rounded-xl border border-dark-600 shadow-2xl">
+            <div id="backtestResult" class="glass rounded-lg p-5 border border-dark-600 hidden">
+                <h3 class="text-lg font-semibold text-gray-300 mb-4" data-i18n="backtest_result">Backtest Result
+                </h3>
+                <div class="grid grid-cols-4 gap-4 mb-6">
+                    <div class="p-4 bg-dark-900 rounded-lg text-center">
+                        <div class="text-2xl font-bold" id="btReturn">-</div>
+                        <div class="text-xs text-gray-500" data-i18n="total_return">Total Return</div>
+                    </div>
+                    <div class="p-4 bg-dark-900 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-accent-green" id="btWinRate">-</div>
+                        <div class="text-xs text-gray-500" data-i18n="win_rate">Win Rate</div>
+                    </div>
+                    <div class="p-4 bg-dark-900 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-accent-red" id="btMDD">-</div>
+                        <div class="text-xs text-gray-500" data-i18n="max_drawdown">Max Drawdown</div>
+                    </div>
+                    <div class="p-4 bg-dark-900 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-accent-purple" id="btSharpe">-</div>
+                        <div class="text-xs text-gray-500" data-i18n="sharpe_ratio">Sharpe Ratio</div>
+                    </div>
+                </div>
+                <div id="btTrades" class="max-h-64 overflow-y-auto scrollbar-thin"></div>
+            </div>
+            <div class="glass rounded-lg p-5 border border-dark-600 mt-6">
                 <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-bold text-white" data-i18n="search_stock">Search Stock</h3>
-                    <button onclick="closeStockSearch()" class="text-gray-400 hover:text-white transition">✕</button>
+                    <h3 class="text-sm font-semibold text-gray-400" data-i18n="past_results">Past Results</h3>
+                    <button onclick="loadBacktestHistory()"
+                        class="px-3 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded"
+                        data-i18n="refresh">Refresh</button>
                 </div>
-                <div class="relative mb-4">
-                    <input type="text" id="stockSearchInput" placeholder="Enter name or code..."
-                        class="w-full pl-10 pr-4 py-3 bg-dark-900 border border-dark-600 rounded-lg focus:border-accent-blue focus:outline-none text-white placeholder-gray-500"
-                        data-i18n-placeholder="search_stock_placeholder">
-                    <span class="absolute left-3 top-3.5 text-gray-500">🔍</span>
-                </div>
-                <div id="stockSearchResults" class="h-64 overflow-y-auto scrollbar-thin space-y-1">
-                    <div class="text-center text-gray-600 py-8" data-i18n="enter_search_term">Enter search term...
+                <div id="backtestHistory" class="space-y-2 max-h-48 overflow-y-auto scrollbar-thin">
+                    <div class="text-center text-gray-600 py-4" data-i18n="no_past_results">No past results
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Edit Journal Modal -->
-        <div id="modal-journal-edit"
+        <!-- Global Panel -->
+        <div id="panel-global" class="hidden">
+            <div class="grid md:grid-cols-4 gap-4 mb-6">
+                <div class="glass rounded-lg p-5 border border-dark-600 text-center">
+                    <div class="text-xs text-gray-500 mb-2">S&P 500</div>
+                    <div class="text-2xl font-bold" id="globalSPY">-</div>
+                    <div class="text-sm" id="globalSPYChange">-</div>
+                </div>
+                <div class="glass rounded-lg p-5 border border-dark-600 text-center">
+                    <div class="text-xs text-gray-500 mb-2">Nasdaq 100</div>
+                    <div class="text-2xl font-bold" id="globalQQQ">-</div>
+                    <div class="text-sm" id="globalQQQChange">-</div>
+                </div>
+                <div class="glass rounded-lg p-5 border border-dark-600 text-center">
+                    <div class="text-xs text-gray-500 mb-2" data-i18n="vix_fear">VIX (Fear)</div>
+                    <div class="text-2xl font-bold" id="globalVIX">-</div>
+                    <div class="text-sm" id="globalVIXChange">-</div>
+                </div>
+                <div class="glass rounded-lg p-5 border border-dark-600 text-center">
+                    <div class="text-xs text-gray-500 mb-2" data-i18n="market_sentiment">Market Sentiment</div>
+                    <div class="text-2xl font-bold" id="globalSentiment">-</div>
+                </div>
+            </div>
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-sm font-semibold text-gray-400" data-i18n="commodities_bonds">
+                            Commodities &
+                            Bonds</h2>
+                        <button onclick="loadGlobalMarket()"
+                            class="px-3 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded"
+                            data-i18n="refresh">Refresh</button>
+                    </div>
+                    <div id="globalOther" class="space-y-2">
+                        <div class="text-center text-gray-600 py-4" data-i18n="click_refresh">Click Refresh to
+                            load
+                        </div>
+                    </div>
+                </div>
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="analysis">Analysis</h2>
+                    <div id="globalAnalysis" class="text-gray-500" data-i18n="market_data_refresh">
+                        Market data will appear after refresh
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sector Panel -->
+        <div id="panel-sector" class="hidden">
+            <!-- Sub Tabs -->
+            <div class="flex gap-2 mb-6 border-b border-dark-600 pb-3">
+                <button onclick="showSectorSubTab('leaders')" id="sector-subtab-leaders"
+                    class="px-4 py-2 text-sm font-medium bg-accent-blue text-white rounded-md">
+                    🌐 글로벌 리더
+                </button>
+                <button onclick="showSectorSubTab('analysis')" id="sector-subtab-analysis"
+                    class="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white bg-dark-700 rounded-md">
+                    📊 1년 섹터 분석
+                </button>
+                <button onclick="showSectorSubTab('rotation')" id="sector-subtab-rotation"
+                    class="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white bg-dark-700 rounded-md">
+                    🔄 업종 순환매
+                </button>
+            </div>
+
+            <!-- Leaders Sub Panel (기존) -->
+            <div id="sector-subpanel-leaders">
+                <div class="grid md:grid-cols-4 gap-6">
+                    <!-- Sidebar -->
+                    <div class="glass rounded-lg p-5 border border-dark-600 h-fit">
+                        <h2 class="text-sm font-semibold text-gray-400 mb-4 pb-2 border-b border-dark-600">Saved Sectors
+                        </h2>
+                        <div id="savedSectorsList"
+                            class="space-y-2 max-h-[600px] overflow-y-auto scrollbar-thin text-sm">
+                            <div class="text-center text-gray-600 py-4">No saved sectors</div>
+                        </div>
+                    </div>
+
+                    <!-- Main Content -->
+                    <div class="md:col-span-3">
+                        <div class="glass rounded-lg p-5 border border-dark-600 mb-6">
+                            <div class="flex gap-3">
+                                <div class="relative flex-1 flex items-center">
+                                    <input type="text" id="sectorInput"
+                                        placeholder="Enter sector (e.g., Shipbuilding, AI, Semiconductor)..."
+                                        class="w-full pl-4 pr-10 py-2 bg-dark-900 border border-dark-600 rounded-md focus:border-accent-blue focus:outline-none"
+                                        onkeypress="if(event.key==='Enter') loadSectorLeaders()">
+                                </div>
+                                <button onclick="loadSectorLeaders()"
+                                    class="px-6 py-2 bg-accent-blue hover:bg-blue-600 text-white font-medium rounded-md transition">
+                                    Find Leaders
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="sectorResults" class="grid md:grid-cols-4 gap-4">
+                            <div
+                                class="glass rounded-lg p-4 border border-dark-600 text-center text-gray-500 col-span-4 py-12">
+                                Enter a sector name to find global leading companies.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analysis Sub Panel (신규) -->
+            <div id="sector-subpanel-analysis" class="hidden">
+                <div class="glass rounded-lg p-5 border border-dark-600 mb-6">
+                    <h2 class="text-lg font-bold text-white mb-4">📊 종목 기반 섹터 분석 (1년)</h2>
+                    <p class="text-sm text-gray-400 mb-4">종목 코드를 입력하면 해당 종목이 속한 섹터의 1년간 OHLCV, 투자자 수급, 상대강도를 분석합니다.</p>
+                    <div class="flex gap-3">
+                        <div class="relative flex-1 flex items-center">
+                            <input type="text" id="sectorAnalysisTicker" placeholder="종목 코드 입력 (예: 005930, 삼성전자)"
+                                class="w-full pl-4 pr-10 py-2 bg-dark-900 border border-dark-600 rounded-md focus:border-accent-blue focus:outline-none"
+                                onkeypress="if(event.key==='Enter') analyzeSectorForStock()">
+                            <button type="button" onclick="openStockSearch('sectorAnalysisTicker')"
+                                class="absolute right-2 text-gray-400 hover:text-white">🔍</button>
+                        </div>
+                        <button onclick="analyzeSectorForStock()"
+                            class="px-6 py-2 bg-accent-green hover:bg-green-600 text-white font-medium rounded-md transition">
+                            섹터 분석
+                        </button>
+                        <button onclick="collectSectorDataBackground()"
+                            class="px-4 py-2 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-md transition">
+                            백그라운드 수집
+                        </button>
+                    </div>
+                </div>
+
+                <div id="sectorAnalysisResult" class="">
+                    <div class="glass rounded-lg p-8 border border-dark-600 text-center text-gray-500">
+                        종목을 입력하고 "섹터 분석" 버튼을 클릭하세요.<br>
+                        <span class="text-xs">1년치 데이터 수집 시 최초 실행에 시간이 걸릴 수 있습니다.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rotation Sub Panel (신규) -->
+            <div id="sector-subpanel-rotation" class="hidden">
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-bold text-white">🔄 업종 순환매 히트맵</h2>
+                        <button onclick="loadRotationHeatmap()"
+                            class="px-4 py-2 bg-accent-blue hover:bg-blue-600 text-white text-sm font-medium rounded-md transition">
+                            새로고침
+                        </button>
+                    </div>
+                    <p class="text-sm text-gray-400 mb-4">주요 섹터별 기간별 수익률을 비교합니다. 자금의 흐름을 파악하세요.</p>
+                    <div id="rotationHeatmapContainer" class="">
+                        <div class="text-center py-8 text-gray-500">"새로고침" 버튼을 클릭하세요</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Sector Modal -->
+        <div id="modal-sector-edit"
             class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div class="glass w-full max-w-lg p-6 rounded-xl border border-dark-600 shadow-2xl">
-                <h3 class="text-lg font-bold text-white mb-6" data-i18n="edit_trade">Edit Trade Entry</h3>
-                <form id="journalEditForm" class="space-y-4">
-                    <input type="hidden" id="editId">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1" data-i18n="ticker">Ticker</label>
-                            <input type="text" id="editTicker" readonly
-                                class="w-full px-3 py-2 bg-dark-800 border border-dark-600 rounded-md text-gray-400 cursor-not-allowed">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1" data-i18n="side">Side</label>
-                            <select id="editSide"
-                                class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white">
-                                <option value="BUY">BUY</option>
-                                <option value="SELL">SELL</option>
-                            </select>
-                        </div>
+            <div class="glass w-full max-w-2xl p-6 rounded-xl border border-dark-600 shadow-2xl">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-lg font-bold text-white">Edit Sector Analysis</h3>
+                    <button onclick="closeEditSectorModal()"
+                        class="text-gray-400 hover:text-white transition">✕</button>
+                </div>
+                <form id="sectorEditForm" class="space-y-4">
+                    <input type="hidden" id="editSectorName">
+                    <div id="editSectorContainer" class="max-h-[60vh] overflow-y-auto scrollbar-thin space-y-6">
+                        <!-- Dynamic Content -->
                     </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1" data-i18n="price">Price</label>
-                            <input type="number" id="editPrice" step="any" required
-                                class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1" data-i18n="qty">Qty</label>
-                            <input type="number" id="editQty" required
-                                class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-500 mb-1" data-i18n="pnl">P&L</label>
-                        <input type="number" id="editPnl" step="any"
-                            class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-500 mb-1" data-i18n="thesis">Thesis</label>
-                        <input type="text" id="editThesis"
-                            class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none">
-                    </div>
-                    <div class="flex gap-3 mt-6">
-                        <button type="button" onclick="closeEditJournalModal()"
-                            class="flex-1 py-2 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-md transition"
-                            data-i18n="cancel">Cancel</button>
+                    <div class="flex gap-3 mt-6 pt-4 border-t border-dark-600">
+                        <button type="button" onclick="closeEditSectorModal()"
+                            class="flex-1 py-2 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-md transition">Cancel</button>
                         <button type="submit"
-                            class="flex-1 py-2 bg-accent-blue hover:bg-blue-600 text-white font-medium rounded-md transition"
-                            data-i18n="save">Save</button>
+                            class="flex-1 py-2 bg-accent-blue hover:bg-blue-600 text-white font-medium rounded-md transition">Save
+                            Changes</button>
                     </div>
                 </form>
             </div>
         </div>
 
+        <!-- Journal Panel -->
+        <div id="panel-journal" class="hidden">
+            <div class="grid md:grid-cols-3 gap-6 mb-6">
+                <div class="glass rounded-lg p-5 border border-dark-600 col-span-2">
+                    <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="add_trade">Add Trade Entry
+                    </h2>
+                    <form id="journalForm" class="grid grid-cols-5 gap-3">
+                        <!-- Ticker input with search button -->
+                        <div class="relative flex items-center">
+                            <input type="text" id="jTicker" placeholder="Ticker" required
+                                class="w-full pl-3 pr-8 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm"
+                                data-i18n-placeholder="ticker">
+                            <button type="button" onclick="openStockSearch('jTicker')"
+                                class="absolute right-2 text-gray-400 hover:text-white">🔍</button>
+                        </div>
+                        <select id="jSide" class="px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm">
+                            <option value="BUY" data-i18n="buy">BUY</option>
+                            <option value="SELL" data-i18n="sell">SELL</option>
+                        </select>
+                        <input type="number" id="jPrice" placeholder="Price" required
+                            class="px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm"
+                            data-i18n-placeholder="price">
+                        <input type="number" id="jQty" placeholder="Qty" required
+                            class="px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm"
+                            data-i18n-placeholder="qty">
+                        <button type="submit"
+                            class="bg-accent-green hover:bg-green-600 text-white font-medium rounded-md transition"
+                            data-i18n="add">Add</button>
+                        <input type="text" id="jThesis" placeholder="Thesis (optional)"
+                            class="col-span-4 px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm"
+                            data-i18n-placeholder="thesis">
+                        <input type="number" id="jPnl" placeholder="P&L"
+                            class="px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm"
+                            data-i18n-placeholder="pnl">
+                    </form>
+                </div>
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="statistics">Statistics</h2>
+                    <div id="journalStats" class="space-y-2 text-sm">
+                        <div class="flex justify-between"><span class="text-gray-500" data-i18n="total_trades">Total
+                                Trades</span><span id="jsTotal">-</span></div>
+                        <div class="flex justify-between"><span class="text-gray-500" data-i18n="win_rate">Win
+                                Rate</span><span id="jsWinRate">-</span></div>
+                        <div class="flex justify-between"><span class="text-gray-500" data-i18n="total_pnl">Total
+                                P&L</span><span id="jsPnl">-</span></div>
+                        <div class="flex justify-between"><span class="text-gray-500" data-i18n="best_trade">Best
+                                Trade</span><span id="jsBest" class="text-accent-green">-</span></div>
+                        <div class="flex justify-between"><span class="text-gray-500" data-i18n="worst_trade">Worst
+                                Trade</span><span id="jsWorst" class="text-accent-red">-</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="glass rounded-lg p-5 border border-dark-600">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-sm font-semibold text-gray-400" data-i18n="trade_history">Trade History</h2>
+                    <button onclick="loadJournalEntries()"
+                        class="px-3 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded"
+                        data-i18n="refresh">Refresh</button>
+                </div>
+                <div id="journalEntries" class="space-y-2 max-h-80 overflow-y-auto scrollbar-thin">
+                    <div class="text-center text-gray-600 py-8" data-i18n="no_entries">No entries yet</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Simulator Panel -->
+        <div id="panel-simulator" class="hidden">
+            <div class="grid md:grid-cols-4 gap-4 mb-6">
+                <div class="glass rounded-lg p-5 border border-dark-600 text-center">
+                    <div class="text-xs text-gray-500 mb-2" data-i18n="total_value">Total Value</div>
+                    <div class="text-2xl font-bold text-accent-blue" id="simValue">-</div>
+                </div>
+                <div class="glass rounded-lg p-5 border border-dark-600 text-center">
+                    <div class="text-xs text-gray-500 mb-2" data-i18n="total_pnl">Total P&L</div>
+                    <div class="text-2xl font-bold" id="simPnl">-</div>
+                </div>
+                <div class="glass rounded-lg p-5 border border-dark-600 text-center">
+                    <div class="text-xs text-gray-500 mb-2" data-i18n="return_pct">Return %</div>
+                    <div class="text-2xl font-bold" id="simReturn">-</div>
+                </div>
+                <div class="glass rounded-lg p-5 border border-dark-600 text-center">
+                    <div class="text-xs text-gray-500 mb-2" data-i18n="win_rate">Win Rate</div>
+                    <div class="text-2xl font-bold text-accent-green" id="simWinRate">-</div>
+                </div>
+            </div>
+            <div class="grid md:grid-cols-2 gap-6 mb-6">
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="trade">Trade</h2>
+                    <form id="simTradeForm" class="space-y-3">
+                        <div class="grid grid-cols-3 gap-3">
+                            <div class="relative flex items-center">
+                                <input type="text" id="simTicker" placeholder="Ticker" required
+                                    class="w-full pl-3 pr-8 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm"
+                                    data-i18n-placeholder="ticker">
+                                <button type="button" onclick="openStockSearch('simTicker')"
+                                    class="absolute right-2 text-gray-400 hover:text-white">🔍</button>
+                            </div>
+                            <input type="number" id="simPrice" placeholder="Price" required
+                                class="px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm"
+                                data-i18n-placeholder="price">
+                            <input type="number" id="simQty" placeholder="Qty (optional)"
+                                class="px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-sm"
+                                data-i18n-placeholder="qty_optional">
+                        </div>
+                        <div class="flex gap-3">
+                            <button type="button" onclick="simBuy()"
+                                class="flex-1 py-2 bg-accent-green hover:bg-green-600 text-white font-medium rounded-md transition"
+                                data-i18n="buy">BUY</button>
+                            <button type="button" onclick="simSell()"
+                                class="flex-1 py-2 bg-accent-red hover:bg-red-600 text-white font-medium rounded-md transition"
+                                data-i18n="sell">SELL</button>
+                        </div>
+                    </form>
+                    <div class="mt-4 pt-4 border-t border-dark-600">
+                        <button onclick="resetSimulator()"
+                            class="w-full py-2 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-md transition text-sm"
+                            data-i18n="reset_simulator">Reset Simulator</button>
+                    </div>
+                </div>
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-sm font-semibold text-gray-400" data-i18n="positions">Positions</h2>
+                        <button onclick="loadSimulatorPortfolio()"
+                            class="px-3 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded"
+                            data-i18n="refresh">Refresh</button>
+                    </div>
+                    <div id="simPositions" class="space-y-2 max-h-48 overflow-y-auto scrollbar-thin">
+                        <div class="text-center text-gray-600 py-4" data-i18n="no_positions">No positions</div>
+                    </div>
+                </div>
+            </div>
+            <div class="glass rounded-lg p-5 border border-dark-600">
+                <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="recent_trades">Recent Trades
+                </h2>
+                <div id="simTrades" class="space-y-2 max-h-48 overflow-y-auto scrollbar-thin">
+                    <div class="text-center text-gray-600 py-4" data-i18n="no_trades">No trades yet</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Panel -->
+        <!-- History Tool Panel -->
+        <div id="panel-history" class="hidden">
+            <div class="grid md:grid-cols-4 gap-6">
+                <!-- Control Panel -->
+                <div class="glass rounded-lg p-5 border border-dark-600 md:col-span-1 h-fit">
+                    <h2 class="text-sm font-semibold text-gray-400 mb-4" data-i18n="history_settings">History
+                        Settings
+                    </h2>
+                    <form id="historyForm" class="space-y-4">
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1" data-i18n="ticker">Ticker</label>
+                            <div class="relative">
+                                <input type="text" id="histTicker" required
+                                    class="w-full pl-3 pr-10 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none placeholder-gray-600"
+                                    placeholder="e.g. 005930">
+                                <button type="button" onclick="openStockSearch('histTicker')"
+                                    class="absolute right-2 top-2 text-gray-400 hover:text-white transition">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1" data-i18n="start_date">Start
+                                    Date</label>
+                                <input type="text" id="histStart"
+                                    class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none text-xs"
+                                    placeholder="YYYYMMDD">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1" data-i18n="end_date">End
+                                    Date</label>
+                                <input type="text" id="histEnd"
+                                    class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none text-xs"
+                                    placeholder="YYYYMMDD">
+                            </div>
+                        </div>
+                        <div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1" data-i18n="base_time">Base Time
+                                    (for
+                                    1m)</label>
+                                <input type="text" id="histTime" value="153000"
+                                    class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none placeholder-gray-600"
+                                    placeholder="HHMMSS">
+                            </div>
+                            <label class="block text-xs text-gray-500 mb-1" data-i18n="timeframe">Timeframe</label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="histTimeframe" value="D" checked class="peer sr-only">
+                                    <div
+                                        class="text-center py-2 bg-dark-800 peer-checked:bg-accent-blue peer-checked:text-white rounded text-xs transition">
+                                        Daily</div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="histTimeframe" value="W" class="peer sr-only">
+                                    <div
+                                        class="text-center py-2 bg-dark-800 peer-checked:bg-accent-blue peer-checked:text-white rounded text-xs transition">
+                                        Weekly</div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="histTimeframe" value="M" class="peer sr-only">
+                                    <div
+                                        class="text-center py-2 bg-dark-800 peer-checked:bg-accent-blue peer-checked:text-white rounded text-xs transition">
+                                        Monthly</div>
+                                </label>
+                            </div>
+                        </div>
+                        <button type="submit"
+                            class="w-full py-2 bg-accent-blue hover:bg-blue-600 text-white font-medium rounded-md transition mt-2">
+                            <span id="histBtnText" data-i18n="collect_data">Collect Data</span>
+                        </button>
+
+                        <div class="flex gap-2 mt-2">
+                            <div class="w-24 flex items-center bg-dark-900 border border-dark-600 rounded-md px-2">
+                                <input type="number" id="histHumanDays" value="60" min="1" max="365"
+                                    class="w-full bg-transparent text-white text-sm text-center focus:outline-none"
+                                    placeholder="60">
+                                <span class="text-xs text-gray-500">days</span>
+                            </div>
+                            <button type="button" id="btnCollectHuman"
+                                class="flex-1 py-2 bg-accent-purple hover:bg-purple-600 text-white font-medium rounded-md transition">
+                                <span id="humanBtnText" data-i18n="collect_human_index">Collect Human
+                                    Index</span>
+                            </button>
+                        </div>
+
+                        <!-- Log Area -->
+                        <div class="mt-4">
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-xs text-gray-500">Collection Logs</label>
+                                <button type="button" id="btnClearHistoryLogs"
+                                    class="text-xs text-gray-600 hover:text-white">Clear</button>
+                            </div>
+                            <div id="historyLogs"
+                                class="h-32 bg-dark-900 rounded border border-dark-700 p-2 text-xs font-mono overflow-y-auto scrollbar-thin">
+                                <div class="text-gray-600 italic text-center py-10">Logs will appear here...
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+
+                    <!-- Bulk Collection Section -->
+                    <div class="mt-6 pt-4 border-t border-dark-600">
+                        <h3 class="text-sm font-semibold text-accent-green mb-3">📦 Bulk Collection</h3>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">Selected Stocks</label>
+                                <div id="bulkTickerTags"
+                                    class="flex flex-wrap gap-1 min-h-[40px] p-2 bg-dark-900 border border-dark-600 rounded-md">
+                                    <span class="text-xs text-gray-600">Click + to add</span>
+                                </div>
+                                <button type="button" onclick="openBulkStockSearch()"
+                                    class="w-full mt-2 py-2 bg-dark-700 hover:bg-dark-600 text-white text-xs rounded-md transition flex items-center justify-center gap-1">
+                                    <span class="text-lg">+</span> Add Stocks
+                                </button>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">Timeframes</label>
+                                <div class="flex flex-wrap gap-2">
+                                    <label class="flex items-center gap-1 text-xs text-gray-400 cursor-pointer">
+                                        <input type="checkbox" id="bulk1m" class="rounded"> <span
+                                            class="text-accent-yellow">1m</span>
+                                    </label>
+                                    <label class="flex items-center gap-1 text-xs text-gray-400 cursor-pointer">
+                                        <input type="checkbox" id="bulkD" checked class="rounded"> D
+                                    </label>
+                                    <label class="flex items-center gap-1 text-xs text-gray-400 cursor-pointer">
+                                        <input type="checkbox" id="bulkW" checked class="rounded"> W
+                                    </label>
+                                    <label class="flex items-center gap-1 text-xs text-gray-400 cursor-pointer">
+                                        <input type="checkbox" id="bulkM" checked class="rounded"> M
+                                    </label>
+                                </div>
+                                <p class="text-xs text-gray-600 mt-1">1m = 하루 전체 분봉</p>
+                            </div>
+                            <button onclick="collectBulk()"
+                                class="w-full py-2 bg-accent-green hover:bg-green-600 text-white font-medium rounded-md transition">
+                                <span id="bulkBtnText">Collect 1 Year</span>
+                            </button>
+                            <div id="bulkProgress" class="hidden text-xs text-accent-green text-center"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results Panel -->
+                <div class="glass rounded-lg p-5 border border-dark-600 md:col-span-3 min-h-[500px]">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-sm font-semibold text-gray-400" data-i18n="collected_data">Collected
+                            Data</h2>
+                        <span id="histCount" class="text-xs text-accent-blue"></span>
+                    </div>
+                    <div class="overflow-x-auto max-h-[300px] scrollbar-thin">
+                        <table class="w-full text-sm text-left">
+                            <thead class="text-xs text-gray-500 uppercase bg-dark-800 sticky top-0">
+                                <tr>
+                                    <th class="px-4 py-3">Date</th>
+                                    <th class="px-4 py-3 text-right">Open</th>
+                                    <th class="px-4 py-3 text-right">High</th>
+                                    <th class="px-4 py-3 text-right">Low</th>
+                                    <th class="px-4 py-3 text-right">Close</th>
+                                    <th class="px-4 py-3 text-right">Volume</th>
+                                </tr>
+                            </thead>
+                            <tbody id="histTableBody" class="divide-y divide-dark-700">
+                                <tr>
+                                    <td colspan="6" class="px-4 py-8 text-center text-gray-600" data-i18n="no_data">
+                                        No
+                                        data loaded</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Data Overview -->
+                    <div class="mt-6 pt-4 border-t border-dark-600">
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="text-sm font-semibold text-gray-400">📊 Data Overview</h3>
+                            <button onclick="loadHistoryOverview()"
+                                class="px-2 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded">Refresh</button>
+                        </div>
+                        <div class="overflow-x-auto max-h-[200px] scrollbar-thin">
+                            <table class="w-full text-xs text-left">
+                                <thead class="text-gray-500 uppercase bg-dark-800 sticky top-0">
+                                    <tr>
+                                        <th class="px-3 py-2">Ticker</th>
+                                        <th class="px-3 py-2">Name</th>
+                                        <th class="px-3 py-2">TF</th>
+                                        <th class="px-3 py-2 text-right">Count</th>
+                                        <th class="px-3 py-2">Range</th>
+                                        <th class="px-3 py-2 text-center">View</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="histOverviewBody" class="divide-y divide-dark-700">
+                                    <tr>
+                                        <td colspan="6" class="px-3 py-4 text-center text-gray-600">Click
+                                            Refresh</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bulk Stock Search Modal -->
+        <div id="modal-bulk-stock-search"
+            class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div class="glass w-full max-w-md p-6 rounded-xl border border-dark-600 shadow-2xl">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold text-white">Add Stocks</h3>
+                    <button onclick="closeBulkStockSearch()"
+                        class="text-gray-400 hover:text-white text-2xl">&times;</button>
+                </div>
+                <input type="text" id="bulkSearchInput" placeholder="Search stocks..."
+                    class="w-full px-4 py-2 bg-dark-900 border border-dark-600 rounded-md text-white mb-4"
+                    oninput="searchBulkStocks(this.value)">
+                <div id="bulkSearchResults" class="max-h-60 overflow-y-auto space-y-1">
+                    <div class="text-center text-gray-500 py-4">Type to search</div>
+                </div>
+                <button onclick="closeBulkStockSearch()"
+                    class="w-full mt-4 py-2 bg-accent-green hover:bg-green-600 text-white font-medium rounded-md">
+                    Done
+                </button>
+            </div>
+        </div>
+
+        <div id="panel-admin" class="hidden">
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <h2 class="text-sm font-semibold text-gray-400 mb-4 pb-2 border-b border-dark-600"
+                        data-i18n="data_collection">Data Collection</h2>
+                    <div class="space-y-4">
+                        <div id="schedulerStatus" class="p-3 bg-dark-900 rounded-md text-sm">
+                            <div class="text-gray-500" data-i18n="loading">Loading scheduler status...</div>
+                        </div>
+                        <div class="flex gap-3">
+                            <button onclick="loadStocks()"
+                                class="flex-1 py-2 bg-dark-700 hover:bg-dark-600 text-white rounded-md transition"
+                                data-i18n="load_stocks">Load Stocks</button>
+                            <button onclick="triggerCollection()"
+                                class="flex-1 py-2 bg-accent-yellow hover:bg-yellow-600 text-black font-medium rounded-md transition"
+                                data-i18n="collect_data">Collect Data</button>
+                        </div>
+                        <div class="flex gap-3">
+                            <button onclick="startScheduler()"
+                                class="flex-1 py-2 bg-accent-green hover:bg-green-600 text-white rounded-md transition"
+                                data-i18n="start_scheduler">Start Scheduler</button>
+                            <button onclick="stopScheduler()"
+                                class="flex-1 py-2 bg-accent-red hover:bg-red-600 text-white rounded-md transition"
+                                data-i18n="stop_scheduler">Stop Scheduler</button>
+                        </div>
+                        <div class="flex gap-3">
+                            <button onclick="collectGlobalMarket()"
+                                class="flex-1 py-2 bg-accent-purple hover:bg-purple-600 text-white rounded-md transition"
+                                data-i18n="collect_global">Collect Global Market</button>
+                            <button onclick="testTelegram()"
+                                class="flex-1 py-2 bg-accent-blue hover:bg-blue-600 text-white rounded-md transition"
+                                data-i18n="test_telegram">Test Telegram</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass rounded-lg p-5 border border-dark-600">
+                    <div class="flex justify-between items-center mb-4 pb-2 border-b border-dark-600">
+                        <h2 class="text-sm font-semibold text-gray-400" data-i18n="realtime_logs">Real-time Logs
+                        </h2>
+                        <div class="flex gap-2">
+                            <span id="logConnectionStatus"
+                                class="px-2 py-1 text-xs rounded bg-dark-700 text-gray-500">Disconnected</span>
+                            <button onclick="toggleCollectionLogStream()" id="btnToggleLogStream"
+                                class="px-3 py-1 text-xs bg-accent-green hover:bg-green-600 text-white rounded"
+                                data-i18n="connect">Connect</button>
+                            <button onclick="clearCollectionLogs()"
+                                class="px-3 py-1 text-xs bg-dark-700 hover:bg-dark-600 rounded"
+                                data-i18n="clear">Clear</button>
+                        </div>
+                    </div>
+                    <div id="realtimeLogs"
+                        class="h-64 overflow-y-auto scrollbar-thin bg-dark-900 rounded p-3 font-mono text-xs">
+                        <div class="text-gray-600" data-i18n="click_connect">Click Connect to start streaming
+                            logs</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass rounded-lg p-5 border border-dark-600 mt-6">
+                <h2 class="text-sm font-semibold text-gray-400 mb-4 pb-2 border-b border-dark-600" data-i18n="db_stats">
+                    Database Stats</h2>
+                <div id="dbStats" class="grid grid-cols-4 gap-4">
+                    <div class="p-4 bg-dark-900 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-accent-blue" id="statTotal">-</div>
+                        <div class="text-xs text-gray-500" data-i18n="total_stocks">Total Stocks</div>
+                    </div>
+                    <div class="p-4 bg-dark-900 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-accent-green" id="statKospi">-</div>
+                        <div class="text-xs text-gray-500">KOSPI</div>
+                    </div>
+                    <div class="p-4 bg-dark-900 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-accent-purple" id="statKosdaq">-</div>
+                        <div class="text-xs text-gray-500">KOSDAQ</div>
+                    </div>
+                    <div class="p-4 bg-dark-900 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-accent-yellow" id="statScheduler">-</div>
+                        <div class="text-xs text-gray-500" data-i18n="scheduler">Scheduler</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div id="modal-login"
+        class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-enter">
+        <div class="glass w-full max-w-sm p-8 rounded-2xl border border-dark-600 shadow-2xl relative overflow-hidden">
+            <!-- Decorative background elements -->
+            <div
+                class="absolute top-0 right-0 w-32 h-32 bg-accent-blue/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none">
+            </div>
+            <div
+                class="absolute bottom-0 left-0 w-32 h-32 bg-accent-purple/10 rounded-full blur-3xl -ml-16 -mb-16 pointer-events-none">
+            </div>
+
+            <div class="relative z-10">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-bold text-white tracking-tight" data-i18n="login_title">Welcome
+                        Back</h3>
+                    <button onclick="closeLoginModal()"
+                        class="text-gray-400 hover:text-white transition p-1 rounded-full hover:bg-dark-700">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <form id="loginForm" class="space-y-5">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1.5 ml-1"
+                            data-i18n="username">Username</label>
+                        <div class="relative group">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <svg class="h-4 w-4 text-gray-500 group-focus-within:text-accent-blue transition-colors"
+                                    fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                            </div>
+                            <input type="text" id="loginUsername" required
+                                class="w-full pl-10 pr-4 py-2.5 bg-dark-900/50 border border-dark-600 rounded-lg text-sm text-white focus:border-accent-blue focus:ring-1 focus:ring-accent-blue focus:outline-none transition-all placeholder-gray-600"
+                                data-i18n-placeholder="username_placeholder" placeholder="Enter your username">
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between items-center mb-1.5 ml-1">
+                            <label class="block text-xs font-medium text-gray-400" data-i18n="password">Password</label>
+                            <a href="#" class="text-xs text-accent-blue hover:text-blue-400 transition-colors"
+                                data-i18n="forgot_password">Forgot?</a>
+                        </div>
+                        <div class="relative group">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <svg class="h-4 w-4 text-gray-500 group-focus-within:text-accent-blue transition-colors"
+                                    fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                </svg>
+                            </div>
+                            <input type="password" id="loginPassword" required
+                                class="w-full pl-10 pr-4 py-2.5 bg-dark-900/50 border border-dark-600 rounded-lg text-sm text-white focus:border-accent-blue focus:ring-1 focus:ring-accent-blue focus:outline-none transition-all placeholder-gray-600"
+                                data-i18n-placeholder="password_placeholder" placeholder="Enter your password">
+                        </div>
+                    </div>
+
+                    <button type="submit"
+                        class="w-full py-2.5 bg-gradient-to-r from-accent-blue to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white font-bold rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-blue-900/30 flex justify-center items-center gap-2">
+                        <span data-i18n="login_btn">Sign In</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                        </svg>
+                    </button>
+
+                    <div class="relative my-6">
+                        <div class="absolute inset-0 flex items-center">
+                            <div class="w-full border-t border-dark-600"></div>
+                        </div>
+                        <div class="relative flex justify-center text-xs">
+                            <span class="px-2 bg-dark-800 text-gray-500 rounded-full" data-i18n="or_continue">Or
+                                continue with</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <button type="button"
+                            class="flex items-center justify-center gap-2 py-2 bg-dark-700 hover:bg-dark-600 border border-dark-600 rounded-lg transition-colors group">
+                            <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .533 5.333.533 12S5.867 24 12.48 24c3.44 0 6.147-1.133 8.213-3.293 2.093-2.16 2.707-5.467 2.707-8.227 0-.747-.08-1.48-.213-2.187h-10.707z" />
+                            </svg>
+                            <span class="text-xs font-medium text-gray-300 group-hover:text-white">Google</span>
+                        </button>
+                        <button type="button"
+                            class="flex items-center justify-center gap-2 py-2 bg-dark-700 hover:bg-dark-600 border border-dark-600 rounded-lg transition-colors group">
+                            <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M12 0C5.373 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z" />
+                            </svg>
+                            <span class="text-xs font-medium text-gray-300 group-hover:text-white">GitHub</span>
+                        </button>
+                    </div>
+
+                    <div class="text-center mt-6">
+                        <p class="text-xs text-gray-500">
+                            <span data-i18n="no_account">Don't have an account?</span>
+                            <a href="#" class="text-accent-blue hover:text-blue-400 font-medium transition-colors ml-1"
+                                data-i18n="signup">Sign up</a>
+                        </p>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Viewer Modal -->
+    <div id="modal-history-viewer"
+        class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div class="glass w-full max-w-4xl p-6 rounded-xl border border-dark-600 shadow-2xl relative">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h3 class="text-xl font-bold text-white" id="histViewTitle">Stock History</h3>
+                    <p class="text-xs text-gray-500" id="histViewSubtitle">Ticker</p>
+                </div>
+                <button onclick="closeHistoryViewer()" class="text-gray-400 hover:text-white transition p-2">✕</button>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex gap-2 mb-4 border-b border-dark-600 pb-1">
+                <button onclick="switchHistTab('1m')" id="tab-hist-1m"
+                    class="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors border-b-2 border-transparent">1
+                    Min</button>
+                <button onclick="switchHistTab('D')" id="tab-hist-D"
+                    class="px-4 py-2 text-sm text-accent-blue border-b-2 border-accent-blue font-medium">Daily</button>
+                <button onclick="switchHistTab('W')" id="tab-hist-W"
+                    class="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors border-b-2 border-transparent">Weekly</button>
+                <button onclick="switchHistTab('M')" id="tab-hist-M"
+                    class="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors border-b-2 border-transparent">Monthly</button>
+                <button onclick="switchHistTab('C')" id="tab-hist-C"
+                    class="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors border-b-2 border-transparent">Coverage
+                    Map</button>
+                <button onclick="switchHistTab('H')" id="tab-hist-H"
+                    class="px-4 py-2 text-sm text-accent-purple hover:text-white transition-colors border-b-2 border-transparent">Human
+                    Index Map</button>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex justify-end mb-4">
+                <button onclick="refreshHistoryData()"
+                    class="px-3 py-1.5 bg-dark-700 hover:bg-dark-600 rounded text-xs text-white flex items-center gap-1">
+                    <span>↻</span> Refresh Data
+                </button>
+            </div>
+
+            <!-- Data Table -->
+            <!-- Coverage View (Hidden by default) -->
+            <div id="histCoverageView" class="hidden h-[500px] overflow-y-auto">
+                <div class="mb-4 text-center">
+                    <h4 class="text-sm font-medium text-gray-300">Data Availability Heatmap (Last 1 Year)</h4>
+                    <div class="flex justify-center gap-4 text-xs text-gray-500 mt-2">
+                        <span class="flex items-center"><span class="w-3 h-3 bg-dark-700 rounded-sm mr-1"></span> No
+                            Data</span>
+                        <span class="flex items-center"><span class="w-3 h-3 bg-accent-green/50 rounded-sm mr-1"></span>
+                            Collected</span>
+                    </div>
+                </div>
+                <div id="coverageCalendar" class="grid grid-cols-1 gap-4 p-2"></div>
+            </div>
+            <div class="overflow-y-auto max-h-[500px] scrollbar-thin">
+                <table class="w-full text-sm text-left">
+                    <thead class="text-xs text-gray-500 uppercase bg-dark-800 sticky top-0">
+                        <tr>
+                            <th class="px-4 py-3">Time</th>
+                            <th class="px-4 py-3 text-right">Open</th>
+                            <th class="px-4 py-3 text-right">High</th>
+                            <th class="px-4 py-3 text-right">Low</th>
+                            <th class="px-4 py-3 text-right">Close</th>
+                            <th class="px-4 py-3 text-right">Volume</th>
+                        </tr>
+                    </thead>
+                    <tbody id="histViewBody" class="divide-y divide-dark-700">
+                        <tr>
+                            <td colspan="6" class="px-4 py-8 text-center text-gray-600">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stock Search Modal -->
+    <div id="modal-stock-search"
+        class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div class="glass w-full max-w-lg p-6 rounded-xl border border-dark-600 shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-white" data-i18n="search_stock">Search Stock</h3>
+                <button onclick="closeStockSearch()" class="text-gray-400 hover:text-white transition">✕</button>
+            </div>
+            <div class="relative mb-4">
+                <input type="text" id="stockSearchInput" placeholder="Enter name or code..."
+                    class="w-full pl-10 pr-4 py-3 bg-dark-900 border border-dark-600 rounded-lg focus:border-accent-blue focus:outline-none text-white placeholder-gray-500"
+                    data-i18n-placeholder="search_stock_placeholder">
+                <span class="absolute left-3 top-3.5 text-gray-500">🔍</span>
+            </div>
+            <div id="stockSearchResults" class="h-64 overflow-y-auto scrollbar-thin space-y-1">
+                <div class="text-center text-gray-600 py-8" data-i18n="enter_search_term">Enter search term...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Journal Modal -->
+    <div id="modal-journal-edit"
+        class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div class="glass w-full max-w-lg p-6 rounded-xl border border-dark-600 shadow-2xl">
+            <h3 class="text-lg font-bold text-white mb-6" data-i18n="edit_trade">Edit Trade Entry</h3>
+            <form id="journalEditForm" class="space-y-4">
+                <input type="hidden" id="editId">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="ticker">Ticker</label>
+                        <input type="text" id="editTicker" readonly
+                            class="w-full px-3 py-2 bg-dark-800 border border-dark-600 rounded-md text-gray-400 cursor-not-allowed">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="side">Side</label>
+                        <select id="editSide"
+                            class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white">
+                            <option value="BUY">BUY</option>
+                            <option value="SELL">SELL</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="price">Price</label>
+                        <input type="number" id="editPrice" step="any" required
+                            class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1" data-i18n="qty">Qty</label>
+                        <input type="number" id="editQty" required
+                            class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1" data-i18n="pnl">P&L</label>
+                    <input type="number" id="editPnl" step="any"
+                        class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1" data-i18n="thesis">Thesis</label>
+                    <input type="text" id="editThesis"
+                        class="w-full px-3 py-2 bg-dark-900 border border-dark-600 rounded-md text-white focus:border-accent-blue focus:outline-none">
+                </div>
+                <div class="flex gap-3 mt-6">
+                    <button type="button" onclick="closeEditJournalModal()"
+                        class="flex-1 py-2 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-md transition"
+                        data-i18n="cancel">Cancel</button>
+                    <button type="submit"
+                        class="flex-1 py-2 bg-accent-blue hover:bg-blue-600 text-white font-medium rounded-md transition"
+                        data-i18n="save">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- Market Flow Panel -->
+    <div id="panel-market_flow" class="hidden">
+        <div id="marketAnalysisContainer"></div>
+    </div>
 
     </div>
-</div>
-        <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js"></script>
 </body>
 
 </html>
