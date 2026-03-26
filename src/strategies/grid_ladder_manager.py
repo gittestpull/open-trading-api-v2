@@ -889,6 +889,12 @@ class GridLadderManager:
                 })
         
         return {
+            # Config
+            'total_budget': self.config.total_budget,
+            'order_amount': self.config.order_amount,
+            'entry_tick_levels': self.config.entry_tick_levels,
+            'trigger_level': self.config.trigger_level,
+            # State
             'round': self.current_round,
             'base_price': self.base_price,
             'total_invested': self.total_invested,

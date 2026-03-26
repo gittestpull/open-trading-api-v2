@@ -1131,6 +1131,10 @@ def create_app(base_dir: str) -> FastAPI:
         """DB row → API response"""
         result = {
             "ticker": s['ticker'], "running": False, "saved": True,
+            "total_budget": s['total_budget'],
+            "order_amount": s['order_amount'],
+            "entry_tick_levels": json.loads(s.get('entry_tick_levels', '[6,7,8]')),
+            "trigger_level": s.get('trigger_level', 6),
             "round": s['current_round'], "base_price": s['base_price'],
             "total_invested": s['total_invested'],
             "budget_remaining": s['total_budget'] - s['total_invested'],
