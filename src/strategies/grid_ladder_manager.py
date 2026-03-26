@@ -128,12 +128,19 @@ def _init_grid_table():
             holdings TEXT DEFAULT '[]',
             trade_log TEXT DEFAULT '[]',
             last_error TEXT DEFAULT '',
+            pending_order_details TEXT DEFAULT '[]',
             status TEXT DEFAULT 'stopped',
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(ticker, env_dv)
         )
     """)
+    # Migration: add pending_order_details column if missing
+    try:
+        conn.execute("ALTER TABLE grid_ladder_instances ADD COLUMN pending_order_details TEXT DEFAULT '[]'")
+    except sqlite3.OperationalError:
+        pass
+    
     conn.commit()
     conn.close()
 
@@ -146,12 +153,23 @@ def save_grid_state(mgr: 'GridLadderManager'):
     if mgr.paused:
         status = 'paused'
     
+    # Build pending order details
+    pending_details = []
+    for ono, order in mgr.pending_orders.items():
+        if order.status == OrderStatus.PENDING:
+            pending_details.append({
+                'order_no': order.order_no,
+                'price': order.price,
+                'quantity': order.quantity,
+                'tick_level': order.tick_level,
+            })
+    
     conn.execute("""
         INSERT INTO grid_ladder_instances 
             (ticker, env_dv, total_budget, order_amount, entry_tick_levels, trigger_level, 
              poll_interval, base_price, total_invested, current_round, holdings, trade_log, 
-             last_error, status, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+             last_error, pending_order_details, status, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
         ON CONFLICT(ticker, env_dv) DO UPDATE SET
             base_price=excluded.base_price,
             total_invested=excluded.total_invested,
@@ -159,6 +177,7 @@ def save_grid_state(mgr: 'GridLadderManager'):
             holdings=excluded.holdings,
             trade_log=excluded.trade_log,
             last_error=excluded.last_error,
+            pending_order_details=excluded.pending_order_details,
             status=excluded.status,
             updated_at=datetime('now')
     """, (
@@ -175,8 +194,15 @@ def save_grid_state(mgr: 'GridLadderManager'):
         json.dumps(list(mgr.all_holdings)),
         json.dumps(list(mgr.trade_log)),
         mgr.last_error,
+        json.dumps(pending_details),
         status,
     ))
+    # Ensure pending_order_details column exists (migration)
+    try:
+        conn.execute("ALTER TABLE grid_ladder_instances ADD COLUMN pending_order_details TEXT DEFAULT '[]'")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    
     conn.commit()
     conn.close()
 
@@ -641,6 +667,12 @@ class GridLadderManager:
                     f"  Level-{o.tick_level}: {o.price:,}원 × {o.quantity}주 "
                     f"({o.status.value}) [#{o.order_no}]"
                 )
+            
+            # 주문 배치 후 DB 저장 (pending 포함)
+            try:
+                save_grid_state(self)
+            except Exception as e:
+                logger.warning(f"[DB 저장 실패] {e}")
             
             # 2b. 체결 대기
             executed = self._monitor_and_wait()

@@ -1178,7 +1178,7 @@ def create_app(base_dir: str) -> FastAPI:
                                     "holdings": json.loads(s.get('holdings', '[]')),
                                     "last_error": s.get('last_error', ''),
                                     "paused": False, "pause_reason": "",
-                                    "env_dv": s['env_dv'], "pending_order_details": [],
+                                    "env_dv": s['env_dv'], "pending_order_details": json.loads(s.get("pending_order_details", "[]")),
                                     "status": s.get('status', 'stopped'),
                                     "updated_at": s.get('updated_at', ''),
                                 })
@@ -1219,7 +1219,7 @@ def create_app(base_dir: str) -> FastAPI:
                             "holdings": json.loads(s.get('holdings', '[]')),
                             "last_error": s.get('last_error', ''),
                             "paused": False, "pause_reason": "",
-                            "env_dv": s['env_dv'], "pending_order_details": [],
+                            "env_dv": s['env_dv'], "pending_order_details": json.loads(s.get("pending_order_details", "[]")),
                             "status": s.get('status', 'stopped'),
                             "updated_at": s.get('updated_at', ''),
                         })
