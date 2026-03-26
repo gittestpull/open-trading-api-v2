@@ -1081,6 +1081,17 @@ def create_app(base_dir: str) -> FastAPI:
             _grid_tasks.clear()
             _grid_instances.clear()
 
+    def _get_stock_name(ticker: str) -> str:
+        """DB에서 종목명 조회"""
+        try:
+            import sqlite3
+            conn = sqlite3.connect(db.db_path)
+            row = conn.execute("SELECT name FROM stock_info WHERE ticker=?", (ticker,)).fetchone()
+            conn.close()
+            return row[0] if row else ticker
+        except:
+            return ticker
+
     def _recalc_saved_pending(saved_row: dict) -> dict:
         """Saved 상태의 pending 주문을 현재가 기준으로 재계산"""
         try:
@@ -1130,7 +1141,7 @@ def create_app(base_dir: str) -> FastAPI:
     def _build_saved_response(s: dict, recalc: bool = True) -> dict:
         """DB row → API response"""
         result = {
-            "ticker": s['ticker'], "running": False, "saved": True,
+            "ticker": s['ticker'], "name": _get_stock_name(s['ticker']), "running": False, "saved": True,
             "total_budget": s['total_budget'],
             "order_amount": s['order_amount'],
             "entry_tick_levels": json.loads(s.get('entry_tick_levels', '[6,7,8]')),
@@ -1254,7 +1265,7 @@ def create_app(base_dir: str) -> FastAPI:
                 results = []
                 for key, mgr in matches.items():
                     running = key in _grid_tasks and not _grid_tasks[key].done()
-                    results.append({"ticker": t, "running": running, "saved": False, **mgr.get_status()})
+                    results.append({"ticker": t, "name": _get_stock_name(t), "running": running, "saved": False, **mgr.get_status()})
                 if len(results) == 1:
                     return results[0]
                 return {"grid_ladders": results}
@@ -1265,7 +1276,7 @@ def create_app(base_dir: str) -> FastAPI:
             for key, mgr in _grid_instances.items():
                 t = key.split(":")[0]
                 running = key in _grid_tasks and not _grid_tasks[key].done()
-                results.append({"ticker": t, "running": running, "saved": False, **mgr.get_status()})
+                results.append({"ticker": t, "name": _get_stock_name(t), "running": running, "saved": False, **mgr.get_status()})
                 active_keys.add(key)
 
         # Add saved instances that aren't currently active

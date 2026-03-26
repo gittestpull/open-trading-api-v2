@@ -353,7 +353,10 @@
         tickerInput.value = activeObTicker;
         // Update orderbook header
         const obHeader = document.querySelector('#obTime')?.parentElement?.querySelector('h2');
-        if (obHeader) obHeader.innerHTML = `📋 호가창 <span class="text-accent-blue text-sm font-normal ml-1">${activeObTicker}</span>`;
+        // Find name from allInstances
+        const inst = allInstances.find(g => g.ticker === activeObTicker);
+        const stockName = inst?.name || '';
+        if (obHeader) obHeader.innerHTML = `📋 호가창 <span class="text-accent-blue text-sm font-normal ml-1">${activeObTicker}</span> <span class="text-gray-400 text-xs">${stockName}</span>`;
         // Clear orderbook + my orders immediately
         gridOrderPrices.clear();
         gridOrderMap = {};
@@ -729,6 +732,7 @@
                 <div class="flex items-center gap-2">
                     ${envBadge}
                     <span class="font-bold text-white cursor-pointer hover:text-accent-blue transition" onclick="switchTicker('${s.ticker}')">${s.ticker}</span>
+                    <span class="text-xs text-gray-400">${s.name || ''}</span>
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${statusClass} border">${statusBadge}</span>
                 </div>
                 <button onclick="stopInstance('${s.ticker}')" class="text-xs text-gray-500 hover:text-accent-red transition">⏹</button>
