@@ -342,6 +342,17 @@ class Database:
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        # 19. 국가 수출입 통계
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS trade_stats (
+                date TEXT PRIMARY KEY,   -- YYYY-MM
+                export REAL,             -- 수출액 (억불)
+                import REAL,             -- 수입액 (억불)
+                balance REAL,            -- 무역수지 (억불)
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         
         # 마이그레이션 실행
         self._migrate_tables(conn)
@@ -568,6 +579,24 @@ class Database:
                 updated_at = excluded.updated_at
         """
         await self.execute(query, (key, value))
+
+    async def upsert_trade_stats(self, data: List[Dict]) -> int:
+        """수출입 통계 upsert"""
+        query = """
+            INSERT INTO trade_stats (date, export, import, balance, updated_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(date) DO UPDATE SET
+                export = excluded.export,
+                import = excluded.import,
+                balance = excluded.balance,
+                updated_at = excluded.updated_at
+        """
+        params = [
+            (d['date'], d['export'], d['import'], d['balance'])
+            for d in data
+        ]
+        await self.execute_many(query, params)
+        return len(params)
 
 
 # 싱글톤 인스턴스

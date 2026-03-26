@@ -7,7 +7,7 @@ const translations = {
         subtitle: 'AI-Powered Investment Analysis Platform',
         tab_scalper: 'Scalper', tab_screener: 'Screener', tab_deepdive: 'Deep Dive',
         tab_human: 'Human Index', tab_backtest: 'Backtest', tab_global: 'Global', tab_sector: 'Sector',
-        tab_journal: 'Journal', tab_simulator: 'Simulator', tab_admin: 'Admin', tab_history: 'Data Tool',
+        tab_journal: 'Journal', tab_simulator: 'Simulator', tab_admin: 'Admin', tab_history: 'Data Tool', tab_macro: 'Macro', tab_report: 'Report', tab_recommend: 'Recommend',
         new_scalper: 'New Scalper', ticker: 'Ticker', budget: 'Budget (₩)',
         target: 'Target (%)', start_scalper: 'Start Scalper',
         running_processes: 'Running Processes', saved_states: 'Saved States',
@@ -16,6 +16,8 @@ const translations = {
         no_running: 'No running processes', no_saved: 'No saved states',
         filter_stocks: 'Filter Stocks', search: 'Search', analyze: 'Analyze',
         ai_report: 'AI Report', stock_analysis: 'Stock Analysis',
+        ai_stock_recommend: 'AI Stock Recommendation',
+        click_refresh_recommend: 'Click Refresh to analyze latest news',
         key_metrics: 'Key Metrics', enter_ticker: 'Enter a ticker to see analysis',
         fomo_alerts: 'FOMO Alerts (Overheated)', bottom_signals: 'Bottom Signals (Opportunity)',
         refresh: 'Refresh', individual_human: 'Individual Stock Human Index',
@@ -62,12 +64,13 @@ const translations = {
         login: 'Login', login_title: 'Welcome Back', username: 'Username', username_placeholder: 'Enter your username',
         password: 'Password', password_placeholder: 'Enter your password', forgot_password: 'Forgot?',
         login_btn: 'Sign In', or_continue: 'Or continue with', no_account: "Don't have an account?", signup: 'Sign up',
+        south_korea_trade: 'South Korea Trade Statistics', export: 'Export ($B)', import: 'Import ($B)', trade_balance: 'Balance ($B)',
     },
     ko: {
         subtitle: 'AI 기반 투자 분석 플랫폼',
-        tab_scalper: '스캘퍼', tab_screener: '종목검색', tab_deepdive: '딥다이브',
+        tab_scalper: '스캘퍼', tab_screener: '종목검색', tab_maga: '(트럼프)', tab_deepdive: '딥다이브',
         tab_human: '인간지표', tab_backtest: '백테스트', tab_global: '글로벌', tab_sector: '섹터',
-        tab_journal: '매매일지', tab_simulator: '시뮬레이터', tab_admin: '관리자', tab_history: '데이터 도구',
+        tab_journal: '매매일지', tab_simulator: '시뮬레이터', tab_admin: '관리자', tab_history: '데이터 도구', tab_macro: '거시경제', tab_report: '리포트', tab_recommend: 'AI추천',
         new_scalper: '새 스캘퍼', ticker: '종목코드', budget: '예산 (원)',
         target: '목표 (%)', start_scalper: '스캘퍼 시작',
         running_processes: '실행 중', saved_states: '저장된 상태',
@@ -76,6 +79,8 @@ const translations = {
         no_running: '실행 중인 프로세스 없음', no_saved: '저장된 상태 없음',
         filter_stocks: '종목 필터', search: '검색', analyze: '분석',
         ai_report: 'AI 리포트', stock_analysis: '종목 분석',
+        ai_stock_recommend: 'AI 뉴스 기반 종목 추천',
+        click_refresh_recommend: '새로고침을 눌러 최신 뉴스를 분석하세요',
         key_metrics: '핵심 지표', enter_ticker: '분석할 종목을 입력하세요',
         fomo_alerts: 'FOMO 경보 (과열)', bottom_signals: '바닥 신호 (기회)',
         refresh: '새로고침', individual_human: '개별 종목 인간지표',
@@ -122,6 +127,7 @@ const translations = {
         login: '로그인', login_title: '환영합니다', username: '아이디', username_placeholder: '아이디를 입력하세요',
         password: '비밀번호', password_placeholder: '비밀번호를 입력하세요', forgot_password: '비밀번호 찾기',
         login_btn: '로그인', or_continue: '또는', no_account: '계정이 없으신가요?', signup: '회원가입',
+        south_korea_trade: '대한민국 수출입 통계 (월별)', export: '수출액 (억불)', import: '수입액 (억불)', trade_balance: '무역수지 (억불)',
     }
 };
 
@@ -159,8 +165,12 @@ function showTab(tab) {
     if (tab === 'global') loadGlobalMarket();
     if (tab === 'sector') loadSavedSectors();
     if (tab === 'journal') { loadJournalEntries(); loadJournalStats(); }
+    if (tab === 'maga') loadMagaFeed();
+    if (tab === 'macro') loadTradeStats();
+    if (tab === 'report') loadLatestReports();
     if (tab === 'simulator') loadSimulatorPortfolio();
     if (tab === 'backtest') loadBacktestHistory();
+    if (tab === 'recommend') loadRecommendations();
     if (tab === "history") {
         const today = new Date();
         const start = new Date(today); start.setMonth(start.getMonth() - 1);
@@ -269,6 +279,80 @@ function connectWebSocket(ticker) {
     ws.onclose = () => { container.innerHTML += '<div class="text-accent-red">[Disconnected]</div>'; };
 }
 
+let magaWs = null;
+function initMagaWebSocket() {
+    if (magaWs) magaWs.close();
+    magaWs = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws/maga`);
+    
+    magaWs.onmessage = e => {
+        const event = JSON.parse(e.data);
+        if (event.type === 'tweet') {
+            updateMagaUI(event);
+        } else if (event.type === 'volatility') {
+            showWhaleAlert(event);
+        }
+    };
+}
+
+function updateMagaUI(tweet) {
+    const feed = document.getElementById('magaFeed');
+    const targets = document.getElementById('magaTargets');
+    
+    const tweetHtml = `
+        <div class="p-3 bg-dark-900 rounded-lg border border-accent-blue/30 animate-pulse-once">
+            <div class="flex justify-between text-xs text-gray-500 mb-2">
+                <span>${tweet.time} (LIVE)</span>
+                <span class="text-accent-blue">${tweet.tags}</span>
+            </div>
+            <p class="text-sm text-gray-300 mb-2">"${tweet.text}"</p>
+            <div class="p-2 bg-dark-800 rounded text-xs text-accent-yellow">
+                🤖 <span class="font-bold">AI Insight:</span> ${tweet.insight}
+            </div>
+        </div>
+    `;
+    feed.insertAdjacentHTML('afterbegin', tweetHtml);
+    
+    // Update targets
+    tweet.stocks.forEach(s => {
+        const row = `
+            <tr class="hover:bg-dark-700 animate-highlight">
+                <td class="px-4 py-3 text-accent-blue">#MAGA</td>
+                <td class="px-4 py-3">
+                    <div class="font-bold">${s.name} (${s.ticker})</div>
+                    <div class="text-xs text-gray-500">${tweet.insight.split('.')[0]}</div>
+                </td>
+                <td class="px-4 py-3 text-center text-accent-green">${s.score}</td>
+                <td class="px-4 py-3 text-right">
+                    <button onclick="copyToScalper('${s.ticker}')" class="px-3 py-1 bg-accent-blue hover:bg-blue-600 rounded text-xs text-white">전투 배치</button>
+                </td>
+            </tr>
+        `;
+        targets.insertAdjacentHTML('afterbegin', row);
+    });
+}
+
+function showWhaleAlert(alert) {
+    // 1. Toast Notification
+    const toast = document.createElement('div');
+    toast.className = 'fixed top-4 right-4 z-[100] p-4 bg-accent-red text-white rounded-lg shadow-2xl animate-bounce';
+    toast.innerHTML = `
+        <div class="flex items-center gap-3">
+            <span class="text-2xl">🐳</span>
+            <div>
+                <div class="font-bold">고래 포착! ${alert.name}</div>
+                <div class="text-xs opacity-90">${alert.time} | 변동률: ${alert.change}%</div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 5000);
+    
+    // 2. Sidebar flash
+    const scalperTab = document.getElementById('tab-scalper');
+    scalperTab.classList.add('animate-ping-once');
+    setTimeout(() => scalperTab.classList.remove('animate-ping-once'), 1000);
+}
+
 document.getElementById('startForm').addEventListener('submit', async e => {
     e.preventDefault();
     const data = {
@@ -310,6 +394,18 @@ async function loadScreenerData() {
         applyTranslations();
         const res = await fetch('/api/screener', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
         const result = await res.json();
+        
+        // 데이터 기준 시간 표시 (마지막 스캔 시간 or 현재 시간)
+        if (result.last_scan_time) {
+            const timeEl = document.getElementById('screenerTime');
+            if (timeEl) timeEl.textContent = `Data Time: ${result.last_scan_time}`;
+        } else {
+             // 서버에서 시간을 안 주면 현재 시간으로 대체
+             const now = new Date().toLocaleTimeString();
+             const timeEl = document.getElementById('screenerTime');
+             if (timeEl) timeEl.textContent = `Data Time: ${now}`;
+        }
+
         renderScreenerResults(result.stocks);
     } catch (e) {
         document.getElementById('screenerResults').innerHTML = `<tr><td colspan="11" class="px-4 py-8 text-center text-accent-red">Error: ${e.message}</td></tr>`;
@@ -1386,6 +1482,133 @@ async function resetSimulator() {
         await fetch('/api/simulator/reset', { method: 'POST' });
         loadSimulatorPortfolio();
     } catch (e) { alert(e.message); }
+}
+
+async function loadMagaFeed() {
+    const feed = document.getElementById('magaFeed');
+    const targets = document.getElementById('magaTargets');
+    
+    // Fetch real latest data from API (Now implemented)
+    try {
+        const res = await fetch('/api/maga/latest');
+        const data = await res.json();
+        
+        if (data.tweets && data.tweets.length > 0) {
+            feed.innerHTML = data.tweets.map(t => `
+                <div class="p-3 bg-dark-900 rounded-lg border border-dark-700">
+                    <div class="flex justify-between text-xs text-gray-500 mb-2">
+                        <span>${t.time}</span>
+                        <span class="text-accent-blue">${t.tags}</span>
+                    </div>
+                    <p class="text-sm text-gray-300 mb-2">"${t.text}"</p>
+                    <div class="p-2 bg-dark-800 rounded text-xs text-accent-yellow">
+                        🤖 <span class="font-bold">AI Insight:</span> ${t.insight}
+                    </div>
+                </div>
+            `).join('');
+
+            const allStocks = data.tweets.flatMap(t => t.stocks || []);
+            targets.innerHTML = allStocks.map(s => `
+                <tr class="hover:bg-dark-700">
+                    <td class="px-4 py-3 text-accent-blue">#MAGA</td>
+                    <td class="px-4 py-3">
+                        <div class="font-bold">${s.name} (${s.ticker})</div>
+                        <div class="text-xs text-gray-500">${s.reason || 'Trump Signal Benefit'}</div>
+                    </td>
+                    <td class="px-4 py-3 text-center text-accent-green">${s.score}</td>
+                    <td class="px-4 py-3 text-right">
+                        <button onclick="copyToScalper('${s.ticker}')" class="px-3 py-1 bg-accent-blue hover:bg-blue-600 rounded text-xs text-white">전투 배치</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+    } catch (e) {
+        console.error("Failed to load MAGA feed:", e);
+    }
+}
+
+function copyToScalper(ticker) {
+    document.getElementById('ticker').value = ticker;
+    showTab('scalper');
+    // Optional: auto-scroll to form
+    document.getElementById('ticker').focus();
+}
+
+let tradeStatsChart = null;
+
+async function loadTradeStats() {
+    try {
+        const res = await fetch('/api/macro/trade-stats?limit=12');
+        const data = await res.json();
+        const stats = data.stats.reverse(); // Time order for chart
+
+        const labels = stats.map(s => s.date);
+        const exportData = stats.map(s => s.export);
+        const importData = stats.map(s => s.import);
+        const balanceData = stats.map(s => s.balance);
+
+        const ctx = document.getElementById('tradeStatsChart').getContext('2d');
+        if (tradeStatsChart) tradeStatsChart.destroy();
+
+        tradeStatsChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: t('export'),
+                        data: exportData,
+                        borderColor: '#58a6ff',
+                        backgroundColor: 'rgba(88, 166, 255, 0.1)',
+                        fill: false,
+                        tension: 0.3
+                    },
+                    {
+                        label: t('import'),
+                        data: importData,
+                        borderColor: '#f85149',
+                        backgroundColor: 'rgba(248, 81, 73, 0.1)',
+                        fill: false,
+                        tension: 0.3
+                    },
+                    {
+                        label: t('trade_balance'),
+                        data: balanceData,
+                        borderColor: '#3fb950',
+                        backgroundColor: 'rgba(63, 185, 80, 0.2)',
+                        type: 'bar',
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        title: { display: true, text: 'USD Billion', color: '#9ca3af' }
+                    },
+                    y1: {
+                        position: 'right',
+                        grid: { drawOnChartArea: false },
+                        title: { display: true, text: 'Balance', color: '#3fb950' }
+                    }
+                }
+            }
+        });
+
+        // Fill table
+        const tbody = document.getElementById('tradeStatsBody');
+        tbody.innerHTML = [...stats].reverse().map(s => `
+            <tr class="hover:bg-dark-700">
+                <td class="px-4 py-3">${s.date}</td>
+                <td class="px-4 py-3 text-right text-accent-blue">${s.export.toLocaleString()}</td>
+                <td class="px-4 py-3 text-right text-accent-red">${s.import.toLocaleString()}</td>
+                <td class="px-4 py-3 text-right ${s.balance >= 0 ? 'text-accent-green' : 'text-accent-red'}">${s.balance.toLocaleString()}</td>
+            </tr>
+        `).join('');
+    } catch (e) { console.error(e); }
 }
 
 async function loadAdminData() {
@@ -2501,4 +2724,76 @@ document.getElementById('sectorEditForm').addEventListener('submit', async (e) =
         alert('Failed to save changes: ' + e.message);
     }
 });
+
+initMagaWebSocket();
+
+// --- Added for Market Indices & Recommendations ---
+
+async function fetchIndices() {
+    try {
+        const res = await fetch('/api/indices');
+        const data = await res.json();
+        
+        updateIndexUI('idxKOSPI', 'idxKOSPIChange', data.KOSPI);
+        updateIndexUI('idxKOSDAQ', 'idxKOSDAQChange', data.KOSDAQ);
+        updateIndexUI('idxUSD', 'idxUSDChange', data.USD);
+        updateIndexUI('idxBTC', 'idxBTCChange', data.BTC);
+    } catch (e) {
+        console.error('Failed to fetch indices', e);
+    }
+}
+
+function updateIndexUI(valId, changeId, data) {
+    if (!data) return;
+    const valEl = document.getElementById(valId);
+    const changeEl = document.getElementById(changeId);
+    
+    if (valEl) valEl.textContent = data.now.toLocaleString();
+    
+    if (changeEl) {
+        const isUp = data.rate >= 0;
+        changeEl.textContent = `${isUp ? '▲' : '▼'} ${data.change.toLocaleString()} (${data.rate.toFixed(2)}%)`;
+        changeEl.className = `text-xs ${isUp ? 'text-accent-green' : 'text-accent-red'}`;
+    }
+}
+
+async function loadRecommendations() {
+    const container = document.getElementById('recommendList');
+    container.innerHTML = '<div class="col-span-full text-center text-gray-600 py-12 animate-pulse">Analyzing latest news with AI...</div>';
+    
+    try {
+        const res = await fetch('/api/recommendations');
+        const data = await res.json();
+        
+        if (!data || data.length === 0 || data[0].error) {
+            container.innerHTML = `<div class="col-span-full text-center text-accent-red py-12">Failed to load recommendations: ${data[0]?.error || 'Unknown error'}</div>`;
+            return;
+        }
+        
+        container.innerHTML = data.map(s => `
+            <div class="glass rounded-lg p-5 border border-dark-600 hover:border-accent-blue transition group">
+                <div class="flex justify-between items-start mb-3">
+                    <div>
+                        <div class="text-xl font-bold text-white group-hover:text-accent-blue transition">${s.name}</div>
+                        <div class="text-sm text-gray-500 font-mono">${s.ticker}</div>
+                    </div>
+                    <div class="px-3 py-1 bg-dark-700 rounded-full text-xs font-bold text-accent-yellow">
+                        Score: ${s.score}
+                    </div>
+                </div>
+                <p class="text-sm text-gray-400 mb-4 line-clamp-3">${s.reason}</p>
+                <button onclick="analyzeStock('${s.ticker}')" 
+                    class="w-full py-2 bg-accent-blue/10 hover:bg-accent-blue/20 text-accent-blue text-xs font-bold rounded transition">
+                    View Deep Dive Analysis
+                </button>
+            </div>
+        `).join('');
+    } catch (e) {
+        container.innerHTML = `<div class="col-span-full text-center text-accent-red py-12">Error: ${e.message}</div>`;
+    }
+}
+
+// Initialize
+fetchIndices();
+setInterval(fetchIndices, 60000); // Update every minute
 

@@ -1057,7 +1057,10 @@ def create_app(base_dir: str) -> FastAPI:
     # ================================================================
     import threading
     from collections import deque
-    from ..strategies.grid_ladder_manager import GridLadderManager, GridLadderConfig, load_all_grid_states, delete_grid_state, _init_grid_table
+    from ..strategies.grid_ladder_manager import (
+        GridLadderManager, GridLadderConfig, load_all_grid_states, 
+        delete_grid_state, _init_grid_table, price_n_ticks_below
+    )
 
     _grid_lock = threading.Lock()
     _grid_instances: dict[str, GridLadderManager] = {}
@@ -1077,6 +1080,78 @@ def create_app(base_dir: str) -> FastAPI:
                         pass
             _grid_tasks.clear()
             _grid_instances.clear()
+
+    def _recalc_saved_pending(saved_row: dict) -> dict:
+        """Saved 상태의 pending 주문을 현재가 기준으로 재계산"""
+        try:
+            import sys, os
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'core'))
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'examples_user', 'domestic_stock'))
+            import kis_auth as ka
+            import domestic_stock_functions as ds
+            
+            ka.auth(svr="prod")
+            ticker = saved_row['ticker']
+            
+            # 현재가 조회
+            df = ds.inquire_price(env_dv="real", fid_cond_mrkt_div_code="J", fid_input_iscd=ticker)
+            if df.empty:
+                return saved_row
+            
+            current_price = int(df.iloc[0].get('stck_prpr', 0))
+            if current_price <= 0:
+                return saved_row
+            
+            # 기준가를 현재가로 갱신
+            saved_row['base_price'] = current_price
+            
+            # entry_tick_levels로 pending 재계산
+            levels = json.loads(saved_row.get('entry_tick_levels', '[6,7,8]'))
+            order_amount = saved_row.get('order_amount', 500000)
+            
+            new_pending = []
+            for level in levels:
+                target_price = price_n_ticks_below(current_price, level)
+                quantity = int(order_amount / target_price) if target_price > 0 else 0
+                if quantity > 0:
+                    new_pending.append({
+                        'order_no': f'SAVED_L{level}',
+                        'price': target_price,
+                        'quantity': quantity,
+                        'tick_level': level,
+                    })
+            
+            saved_row['pending_order_details'] = new_pending
+            saved_row['pending_orders'] = len(new_pending)
+            return saved_row
+        except Exception as e:
+            return saved_row
+
+    def _build_saved_response(s: dict, recalc: bool = True) -> dict:
+        """DB row → API response"""
+        result = {
+            "ticker": s['ticker'], "running": False, "saved": True,
+            "round": s['current_round'], "base_price": s['base_price'],
+            "total_invested": s['total_invested'],
+            "budget_remaining": s['total_budget'] - s['total_invested'],
+            "pending_orders": 0, "executed_orders": 0,
+            "holdings": json.loads(s.get('holdings', '[]')),
+            "last_error": s.get('last_error', ''),
+            "paused": False, "pause_reason": "",
+            "env_dv": s['env_dv'],
+            "pending_order_details": json.loads(s.get("pending_order_details", "[]")),
+            "status": s.get('status', 'stopped'),
+            "updated_at": s.get('updated_at', ''),
+        }
+        
+        if recalc and result['pending_order_details']:
+            # 현재가 기준으로 재계산
+            recalced = _recalc_saved_pending(s)
+            result['base_price'] = recalced['base_price']
+            result['pending_order_details'] = recalced.get('pending_order_details', [])
+            result['pending_orders'] = len(result['pending_order_details'])
+        
+        return result
 
     def _grid_key(ticker: str, env_dv: str) -> str:
         """Unique key: TICKER:real or TICKER:demo"""
@@ -1167,21 +1242,7 @@ def create_app(base_dir: str) -> FastAPI:
                         saved = load_all_grid_states()
                         saved_matches = [s for s in saved if s['ticker'] == t]
                         if saved_matches:
-                            results = []
-                            for s in saved_matches:
-                                results.append({
-                                    "ticker": s['ticker'], "running": False, "saved": True,
-                                    "round": s['current_round'], "base_price": s['base_price'],
-                                    "total_invested": s['total_invested'],
-                                    "budget_remaining": s['total_budget'] - s['total_invested'],
-                                    "pending_orders": 0, "executed_orders": 0,
-                                    "holdings": json.loads(s.get('holdings', '[]')),
-                                    "last_error": s.get('last_error', ''),
-                                    "paused": False, "pause_reason": "",
-                                    "env_dv": s['env_dv'], "pending_order_details": json.loads(s.get("pending_order_details", "[]")),
-                                    "status": s.get('status', 'stopped'),
-                                    "updated_at": s.get('updated_at', ''),
-                                })
+                            results = [_build_saved_response(s) for s in saved_matches]
                             if len(results) == 1:
                                 return results[0]
                             return {"grid_ladders": results}
@@ -1210,19 +1271,7 @@ def create_app(base_dir: str) -> FastAPI:
                 for s in saved:
                     key = f"{s['ticker']}:{s['env_dv']}"
                     if key not in active_keys:
-                        results.append({
-                            "ticker": s['ticker'], "running": False, "saved": True,
-                            "round": s['current_round'], "base_price": s['base_price'],
-                            "total_invested": s['total_invested'],
-                            "budget_remaining": s['total_budget'] - s['total_invested'],
-                            "pending_orders": 0, "executed_orders": 0,
-                            "holdings": json.loads(s.get('holdings', '[]')),
-                            "last_error": s.get('last_error', ''),
-                            "paused": False, "pause_reason": "",
-                            "env_dv": s['env_dv'], "pending_order_details": json.loads(s.get("pending_order_details", "[]")),
-                            "status": s.get('status', 'stopped'),
-                            "updated_at": s.get('updated_at', ''),
-                        })
+                        results.append(_build_saved_response(s))
             except Exception:
                 pass
 

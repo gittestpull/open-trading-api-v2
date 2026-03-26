@@ -1,4 +1,4 @@
-# Trading Bot Container with uv
+# Trading Bot Container
 FROM python:3.13-slim
 
 # Install required system dependencies
@@ -12,18 +12,14 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv
-RUN pip install uv
-
 # Set working directory
 WORKDIR /app
 
 # Copy project files
-COPY pyproject.toml ./
 COPY requirements.txt ./
 
-# Install dependencies using uv sync
-RUN uv sync --no-dev
+# Install dependencies using pip
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy all source code
 COPY . .
@@ -33,5 +29,5 @@ RUN mkdir -p /app/logs
 RUN mkdir -p /app/scalp_data
 RUN mkdir -p /root/KIS/config
 
-# Default entrypoint with uv (Web Server)
-ENTRYPOINT ["uv", "run", "python", "run_web.py"]
+# Default entrypoint
+ENTRYPOINT ["python", "run_web.py"]

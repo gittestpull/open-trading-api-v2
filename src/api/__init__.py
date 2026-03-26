@@ -19,6 +19,11 @@ from .global_market import GlobalMarketCollector, get_global_market_collector
 from .history_collector import HistoryCollector, get_history_collector
 from .journal import TradeJournal, get_trade_journal
 from .simulator import TradingSimulator, SimulationState, get_trading_simulator
+from .maga_engine import MagaEngine, get_maga_engine
+from .trade_stats import TradeStatsService, get_trade_stats_service
+
+# [2026-02-08 추가] 데이터 검증 모듈 (KIS + 네이버 이중 검증)
+from .data_validator import DataValidator, ValidationResult, StockData, DataSource
 
 __all__ = [
     'Database',
@@ -56,4 +61,13 @@ __all__ = [
     'TradingSimulator',
     'SimulationState',
     'get_trading_simulator',
+    'MagaEngine',
+    'get_maga_engine',
+    'TradeStatsService',
+    'get_trade_stats_service',
+    # [2026-02-08 추가] 데이터 검증 모듈
+    'DataValidator',
+    'ValidationResult',
+    'StockData',
+    'DataSource',
 ]
