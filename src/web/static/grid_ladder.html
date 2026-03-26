@@ -354,6 +354,16 @@
         // Update orderbook header
         const obHeader = document.querySelector('#obTime')?.parentElement?.querySelector('h2');
         if (obHeader) obHeader.innerHTML = `📋 호가창 <span class="text-accent-blue text-sm font-normal ml-1">${activeObTicker}</span>`;
+        // Clear orderbook display immediately (prevent stale data)
+        document.getElementById('obAsks').innerHTML = '';
+        document.getElementById('obBids').innerHTML = '';
+        document.getElementById('obCurrentPrice').textContent = '-';
+        document.getElementById('obPriceChange').textContent = '-';
+        document.getElementById('obSpread').textContent = '스프레드: -';
+        document.getElementById('obVolume').textContent = '거래량: -';
+        document.getElementById('obTotalAsk').textContent = '-';
+        document.getElementById('obTotalBid').textContent = '-';
+        document.getElementById('obTime').textContent = '--:--:--';
         // Reconnect WS to new ticker
         connectOrderbookWS(activeObTicker);
         connectEventsWS(activeObTicker);
@@ -411,7 +421,10 @@
         wsOb.onmessage = (e) => {
             try {
                 const data = JSON.parse(e.data);
-                if (data.type === 'orderbook') renderOrderbook(data);
+                // Only render if ticker matches currently selected
+                if (data.type === 'orderbook' && data.ticker === activeObTicker) {
+                    renderOrderbook(data);
+                }
             } catch(err) {}
         };
     }
