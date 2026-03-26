@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 Grid Ladder Manager</title>
+    <link href="https://fonts.googleapis.com/css2?family=Paperlogy:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-card: #1c2128;
+            --border: #30363d;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --accent-blue: #58a6ff;
+            --accent-green: #3fb950;
+            --accent-red: #f85149;
+            --accent-yellow: #d29922;
+            --accent-purple: #bc8cff;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Paperlogy', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 0;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 24px;
+        }
+
+        header h1 { font-size: 1.5rem; font-weight: 600; }
+        header a { color: var(--accent-blue); text-decoration: none; font-size: 0.9rem; }
+        header a:hover { text-decoration: underline; }
+
+        .grid-layout {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 900px) {
+            .grid-layout { grid-template-columns: 1fr; }
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .card h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 14px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            font-family: inherit;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+            width: 100%;
+        }
+
+        .btn-start {
+            background: var(--accent-green);
+            color: #000;
+        }
+        .btn-start:hover { opacity: 0.85; }
+
+        .btn-stop {
+            background: var(--accent-red);
+            color: #fff;
+        }
+        .btn-stop:hover { opacity: 0.85; }
+
+        .btn-refresh {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 8px 16px;
+            font-size: 0.85rem;
+        }
+
+        .btn-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        /* Status panel */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .status-running {
+            background: rgba(63, 185, 80, 0.15);
+            color: var(--accent-green);
+            border: 1px solid rgba(63, 185, 80, 0.3);
+        }
+
+        .status-stopped {
+            background: rgba(139, 148, 158, 0.15);
+            color: var(--text-secondary);
+            border: 1px solid rgba(139, 148, 158, 0.3);
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin: 16px 0;
+        }
+
+        .stat-item {
+            background: var(--bg-secondary);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-item .label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .stat-item .value {
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        .stat-item .value.green { color: var(--accent-green); }
+        .stat-item .value.blue { color: var(--accent-blue); }
+        .stat-item .value.yellow { color: var(--accent-yellow); }
+        .stat-item .value.red { color: var(--accent-red); }
+
+        /* Holdings table */
+        .holdings-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        .holdings-table th {
+            text-align: left;
+            padding: 8px 10px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .holdings-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+        }
+
+        .holdings-table tr:last-child td { border-bottom: none; }
+
+        /* Trade log */
+        .trade-log {
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 0.82rem;
+        }
+
+        .log-entry {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 10px;
+            border-bottom: 1px solid rgba(48, 54, 61, 0.4);
+        }
+
+        .log-entry .time { color: var(--text-secondary); font-size: 0.75rem; }
+        .log-entry .action { font-weight: 600; }
+        .log-entry .action.buy { color: var(--accent-red); }
+        .log-entry .action.cancel { color: var(--text-secondary); }
+        .log-entry .price { color: var(--accent-blue); }
+
+        .empty-state {
+            text-align: center;
+            color: var(--text-secondary);
+            padding: 40px 0;
+            font-size: 0.9rem;
+        }
+
+        .diagram {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 16px;
+            margin: 12px 0;
+            font-size: 0.82rem;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            font-family: monospace;
+        }
+
+        .diagram .highlight { color: var(--accent-green); font-weight: 600; }
+        .diagram .cancel { color: var(--accent-red); }
+        .diagram .arrow { color: var(--accent-blue); }
+
+        .info-box {
+            background: rgba(88, 166, 255, 0.08);
+            border: 1px solid rgba(88, 166, 255, 0.2);
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            margin-top: 12px;
+        }
+
+        .info-box strong { color: var(--accent-blue); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Grid Ladder Manager</h1>
+            <a href="/">← 메인 대시보드</a>
+        </header>
+
+        <div class="grid-layout">
+            <!-- Left: Control Panel -->
+            <div>
+                <div class="card">
+                    <h2>⚙️ 전략 설정</h2>
+
+                    <div class="form-group">
+                        <label>종목코드</label>
+                        <input type="text" id="stockCode" placeholder="예: 014940" maxlength="6">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>총 투자금</label>
+                            <input type="number" id="totalBudget" value="10000000" step="1000000">
+                        </div>
+                        <div class="form-group">
+                            <label>1회 주문금액</label>
+                            <input type="number" id="orderAmount" value="500000" step="100000">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>트리거 레벨 (호가)</label>
+                            <input type="number" id="triggerLevel" value="6" min="1" max="10">
+                        </div>
+                        <div class="form-group">
+                            <label>환경</label>
+                            <select id="envDv">
+                                <option value="real">실전투자</option>
+                                <option value="demo">모의투자</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>진입 레벨 (쉼표 구분)</label>
+                        <input type="text" id="entryLevels" value="6, 7, 8" placeholder="6, 7, 8">
+                    </div>
+
+                    <div class="btn-group">
+                        <button class="btn btn-start" onclick="startGrid()">▶ 시작</button>
+                        <button class="btn btn-stop" onclick="stopGrid()">⏹ 정지</button>
+                    </div>
+
+                    <div class="info-box">
+                        <strong>전략 요약:</strong> 기준가 대비 <strong>-6호가</strong>에 매수 → 체결 시 -7/-8 취소 → 새 기준가로 재배치. 급락장에서 한꺼번에 물량 실리는 리스크 방어.
+                    </div>
+                </div>
+
+                <!-- Strategy Diagram -->
+                <div class="card" style="margin-top: 16px;">
+                    <h2>📐 로직 다이어그램</h2>
+                    <div class="diagram">
+기준가 10,000원 (첫 매수)
+<span class="arrow">  │</span>
+<span class="arrow">  ├──</span> <span class="highlight">-6호가 9,940원  50만원 매수 ← 트리거</span>
+<span class="arrow">  ├──</span> -7호가 9,930원  50만원 매수 (대기)
+<span class="arrow">  └──</span> -8호가 9,920원  50만원 매수 (대기)
+<span class="arrow">  │</span>
+<span class="highlight">  ✅ -6호가 체결!</span>
+<span class="cancel">  ❌ -7호가 취소</span>
+<span class="cancel">  ❌ -8호가 취소</span>
+<span class="arrow">  │</span>
+새 기준가 <span class="highlight">9,940원</span>
+<span class="arrow">  ├──</span> <span class="highlight">-6호가 9,880원  50만원 매수</span>
+<span class="arrow">  ├──</span> -7호가 9,870원  50만원 매수
+<span class="arrow">  └──</span> -8호가 9,860원  50만원 매수
+<span class="arrow">  │</span>
+  ... 반복 (총 투자금 소진까지)
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Status & Logs -->
+            <div>
+                <!-- Status Card -->
+                <div class="card" id="statusCard">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <h2>📈 실행 상태</h2>
+                        <button class="btn btn-refresh" onclick="refreshStatus()">🔄 새로고침</button>
+                    </div>
+
+                    <div id="noRunning" class="empty-state">
+                        실행 중인 그리드 래더가 없습니다.<br>
+                        왼쪽에서 종목코드를 입력하고 시작하세요.
+                    </div>
+
+                    <div id="runningStatus" style="display: none;">
+                        <div style="margin: 12px 0;">
+                            <span id="statusBadge" class="status-badge status-stopped">● 대기</span>
+                            <span id="stockLabel" style="font-weight: 600; margin-left: 8px;"></span>
+                        </div>
+
+                        <div class="stat-grid">
+                            <div class="stat-item">
+                                <div class="label">라운드</div>
+                                <div class="value blue" id="statRound">0</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="label">기준가</div>
+                                <div class="value" id="statBasePrice">-</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="label">투자금</div>
+                                <div class="value green" id="statInvested">0</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="label">잔여 예산</div>
+                                <div class="value yellow" id="statRemaining">-</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="label">체결 건수</div>
+                                <div class="value" id="statExecuted">0</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="label">미체결</div>
+                                <div class="value red" id="statPending">0</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Holdings Card -->
+                <div class="card" style="margin-top: 16px;">
+                    <h2>🏦 보유 내역</h2>
+                    <div id="holdingsEmpty" class="empty-state" style="padding: 20px;">체결 내역이 없습니다.</div>
+                    <table class="holdings-table" id="holdingsTable" style="display: none;">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>체결가</th>
+                                <th>수량</th>
+                                <th>금액</th>
+                            </tr>
+                        </thead>
+                        <tbody id="holdingsBody"></tbody>
+                        <tfoot>
+                            <tr style="font-weight: 600; border-top: 2px solid var(--border);">
+                                <td colspan="2">평균단가</td>
+                                <td id="totalQty">-</td>
+                                <td id="avgPrice">-</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <!-- Trade Log -->
+                <div class="card" style="margin-top: 16px;">
+                    <h2>📋 거래 로그</h2>
+                    <div class="trade-log" id="tradeLog">
+                        <div class="empty-state" style="padding: 20px;">거래 기록이 없습니다.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = '';  // same origin
+
+        function getStockCode() {
+            return (document.getElementById('stockCode').value || '').trim().toUpperCase();
+        }
+
+        async function apiCall(method, url, body = null) {
+            const opts = { method, headers: { 'Content-Type': 'application/json' } };
+            if (body) opts.body = JSON.stringify(body);
+            const res = await fetch(API + url, opts);
+            const data = await res.json();
+            if (!res.ok) {
+                alert(data.detail || '요청 실패');
+                throw new Error(data.detail);
+            }
+            return data;
+        }
+
+        async function startGrid() {
+            const code = getStockCode();
+            if (!code || code.length < 4) { alert('종목코드를 입력하세요.'); return; }
+
+            const levels = document.getElementById('entryLevels').value
+                .split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+
+            const body = {
+                stock_code: code,
+                total_budget: parseInt(document.getElementById('totalBudget').value),
+                order_amount: parseInt(document.getElementById('orderAmount').value),
+                entry_tick_levels: levels,
+                trigger_level: parseInt(document.getElementById('triggerLevel').value),
+                env_dv: document.getElementById('envDv').value,
+            };
+
+            if (!confirm(
+                `${code} 그리드 래더를 시작합니다.\n\n` +
+                `💰 총 투자금: ${body.total_budget.toLocaleString()}원\n` +
+                `📦 1회 주문: ${body.order_amount.toLocaleString()}원\n` +
+                `📊 진입 레벨: ${levels.join(', ')}호가\n` +
+                `🎯 트리거: -${body.trigger_level}호가\n` +
+                `🔴 환경: ${body.env_dv === 'real' ? '실전투자' : '모의투자'}\n\n` +
+                `실제 주문이 나갑니다. 계속하시겠습니까?`
+            )) return;
+
+            try {
+                await apiCall('POST', '/api/grid-ladder/start', body);
+                setTimeout(refreshStatus, 1000);
+            } catch(e) {}
+        }
+
+        async function stopGrid() {
+            const code = getStockCode();
+            if (!code) { alert('종목코드를 입력하세요.'); return; }
+            if (!confirm(`${code} 그리드 래더를 중지하고 미체결 주문을 모두 취소합니다.`)) return;
+
+            try {
+                const data = await apiCall('POST', '/api/grid-ladder/stop', { stock_code: code });
+                updateUI(data.final_state, false, code);
+            } catch(e) {}
+        }
+
+        async function refreshStatus() {
+            const code = getStockCode();
+            try {
+                if (code) {
+                    const data = await apiCall('GET', `/api/grid-ladder/status?stock_code=${code}`);
+                    updateUI(data, data.running, code);
+                    // Also fetch logs
+                    try {
+                        const logs = await apiCall('GET', `/api/grid-ladder/logs/${code}`);
+                        renderLogs(logs.trade_log || []);
+                    } catch(e) {}
+                } else {
+                    const data = await apiCall('GET', '/api/grid-ladder/status');
+                    if (data.grid_ladders && data.grid_ladders.length > 0) {
+                        const first = data.grid_ladders[0];
+                        document.getElementById('stockCode').value = first.stock_code;
+                        updateUI(first, first.running, first.stock_code);
+                    }
+                }
+            } catch(e) {
+                document.getElementById('noRunning').style.display = 'block';
+                document.getElementById('runningStatus').style.display = 'none';
+            }
+        }
+
+        function updateUI(status, running, code) {
+            document.getElementById('noRunning').style.display = 'none';
+            document.getElementById('runningStatus').style.display = 'block';
+
+            const badge = document.getElementById('statusBadge');
+            badge.textContent = running ? '● 실행 중' : '● 종료';
+            badge.className = `status-badge ${running ? 'status-running' : 'status-stopped'}`;
+
+            document.getElementById('stockLabel').textContent = code;
+            document.getElementById('statRound').textContent = status.round || 0;
+            document.getElementById('statBasePrice').textContent = status.base_price ? status.base_price.toLocaleString() + '원' : '-';
+            document.getElementById('statInvested').textContent = (status.total_invested || 0).toLocaleString() + '원';
+            document.getElementById('statRemaining').textContent = (status.budget_remaining || 0).toLocaleString() + '원';
+            document.getElementById('statExecuted').textContent = status.executed_orders || 0;
+            document.getElementById('statPending').textContent = status.pending_orders || 0;
+
+            // Holdings
+            const holdings = status.holdings || [];
+            if (holdings.length > 0) {
+                document.getElementById('holdingsEmpty').style.display = 'none';
+                document.getElementById('holdingsTable').style.display = 'table';
+                const tbody = document.getElementById('holdingsBody');
+                tbody.innerHTML = '';
+                let totalQ = 0, totalCost = 0;
+                holdings.forEach((h, i) => {
+                    const [price, qty] = h;
+                    totalQ += qty;
+                    totalCost += price * qty;
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td>${i + 1}</td><td>${price.toLocaleString()}원</td><td>${qty}주</td><td>${(price * qty).toLocaleString()}원</td>`;
+                    tbody.appendChild(tr);
+                });
+                document.getElementById('totalQty').textContent = totalQ + '주';
+                document.getElementById('avgPrice').textContent = totalQ > 0 ? Math.round(totalCost / totalQ).toLocaleString() + '원' : '-';
+            } else {
+                document.getElementById('holdingsEmpty').style.display = 'block';
+                document.getElementById('holdingsTable').style.display = 'none';
+            }
+        }
+
+        function renderLogs(logs) {
+            const container = document.getElementById('tradeLog');
+            if (!logs || logs.length === 0) {
+                container.innerHTML = '<div class="empty-state" style="padding: 20px;">거래 기록이 없습니다.</div>';
+                return;
+            }
+            container.innerHTML = logs.map(log => {
+                const actionClass = log.action === 'EXECUTED' ? 'buy' : 'cancel';
+                const actionLabel = log.action === 'INITIAL_BUY' ? '초기매수' : 
+                                    log.action === 'EXECUTED' ? `체결 (L${log.level})` : log.action;
+                return `<div class="log-entry">
+                    <span>
+                        <span class="time">R${log.round} ${log.time}</span>
+                        <span class="action ${actionClass}" style="margin-left: 8px;">${actionLabel}</span>
+                    </span>
+                    <span>
+                        <span class="price">${log.price ? log.price.toLocaleString() + '원' : ''}</span>
+                        <span style="color: var(--text-secondary); margin-left: 8px;">${log.quantity || ''}주</span>
+                    </span>
+                </div>`;
+            }).join('');
+        }
+
+        // Auto-refresh every 5 seconds when running
+        setInterval(() => {
+            const code = getStockCode();
+            if (code) refreshStatus();
+        }, 5000);
+
+        // Initial load
+        refreshStatus();
+    </script>
+</body>
+</html>

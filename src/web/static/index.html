@@ -20,11 +20,36 @@
             }
         }
     </script>
+    <script src="/static/js/report.js"></script>
     <link rel="stylesheet" href="/static/css/styles.css">
 </head>
 
 <body class="bg-dark-900 text-gray-300 min-h-screen">
     <div class="max-w-7xl mx-auto px-4 py-6">
+        <!-- Market Indices Bar -->
+        <div id="marketIndices" class="flex flex-wrap gap-4 mb-6 bg-dark-800 p-3 rounded-lg border border-dark-600">
+            <div class="flex items-center gap-2 px-3 border-r border-dark-600 last:border-0">
+                <span class="text-xs text-gray-500">KOSPI</span>
+                <span id="idxKOSPI" class="font-bold">-</span>
+                <span id="idxKOSPIChange" class="text-xs">-</span>
+            </div>
+            <div class="flex items-center gap-2 px-3 border-r border-dark-600 last:border-0">
+                <span class="text-xs text-gray-500">KOSDAQ</span>
+                <span id="idxKOSDAQ" class="font-bold">-</span>
+                <span id="idxKOSDAQChange" class="text-xs">-</span>
+            </div>
+            <div class="flex items-center gap-2 px-3 border-r border-dark-600 last:border-0">
+                <span class="text-xs text-gray-500">USD/KRW</span>
+                <span id="idxUSD" class="font-bold">-</span>
+                <span id="idxUSDChange" class="text-xs">-</span>
+            </div>
+            <div class="flex items-center gap-2 px-3 last:border-0">
+                <span class="text-xs text-gray-500">BTC</span>
+                <span id="idxBTC" class="font-bold">-</span>
+                <span id="idxBTCChange" class="text-xs">-</span>
+            </div>
+        </div>
+
         <header class="mb-6 flex justify-between items-center">
             <div>
                 <h1 class="text-2xl font-bold text-accent-blue">Deep Dive</h1>
@@ -48,6 +73,11 @@
             <button onclick="showTab('screener')" id="tab-screener"
                 class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300"
                 data-i18n="tab_screener">Screener</button>
+            <button onclick="showTab('maga')" id="tab-maga"
+                class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300 flex items-center gap-1">
+                <span class="text-accent-red">MAGA</span>
+                <span data-i18n="tab_maga">(Trump)</span>
+            </button>
             <button onclick="showTab('deepdive')" id="tab-deepdive"
                 class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300" data-i18n="tab_deepdive">Deep
                 Dive</button>
@@ -60,6 +90,9 @@
             <button onclick="showTab('global')" id="tab-global"
                 class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300"
                 data-i18n="tab_global">Global</button>
+            <button onclick="showTab('macro')" id="tab-macro"
+                class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300"
+                data-i18n="tab_macro">Macro</button>
             <button onclick="showTab('sector')" id="tab-sector"
                 class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300"
                 data-i18n="tab_sector">Sector</button>
@@ -75,7 +108,50 @@
             <button onclick="showTab('admin')" id="tab-admin"
                 class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300"
                 data-i18n="tab_admin">Admin</button>
+            <button onclick="showTab('report')" id="tab-report"
+                class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300"
+                data-i18n="tab_report">Report</button>
+            <button onclick="showTab('recommend')" id="tab-recommend"
+                class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300"
+                data-i18n="tab_recommend">Recommend</button>
+            <a href="/grid-ladder" target="_blank"
+                class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-300"
+                style="text-decoration:none; border-bottom: 2px solid transparent;">📊 Grid Ladder</a>
         </nav>
+
+        <!-- Report Panel -->
+        <div id="panel-report" class="hidden">
+            <div class="glass rounded-lg p-5 border border-dark-600 mb-6">
+                <div class="flex gap-3">
+                    <div class="relative flex-1 flex items-center">
+                        <input type="text" id="reportSearchInput" placeholder="Search reports (e.g. Shipbuilding, AI)..."
+                            class="w-full pl-4 pr-10 py-2 bg-dark-900 border border-dark-600 rounded-md focus:border-accent-blue focus:outline-none"
+                            onkeypress="if(event.key==='Enter') searchReports()">
+                        <button type="button" onclick="searchReports()"
+                            class="absolute right-3 text-gray-400 hover:text-white">🔍</button>
+                    </div>
+                </div>
+            </div>
+            <div id="reportList" class="space-y-4">
+                <!-- Reports will be injected here -->
+            </div>
+        </div>
+
+        <!-- Recommend Panel -->
+        <div id="panel-recommend" class="hidden">
+            <div class="glass rounded-lg p-5 border border-dark-600 mb-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-sm font-semibold text-gray-400" data-i18n="ai_stock_recommend">AI Stock Recommendation (from News)</h2>
+                    <button onclick="loadRecommendations()"
+                        class="px-4 py-1.5 bg-accent-blue hover:bg-blue-600 rounded-md text-sm font-bold text-white transition"
+                        data-i18n="refresh">Refresh</button>
+                </div>
+                <div id="recommendList" class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Recommendation cards will be injected here -->
+                    <div class="col-span-full text-center text-gray-600 py-12" data-i18n="click_refresh_recommend">Click Refresh to analyze latest news</div>
+                </div>
+            </div>
+        </div>
 
         <!-- Scalper Panel -->
         <div id="panel-scalper">
@@ -157,6 +233,85 @@
             </div>
         </div>
 
+        <!-- MAGA Panel -->
+        <div id="panel-maga" class="hidden">
+            <div class="grid md:grid-cols-3 gap-6">
+                <!-- Live Tweet Feed -->
+                <div class="glass rounded-lg p-5 border border-dark-600 md:col-span-1 h-[600px] flex flex-col">
+                    <div class="flex justify-between items-center mb-4 pb-2 border-b border-dark-600">
+                        <div class="flex items-center gap-2">
+                            <img src="https://pbs.twimg.com/profile_images/874276197357596672/kUuht00m_400x400.jpg" 
+                                 onerror="this.src='https://abs.twimg.com/sticky/default_profile_images/default_profile_400x400.png'"
+                                 class="w-8 h-8 rounded-full border border-gray-600">
+                            <div>
+                                <h2 class="text-sm font-bold text-white">Donald J. Trump</h2>
+                                <p class="text-xs text-gray-500">@realDonaldTrump</p>
+                            </div>
+                        </div>
+                        <span class="px-2 py-1 bg-accent-green/20 text-accent-green text-xs rounded animate-pulse">● LIVE</span>
+                    </div>
+                    <div id="magaFeed" class="flex-1 overflow-y-auto scrollbar-thin space-y-4 pr-2">
+                        <!-- Tweet Item (Template) -->
+                        <div class="p-3 bg-dark-900 rounded-lg border border-dark-700">
+                            <div class="flex justify-between text-xs text-gray-500 mb-2">
+                                <span>2m ago</span>
+                                <span class="text-accent-blue">#Tariff #China</span>
+                            </div>
+                            <p class="text-sm text-gray-300 mb-2">
+                                "We are going to put a HUGE tariff on China! They have been ripping us off for years. MAKE AMERICA GREAT AGAIN!"
+                            </p>
+                            <div class="p-2 bg-dark-800 rounded text-xs text-accent-yellow">
+                                🤖 <span class="font-bold">AI Insight:</span> Trade war escalation. Negative for export sectors.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analysis & Targets -->
+                <div class="glass rounded-lg p-5 border border-dark-600 md:col-span-2 flex flex-col">
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div class="p-4 bg-dark-900 rounded-lg border border-dark-700">
+                            <h3 class="text-xs text-gray-500 mb-1">Current Sentiment</h3>
+                            <div class="text-2xl font-bold text-accent-red">Aggressive (85%)</div>
+                            <p class="text-xs text-gray-400 mt-1">Key Topics: Tariffs, Border, Energy</p>
+                        </div>
+                        <div class="p-4 bg-dark-900 rounded-lg border border-dark-700">
+                            <h3 class="text-xs text-gray-500 mb-1">Market Impact</h3>
+                            <div class="text-2xl font-bold text-accent-yellow">Moderate Volatility</div>
+                            <p class="text-xs text-gray-400 mt-1">Sector Rotation Expected</p>
+                        </div>
+                    </div>
+
+                    <h3 class="text-sm font-semibold text-gray-300 mb-3">🎯 Target Stocks (AI Pick)</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="text-xs text-gray-500 uppercase bg-dark-800">
+                                <tr>
+                                    <th class="px-4 py-3">Keyword</th>
+                                    <th class="px-4 py-3">Related Stock</th>
+                                    <th class="px-4 py-3 text-center">Score</th>
+                                    <th class="px-4 py-3 text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="magaTargets" class="divide-y divide-dark-700">
+                                <tr class="hover:bg-dark-700">
+                                    <td class="px-4 py-3 text-accent-blue">#Tariff</td>
+                                    <td class="px-4 py-3">
+                                        <div class="font-bold">Union Steel (004850)</div>
+                                        <div class="text-xs text-gray-500">Steel / Export limit benefit</div>
+                                    </td>
+                                    <td class="px-4 py-3 text-center text-accent-green">92</td>
+                                    <td class="px-4 py-3 text-right">
+                                        <button class="px-3 py-1 bg-accent-blue hover:bg-blue-600 rounded text-xs text-white">Add Watchlist</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Screener Panel -->
         <div id="panel-screener" class="hidden">
             <div class="glass rounded-lg p-5 border border-dark-600 mb-6">
@@ -202,6 +357,7 @@
                             data-i18n="search">Search</button>
                     </div>
                 </form>
+                <div id="screenerTime" class="text-xs text-right text-gray-500 mt-2">Data Time: -</div>
             </div>
 
             <div class="glass rounded-lg border border-dark-600 overflow-hidden">
@@ -581,6 +737,34 @@
                         <div id="globalAnalysis" class="text-gray-500" data-i18n="market_data_refresh">
                             Market data will appear after refresh
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Macro Panel -->
+            <div id="panel-macro" class="hidden">
+                <div class="glass rounded-lg p-5 border border-dark-600 mb-6">
+                    <h2 class="text-sm font-semibold text-gray-400 mb-4 pb-2 border-b border-dark-600" data-i18n="south_korea_trade">South Korea Trade Statistics</h2>
+                    <div class="h-96">
+                        <canvas id="tradeStatsChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="glass rounded-lg border border-dark-600 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-dark-700 text-gray-400">
+                                <tr>
+                                    <th class="px-4 py-3 text-left" data-i18n="date">Date</th>
+                                    <th class="px-4 py-3 text-right" data-i18n="export">Export ($B)</th>
+                                    <th class="px-4 py-3 text-right" data-i18n="import">Import ($B)</th>
+                                    <th class="px-4 py-3 text-right" data-i18n="trade_balance">Balance ($B)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tradeStatsBody" class="divide-y divide-dark-600">
+                                <!-- Dynamic content -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>

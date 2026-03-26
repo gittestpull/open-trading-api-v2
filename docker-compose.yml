@@ -32,7 +32,8 @@ services:
       - ./src/services/stock_master:/app/src/services/stock_master:rw
       - ./src/scalper/core_universal.py:/app/src/scalper/core_universal.py:rw
       - ./src/api:/app/src/api:rw
-      - ./src/web/static:/app/src/web/static:rw
+      - ./src/web:/app/src/web:rw
+      - ./src/strategies:/app/src/strategies:rw
       - ./tools:/app/tools:rw
 
     environment:
@@ -42,6 +43,7 @@ services:
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
       - PUBLIC_IP=${PUBLIC_IP}
       - WEB_PORT=${WEB_PORT:-8080}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/"]
       interval: 30s
@@ -63,6 +65,8 @@ services:
       - ./data/staging:/app/data:rw
       - ./web/config/staging/bots_config.json:/app/web/bots_config.json:rw
       - ./web/config/staging/blocked_ips.json:/app/web/blocked_ips.json:rw
+      - ./src/api:/app/src/api:rw
+      - ./src/web/static:/app/src/web/static:rw
     environment:
       - TZ=Asia/Seoul
       - ENV_TYPE=staging
@@ -70,6 +74,7 @@ services:
       - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-trading123}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - YOUTUBE_API_KEY=${YOUTUBE_API_KEY}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/"]
       interval: 30s
