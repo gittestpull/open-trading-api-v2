@@ -1281,6 +1281,56 @@ def create_app(base_dir: str) -> FastAPI:
 
         return {"grid_ladders": results}
 
+    class GridLadderUpdateConfig(BaseModel):
+        total_budget: Optional[int] = None
+        order_amount: Optional[int] = None
+        entry_tick_levels: Optional[List[int]] = None
+        trigger_level: Optional[int] = None
+
+    @app.put("/api/grid-ladder/config/{ticker}")
+    async def update_grid_config(ticker: str, req: GridLadderUpdateConfig, env_dv: str = "demo"):
+        t = ticker.upper()
+        key = _grid_key(t, env_dv)
+
+        # Update running instance
+        with _grid_lock:
+            if key in _grid_instances:
+                mgr = _grid_instances[key]
+                if req.total_budget is not None:
+                    mgr.config.total_budget = req.total_budget
+                if req.order_amount is not None:
+                    mgr.config.order_amount = req.order_amount
+                if req.entry_tick_levels is not None:
+                    mgr.config.entry_tick_levels = req.entry_tick_levels
+                if req.trigger_level is not None:
+                    mgr.config.trigger_level = req.trigger_level
+                from ..strategies.grid_ladder_manager import save_grid_state
+                save_grid_state(mgr)
+                return {"status": "updated", "ticker": t, "env_dv": env_dv}
+
+        # Update saved instance in DB
+        import sqlite3
+        from ..strategies.grid_ladder_manager import _get_db_path
+        conn = sqlite3.connect(_get_db_path())
+        updates = []
+        params = []
+        if req.total_budget is not None:
+            updates.append("total_budget=?"); params.append(req.total_budget)
+        if req.order_amount is not None:
+            updates.append("order_amount=?"); params.append(req.order_amount)
+        if req.entry_tick_levels is not None:
+            updates.append("entry_tick_levels=?"); params.append(json.dumps(req.entry_tick_levels))
+        if req.trigger_level is not None:
+            updates.append("trigger_level=?"); params.append(req.trigger_level)
+        if not updates:
+            raise HTTPException(status_code=400, detail="No fields to update")
+        updates.append("updated_at=datetime('now')")
+        params.extend([t, env_dv])
+        conn.execute(f"UPDATE grid_ladder_instances SET {', '.join(updates)} WHERE ticker=? AND env_dv=?", params)
+        conn.commit()
+        conn.close()
+        return {"status": "updated", "ticker": t, "env_dv": env_dv}
+
     @app.delete("/api/grid-ladder/saved/{ticker}")
     async def delete_saved_grid(ticker: str, env_dv: str = "demo"):
         t = ticker.upper()
