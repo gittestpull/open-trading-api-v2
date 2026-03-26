@@ -338,13 +338,29 @@
         } catch(e) { console.error(e); }
     }
 
+    let activeObTicker = ''; // Currently displayed in orderbook
+
     function selectStock(ticker, name) {
         tickerInput.value = ticker;
         stockNameEl.textContent = name;
         searchResults.classList.add('hidden');
-        // Auto-connect orderbook WS
-        connectOrderbookWS(ticker);
-        connectEventsWS(ticker);
+        switchTicker(ticker);
+    }
+
+    function switchTicker(ticker) {
+        if (!ticker) return;
+        activeObTicker = ticker.toUpperCase();
+        tickerInput.value = activeObTicker;
+        // Update orderbook header
+        const obHeader = document.querySelector('#obTime')?.parentElement?.querySelector('h2');
+        if (obHeader) obHeader.innerHTML = `📋 호가창 <span class="text-accent-blue text-sm font-normal ml-1">${activeObTicker}</span>`;
+        // Reconnect WS to new ticker
+        connectOrderbookWS(activeObTicker);
+        connectEventsWS(activeObTicker);
+        // Highlight active card
+        document.querySelectorAll('[data-instance-ticker]').forEach(el => {
+            el.classList.toggle('border-accent-blue', el.dataset.instanceTicker === activeObTicker);
+        });
     }
 
     // ── State ──
@@ -634,12 +650,10 @@
             }
         });
 
-        // Auto-connect WS to first active instance if not connected
+        // Auto-connect WS: prefer activeObTicker, else first instance
         if (filtered.length && (!wsOb || wsOb.readyState !== WebSocket.OPEN)) {
-            const t = filtered[0].ticker;
-            if (t && getTicker() !== t) { tickerInput.value = t; }
-            connectOrderbookWS(t);
-            connectEventsWS(t);
+            const t = activeObTicker || filtered[0].ticker;
+            switchTicker(t);
         }
     }
 
@@ -683,12 +697,13 @@
                 </table>
             </div>` : '';
 
+        const isActive = s.ticker === activeObTicker;
         return `
-        <div class="bg-dark-800 border ${isLive ? 'border-red-900/30' : 'border-green-900/30'} rounded-xl p-4">
+        <div data-instance-ticker="${s.ticker}" class="bg-dark-800 border ${isActive ? 'border-accent-blue' : isLive ? 'border-red-900/30' : 'border-green-900/30'} rounded-xl p-4 transition cursor-pointer" onclick="switchTicker('${s.ticker}')">
             <div class="flex justify-between items-center mb-2">
                 <div class="flex items-center gap-2">
                     ${envBadge}
-                    <span class="font-bold text-white">${s.ticker}</span>
+                    <span class="font-bold text-white cursor-pointer hover:text-accent-blue transition" onclick="switchTicker('${s.ticker}')">${s.ticker}</span>
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${statusClass} border">${statusBadge}</span>
                 </div>
                 <button onclick="stopInstance('${s.ticker}')" class="text-xs text-gray-500 hover:text-accent-red transition">⏹</button>
