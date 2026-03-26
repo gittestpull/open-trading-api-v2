@@ -176,3 +176,7 @@ web/blocked_ips.json
 .last_web_port
 *.log
 .cursorrules
+
+# Frontend build output
+frontend/.next/
+frontend/node_modules/

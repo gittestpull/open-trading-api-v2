@@ -501,11 +501,15 @@ class GridLadderManager:
         max_polls = 3600  # 최대 1시간 (1초 간격)
         
         for poll_count in range(max_polls):
+            if self._stop_requested:
+                logger.info("[감시중단] 사용자 정지 요청 수신")
+                return None
+            
             time.sleep(self.config.poll_interval)
             
             # 장 종료 체크 (15:30 이후)
             now = datetime.now(KST)
-            if now.hour >= 15 and now.minute >= 30:
+            if now.hour > 15 or (now.hour == 15 and now.minute >= 30):
                 logger.info("[장마감] 15:30 이후 — 감시 중단")
                 return None
             

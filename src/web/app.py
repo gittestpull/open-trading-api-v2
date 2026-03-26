@@ -22,24 +22,31 @@ from ..api.naver import get_naver_collector
 from ..api.report import report_search
 
 import json
+import time
 import secrets
 import re
+import logging
 from pathlib import Path
 from datetime import datetime
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi import Request, Depends, status
 
+logger = logging.getLogger(__name__)
+
 # Security Constants
 MAX_LOGIN_ATTEMPTS = 5
+LOGIN_ATTEMPT_TTL = 3600  # 1 hour TTL for login attempts
+MAX_LOGIN_ATTEMPT_ENTRIES = 10000  # Max entries before forced cleanup
 HONEYPOT_PASSWORD = "trading123"
 DEFAULT_SECURE_PASS = secrets.token_urlsafe(16)
 DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", DEFAULT_SECURE_PASS)
+WS_TOKEN = os.getenv("WS_TOKEN", DASHBOARD_PASSWORD)  # Token for WebSocket auth
 
 if DASHBOARD_PASSWORD == DEFAULT_SECURE_PASS:
     print(f"⚠️  NO PASSWORD SET! Generated secure password: {DASHBOARD_PASSWORD}")
 
 security = HTTPBasic()
-login_attempts: dict = {}
+login_attempts: dict = {}  # {ip: {"count": int, "first_at": float}}
 blocked_ips: dict = {}
 
 # Paths
@@ -136,8 +143,8 @@ def load_blocked_ips() -> dict:
         try:
             with open(BLOCKED_IPS_FILE, "r") as f:
                 return json.load(f)
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to load blocked IPs: {e}")
     return {}
 
 def save_blocked_ips(blocked: dict):
@@ -164,17 +171,42 @@ def check_rate_limit(request: Request):
         )
     return ip
 
+def _cleanup_login_attempts():
+    """Remove expired login attempt entries (TTL-based cleanup)"""
+    now = time.time()
+    expired = [ip for ip, data in login_attempts.items()
+               if now - data.get("first_at", 0) > LOGIN_ATTEMPT_TTL]
+    for ip in expired:
+        del login_attempts[ip]
+
 def record_failed_attempt(ip: str):
+    # Cleanup if dict is too large (bot scanner protection)
+    if len(login_attempts) > MAX_LOGIN_ATTEMPT_ENTRIES:
+        _cleanup_login_attempts()
+    # Force eviction if still too large after TTL cleanup
+    if len(login_attempts) > MAX_LOGIN_ATTEMPT_ENTRIES:
+        oldest_ip = min(login_attempts, key=lambda k: login_attempts[k].get("first_at", 0))
+        del login_attempts[oldest_ip]
+
+    now = time.time()
     if ip not in login_attempts:
-        login_attempts[ip] = 0
-    login_attempts[ip] += 1
+        login_attempts[ip] = {"count": 0, "first_at": now}
     
-    if login_attempts[ip] >= MAX_LOGIN_ATTEMPTS:
+    entry = login_attempts[ip]
+    # Reset if TTL expired
+    if now - entry.get("first_at", 0) > LOGIN_ATTEMPT_TTL:
+        entry["count"] = 0
+        entry["first_at"] = now
+    
+    entry["count"] += 1
+    
+    if entry["count"] >= MAX_LOGIN_ATTEMPTS:
         blocked_ips[ip] = {
             "blocked_at": datetime.now().isoformat(),
             "reason": "Excessive Login Failures"
         }
         save_blocked_ips(blocked_ips)
+        del login_attempts[ip]  # Clean up after blocking
         print(f"🚫 IP {ip} PERMANENTLY BLOCKED")
 
 def verify_password(request: Request, credentials: HTTPBasicCredentials = Depends(security)):
@@ -203,8 +235,7 @@ def verify_password(request: Request, credentials: HTTPBasicCredentials = Depend
             headers={"WWW-Authenticate": "Basic"},
         )
     
-    if ip in login_attempts:
-        del login_attempts[ip]
+    login_attempts.pop(ip, None)
     return credentials.username
 
 
@@ -255,8 +286,15 @@ def create_app(base_dir: str) -> FastAPI:
         recommender = get_recommender()
         return await recommender.get_market_recommendations()
 
+    # ── WebSocket token verification helper ──
+    def _verify_ws_token(token: Optional[str]) -> bool:
+        """Verify WebSocket token query parameter"""
+        if not token:
+            return False
+        return secrets.compare_digest(token, WS_TOKEN)
+
     @app.post("/api/scalper/start")
-    async def start_scalper(req: StartScalperRequest):
+    async def start_scalper(req: StartScalperRequest, _user: str = Depends(verify_password)):
         result = manager.start_scalper(
             ticker=req.ticker,
             budget=req.budget,
@@ -272,7 +310,7 @@ def create_app(base_dir: str) -> FastAPI:
         return result
     
     @app.post("/api/scalper/stop/{ticker}")
-    async def stop_scalper(ticker: str):
+    async def stop_scalper(ticker: str, _user: str = Depends(verify_password)):
         result = manager.stop_scalper(ticker)
         if "error" in result:
             raise HTTPException(status_code=400, detail=result["error"])
@@ -292,7 +330,10 @@ def create_app(base_dir: str) -> FastAPI:
         return {"states": manager.get_state_files()}
     
     @app.websocket("/ws/logs/{ticker}")
-    async def websocket_logs(websocket: WebSocket, ticker: str):
+    async def websocket_logs(websocket: WebSocket, ticker: str, token: Optional[str] = None):
+        if not _verify_ws_token(token):
+            await websocket.close(code=4001, reason="Unauthorized")
+            return
         await websocket.accept()
         ticker_key = ticker.upper()
         last_count = 0
@@ -313,7 +354,10 @@ def create_app(base_dir: str) -> FastAPI:
             pass
     
     @app.websocket("/ws/collection-logs")
-    async def websocket_collection_logs(websocket: WebSocket):
+    async def websocket_collection_logs(websocket: WebSocket, token: Optional[str] = None):
+        if not _verify_ws_token(token):
+            await websocket.close(code=4001, reason="Unauthorized")
+            return
         await websocket.accept()
         
         async def send_log(log_entry: dict):
@@ -745,7 +789,7 @@ def create_app(base_dir: str) -> FastAPI:
         return summary
     
     @app.post("/api/simulator/buy")
-    async def simulator_buy(req: SimulatorTradeRequest):
+    async def simulator_buy(req: SimulatorTradeRequest, _user: str = Depends(verify_password)):
         result = simulator.buy(
             ticker=req.ticker,
             price=req.price,
@@ -757,7 +801,7 @@ def create_app(base_dir: str) -> FastAPI:
         return result
     
     @app.post("/api/simulator/sell")
-    async def simulator_sell(req: SimulatorTradeRequest):
+    async def simulator_sell(req: SimulatorTradeRequest, _user: str = Depends(verify_password)):
         result = simulator.sell(
             ticker=req.ticker,
             price=req.price,
@@ -773,7 +817,7 @@ def create_app(base_dir: str) -> FastAPI:
         return {"trades": trades, "count": len(trades)}
     
     @app.post("/api/simulator/reset")
-    async def reset_simulator(initial_capital: float = 10000000):
+    async def reset_simulator(initial_capital: float = 10000000, _user: str = Depends(verify_password)):
         simulator.reset(initial_capital)
         return {"status": "reset", "initial_capital": initial_capital}
     
@@ -783,7 +827,7 @@ def create_app(base_dir: str) -> FastAPI:
         return state
     
     @app.post("/api/simulator/import")
-    async def import_simulator_state(data: dict):
+    async def import_simulator_state(data: dict, _user: str = Depends(verify_password)):
         simulator.import_state(data)
         return {"status": "imported"}
     
@@ -804,21 +848,21 @@ def create_app(base_dir: str) -> FastAPI:
         return {"success": success}
     
     @app.get("/api/admin/scheduler/status")
-    async def scheduler_status():
+    async def scheduler_status(_user: str = Depends(verify_password)):
         return scheduler.get_status()
     
     @app.post("/api/admin/scheduler/start")
-    async def start_scheduler(hour: int = 15, minute: int = 50):
+    async def start_scheduler(hour: int = 15, minute: int = 50, _user: str = Depends(verify_password)):
         scheduler.start(hour=hour, minute=minute)
         return {"status": "started", "schedule": f"{hour:02d}:{minute:02d}"}
     
     @app.post("/api/admin/scheduler/stop")
-    async def stop_scheduler():
+    async def stop_scheduler(_user: str = Depends(verify_password)):
         scheduler.stop()
         return {"status": "stopped"}
     
     @app.post("/api/admin/collect")
-    async def trigger_collection(background_tasks: BackgroundTasks, force: bool = False, detect_changes: bool = False):
+    async def trigger_collection(background_tasks: BackgroundTasks, force: bool = False, detect_changes: bool = False, _user: str = Depends(verify_password)):
         async def run_collection():
             await scheduler.run_now(force=force, detect_changes=detect_changes)
         
@@ -827,7 +871,7 @@ def create_app(base_dir: str) -> FastAPI:
         return {"status": "collection_started", "force": force, "detect_changes": detect_changes, "message": f"{mode}Data collection started in background"}
     
     @app.post("/api/admin/load-stocks")
-    async def load_stocks():
+    async def load_stocks(_user: str = Depends(verify_password)):
         count = await scheduler.load_stocks_only()
         return {"status": "success", "count": count}
 
@@ -835,7 +879,7 @@ def create_app(base_dir: str) -> FastAPI:
         tickers: list[str]
 
     @app.post("/api/admin/minute-tickers")
-    async def set_minute_tickers(req: MinuteTickersRequest):
+    async def set_minute_tickers(req: MinuteTickersRequest, _user: str = Depends(verify_password)):
         await scheduler.set_minute_tickers(req.tickers)
         scheduler.start_minute_collection()
         return {"status": "success", "tickers": req.tickers}
@@ -846,7 +890,7 @@ def create_app(base_dir: str) -> FastAPI:
         return {"tickers": status.get('minute_tickers', [])}
 
     @app.post("/api/admin/minute-collect-now")
-    async def collect_minute_now(background_tasks: BackgroundTasks):
+    async def collect_minute_now(background_tasks: BackgroundTasks, _user: str = Depends(verify_password)):
         async def run():
             return await scheduler.run_minute_now()
         background_tasks.add_task(run)
@@ -861,7 +905,10 @@ def create_app(base_dir: str) -> FastAPI:
         return {"logs": logs}
     
     @app.websocket("/ws/maga")
-    async def websocket_maga(websocket: WebSocket):
+    async def websocket_maga(websocket: WebSocket, token: Optional[str] = None):
+        if not _verify_ws_token(token):
+            await websocket.close(code=4001, reason="Unauthorized")
+            return
         await websocket.accept()
         maga_engine = get_maga_engine()
         
@@ -948,20 +995,16 @@ def create_app(base_dir: str) -> FastAPI:
         await get_maga_engine().start()
     
     @app.on_event("shutdown")
-    def shutdown_event():
+    async def shutdown_event():
         manager.cleanup()
         scheduler.stop()
         get_maga_engine().stop()
-        _grid_cleanup()
-        # Stop WS engines (best-effort sync wrapper)
+        await _grid_cleanup_async()
+        # Stop WS engines
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                loop.create_task(stop_all_engines())
-            else:
-                loop.run_until_complete(stop_all_engines())
-        except Exception:
-            pass
+            await stop_all_engines()
+        except Exception as e:
+            logger.warning(f"Error stopping WS engines: {e}")
     
     # History Collection Endpoints
     from ..api import get_history_collector
@@ -1062,13 +1105,13 @@ def create_app(base_dir: str) -> FastAPI:
         delete_grid_state, _init_grid_table, price_n_ticks_below
     )
 
-    _grid_lock = threading.Lock()
+    _grid_lock = asyncio.Lock()
     _grid_instances: dict[str, GridLadderManager] = {}
     _grid_tasks: dict[str, asyncio.Task] = {}
 
-    def _grid_cleanup():
+    async def _grid_cleanup_async():
         """Shutdown: cancel tasks + cancel pending orders"""
-        with _grid_lock:
+        async with _grid_lock:
             for ticker, task in _grid_tasks.items():
                 if not task.done():
                     task.cancel()
@@ -1076,8 +1119,8 @@ def create_app(base_dir: str) -> FastAPI:
                 for ono, order in list(mgr.pending_orders.items()):
                     try:
                         mgr._cancel_order(order)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"Failed to cancel order {ono}: {e}")
             _grid_tasks.clear()
             _grid_instances.clear()
 
@@ -1089,8 +1132,26 @@ def create_app(base_dir: str) -> FastAPI:
             row = conn.execute("SELECT name FROM stock_info WHERE ticker=?", (ticker,)).fetchone()
             conn.close()
             return row[0] if row else ticker
-        except:
+        except Exception as e:
+            logger.debug(f"Failed to get stock name for {ticker}: {e}")
             return ticker
+
+    # KIS auth cache for _recalc_saved_pending
+    _kis_auth_cache = {"authenticated": False, "last_auth_time": 0.0}
+    _KIS_AUTH_TTL = 300  # Re-auth every 5 minutes max
+
+    def _ensure_kis_auth():
+        """Cached KIS auth — avoids re-auth on every 5-second poll"""
+        now = time.time()
+        if _kis_auth_cache["authenticated"] and (now - _kis_auth_cache["last_auth_time"]) < _KIS_AUTH_TTL:
+            return
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'core'))
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'examples_user', 'domestic_stock'))
+        import kis_auth as ka
+        ka.auth(svr="prod")
+        _kis_auth_cache["authenticated"] = True
+        _kis_auth_cache["last_auth_time"] = now
 
     def _recalc_saved_pending(saved_row: dict) -> dict:
         """Saved 상태의 pending 주문을 현재가 기준으로 재계산"""
@@ -1101,7 +1162,7 @@ def create_app(base_dir: str) -> FastAPI:
             import kis_auth as ka
             import domestic_stock_functions as ds
             
-            ka.auth(svr="prod")
+            _ensure_kis_auth()
             ticker = saved_row['ticker']
             
             # 현재가 조회
@@ -1138,7 +1199,7 @@ def create_app(base_dir: str) -> FastAPI:
         except Exception as e:
             return saved_row
 
-    def _build_saved_response(s: dict, recalc: bool = True) -> dict:
+    def _build_saved_response(s: dict, recalc: bool = False) -> dict:
         """DB row → API response"""
         result = {
             "ticker": s['ticker'], "name": _get_stock_name(s['ticker']), "running": False, "saved": True,
@@ -1173,10 +1234,10 @@ def create_app(base_dir: str) -> FastAPI:
         return f"{ticker.upper()}:{env_dv}"
 
     @app.post("/api/grid-ladder/start")
-    async def start_grid_ladder(req: GridLadderStartRequest):
+    async def start_grid_ladder(req: GridLadderStartRequest, _user: str = Depends(verify_password)):
         ticker = req.ticker.upper()
         key = _grid_key(ticker, req.env_dv)
-        with _grid_lock:
+        async with _grid_lock:
             if key in _grid_tasks and not _grid_tasks[key].done():
                 raise HTTPException(status_code=400, detail=f"{ticker} ({req.env_dv}) already running")
 
@@ -1191,7 +1252,7 @@ def create_app(base_dir: str) -> FastAPI:
         )
         mgr = GridLadderManager(config)
 
-        with _grid_lock:
+        async with _grid_lock:
             _grid_instances[key] = mgr
 
         async def _run_grid():
@@ -1199,7 +1260,7 @@ def create_app(base_dir: str) -> FastAPI:
             await loop.run_in_executor(None, mgr.run)
 
         task = asyncio.create_task(_run_grid())
-        with _grid_lock:
+        async with _grid_lock:
             _grid_tasks[key] = task
 
         return {
@@ -1213,7 +1274,7 @@ def create_app(base_dir: str) -> FastAPI:
         }
 
     @app.post("/api/grid-ladder/stop/{ticker}")
-    async def stop_grid_ladder(ticker: str, env_dv: str = "real"):
+    async def stop_grid_ladder(ticker: str, env_dv: str = "real", _user: str = Depends(verify_password)):
         t = ticker.upper()
         key = _grid_key(t, env_dv)
         # Also try without env for backward compat
@@ -1227,7 +1288,7 @@ def create_app(base_dir: str) -> FastAPI:
             else:
                 raise HTTPException(status_code=400, detail=f"Multiple instances for {t}. Specify env_dv=real or env_dv=demo")
 
-        with _grid_lock:
+        async with _grid_lock:
             if key in _grid_instances:
                 _grid_instances[key].request_stop()
             task = _grid_tasks.get(key)
@@ -1236,8 +1297,10 @@ def create_app(base_dir: str) -> FastAPI:
             if key in _grid_instances:
                 mgr = _grid_instances[key]
                 for ono, order in list(mgr.pending_orders.items()):
-                    try: mgr._cancel_order(order)
-                    except: pass
+                    try:
+                        mgr._cancel_order(order)
+                    except Exception as e:
+                        logger.warning(f"Failed to cancel order {ono}: {e}")
                 mgr.pending_orders.clear()
             status_data = _grid_instances[key].get_status() if key in _grid_instances else {}
             _grid_tasks.pop(key, None)
@@ -1247,7 +1310,7 @@ def create_app(base_dir: str) -> FastAPI:
 
     @app.get("/api/grid-ladder/status")
     async def grid_ladder_status(ticker: Optional[str] = None, include_saved: bool = True):
-        with _grid_lock:
+        async with _grid_lock:
             if ticker:
                 t = ticker.upper()
                 matches = {k: v for k, v in _grid_instances.items() if k.startswith(t + ":") or k == t}
@@ -1299,12 +1362,12 @@ def create_app(base_dir: str) -> FastAPI:
         trigger_level: Optional[int] = None
 
     @app.put("/api/grid-ladder/config/{ticker}")
-    async def update_grid_config(ticker: str, req: GridLadderUpdateConfig, env_dv: str = "demo"):
+    async def update_grid_config(ticker: str, req: GridLadderUpdateConfig, env_dv: str = "demo", _user: str = Depends(verify_password)):
         t = ticker.upper()
         key = _grid_key(t, env_dv)
 
         # Update running instance
-        with _grid_lock:
+        async with _grid_lock:
             if key in _grid_instances:
                 mgr = _grid_instances[key]
                 if req.total_budget is not None:
@@ -1343,7 +1406,7 @@ def create_app(base_dir: str) -> FastAPI:
         return {"status": "updated", "ticker": t, "env_dv": env_dv}
 
     @app.delete("/api/grid-ladder/saved/{ticker}")
-    async def delete_saved_grid(ticker: str, env_dv: str = "demo"):
+    async def delete_saved_grid(ticker: str, env_dv: str = "demo", _user: str = Depends(verify_password)):
         t = ticker.upper()
         delete_grid_state(t, env_dv)
         return {"status": "deleted", "ticker": t, "env_dv": env_dv}
@@ -1355,20 +1418,20 @@ def create_app(base_dir: str) -> FastAPI:
         if key not in _grid_instances:
             matches = [k for k in _grid_instances if k.startswith(t + ":")]
             key = matches[0] if matches else key
-        with _grid_lock:
+        async with _grid_lock:
             if key not in _grid_instances:
                 raise HTTPException(status_code=404, detail=f"{t} not found")
             logs = list(_grid_instances[key].trade_log)
         return {"ticker": t, "trade_log": logs}
 
     @app.post("/api/grid-ladder/retry/{ticker}")
-    async def grid_ladder_retry(ticker: str, env_dv: str = "real"):
+    async def grid_ladder_retry(ticker: str, env_dv: str = "real", _user: str = Depends(verify_password)):
         t = ticker.upper()
         key = _grid_key(t, env_dv)
         if key not in _grid_instances:
             matches = [k for k in _grid_instances if k.startswith(t + ":")]
             key = matches[0] if matches else key
-        with _grid_lock:
+        async with _grid_lock:
             if key not in _grid_instances:
                 raise HTTPException(status_code=404, detail=f"{t} not found")
             mgr = _grid_instances[key]
@@ -1378,13 +1441,13 @@ def create_app(base_dir: str) -> FastAPI:
         return {"status": "resumed", "ticker": t}
 
     @app.post("/api/grid-ladder/skip/{ticker}")
-    async def grid_ladder_skip(ticker: str, env_dv: str = "real"):
+    async def grid_ladder_skip(ticker: str, env_dv: str = "real", _user: str = Depends(verify_password)):
         t = ticker.upper()
         key = _grid_key(t, env_dv)
         if key not in _grid_instances:
             matches = [k for k in _grid_instances if k.startswith(t + ":")]
             key = matches[0] if matches else key
-        with _grid_lock:
+        async with _grid_lock:
             if key not in _grid_instances:
                 raise HTTPException(status_code=404, detail=f"{t} not found")
             mgr = _grid_instances[key]
@@ -1399,8 +1462,11 @@ def create_app(base_dir: str) -> FastAPI:
     from ..strategies.grid_ws_engine import get_or_create_engine, stop_engine, stop_all_engines
 
     @app.websocket("/ws/grid-ladder/orderbook/{ticker}")
-    async def ws_grid_orderbook(websocket: WebSocket, ticker: str):
+    async def ws_grid_orderbook(websocket: WebSocket, ticker: str, token: Optional[str] = None):
         """Stream real-time orderbook data to frontend"""
+        if not _verify_ws_token(token):
+            await websocket.close(code=4001, reason="Unauthorized")
+            return
         await websocket.accept()
         t = ticker.upper()
         engine = None
@@ -1430,8 +1496,11 @@ def create_app(base_dir: str) -> FastAPI:
                 engine.unsubscribe_orderbook(t, q)
 
     @app.websocket("/ws/grid-ladder/events/{ticker}")
-    async def ws_grid_events(websocket: WebSocket, ticker: str):
+    async def ws_grid_events(websocket: WebSocket, ticker: str, token: Optional[str] = None):
         """Stream grid ladder events (fill, order, cancel, error) to frontend"""
+        if not _verify_ws_token(token):
+            await websocket.close(code=4001, reason="Unauthorized")
+            return
         await websocket.accept()
         t = ticker.upper()
         engine = None

@@ -164,9 +164,9 @@ class GridWSEngine:
                 q.put_nowait(data)
             except asyncio.QueueFull:
                 try: q.get_nowait()
-                except: pass
+                except Exception: pass
                 try: q.put_nowait(data)
-                except: dead.append(q)
+                except Exception: dead.append(q)
         for q in dead:
             clients.discard(q)
 
@@ -178,9 +178,9 @@ class GridWSEngine:
                 q.put_nowait(event)
             except asyncio.QueueFull:
                 try: q.get_nowait()
-                except: pass
+                except Exception: pass
                 try: q.put_nowait(event)
-                except: dead.append(q)
+                except Exception: dead.append(q)
         for q in dead:
             clients.discard(q)
         self._write_log(ticker, event.get("type", "event"), event)
@@ -230,7 +230,7 @@ class GridWSEngine:
         
         if len(fields) > 59 and fields[59]:
             try: ob.current_price = int(fields[59])
-            except: pass
+            except (ValueError, TypeError): pass
         
         if len(fields) > 50 and fields[50]:
             try:
@@ -239,7 +239,7 @@ class GridWSEngine:
                     ob.price_change = ob.current_price - abs(raw_val)
                 else:
                     ob.price_change = raw_val
-            except: pass
+            except (ValueError, TypeError): pass
         
         return ticker
 
@@ -315,6 +315,15 @@ class GridWSEngine:
             msg = self._build_sub_msg("H0STASP0", t, tr_type="2")
             await self._kis_ws.send(json.dumps(msg))
             logger.info(f"[GridWSEngine] Unsubscribed H0STASP0 for {t}")
+        # Close JSONL log file for this ticker
+        if t in self._log_files:
+            try:
+                self._log_files[t].close()
+            except Exception as e:
+                logger.warning(f"[GridWSEngine] Failed to close log file for {t}: {e}")
+            del self._log_files[t]
+        # Clean up orderbook state
+        self._orderbooks.pop(t, None)
 
     async def _kis_connect(self):
         """Connect to KIS WebSocket"""
@@ -474,15 +483,17 @@ class GridWSEngine:
         self._running = False
         if self._kis_ws:
             try: await self._kis_ws.close()
-            except: pass
+            except Exception as e: logger.debug(f"WS close error: {e}")
         if self._kis_task and not self._kis_task.done():
             self._kis_task.cancel()
             try: await self._kis_task
-            except: pass
-        for f in self._log_files.values():
+            except (asyncio.CancelledError, Exception): pass
+        for ticker, f in self._log_files.items():
             try: f.close()
-            except: pass
+            except Exception as e: logger.debug(f"Log close error for {ticker}: {e}")
         self._log_files.clear()
+        self._subscribed_tickers.clear()
+        self._orderbooks.clear()
         logger.info(f"[GridWSEngine] Stopped")
 
     def get_current_orderbook(self, ticker: str) -> dict:
