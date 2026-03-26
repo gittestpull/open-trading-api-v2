@@ -90,119 +90,111 @@ class OrderbookState:
 class GridWSEngine:
     """
     KIS WebSocket → 실시간 호가/체결통보 수신 → Frontend WS 브로드캐스트 + JSONL 로깅
+    
+    싱글톤: 1개의 KIS WS 연결로 다수 종목 구독 (KIS 제한: appkey당 1 연결)
     """
 
-    def __init__(self, ticker: str, env_dv: str = "real"):
-        self.ticker = ticker.upper()
+    def __init__(self, env_dv: str = "real"):
         self.env_dv = env_dv
-        self.orderbook = OrderbookState(ticker=self.ticker)
+        
+        # Multi-ticker orderbook state
+        self._orderbooks: Dict[str, OrderbookState] = {}
+        self._subscribed_tickers: Set[str] = set()
 
-        # Frontend WebSocket clients
-        self._orderbook_clients: Set[asyncio.Queue] = set()
-        self._event_clients: Set[asyncio.Queue] = set()
+        # Frontend WebSocket clients per ticker
+        self._orderbook_clients: Dict[str, Set[asyncio.Queue]] = {}  # {ticker: set(queues)}
+        self._event_clients: Dict[str, Set[asyncio.Queue]] = {}     # {ticker: set(queues)}
 
         # KIS WS state
         self._kis_ws = None
         self._kis_task: Optional[asyncio.Task] = None
         self._running = False
         self._data_map: Dict[str, dict] = {}
+        self._approval_key: str = ""
 
         # JSONL log
         self._log_dir = os.path.join(ROOT_DIR, "logs")
         os.makedirs(self._log_dir, exist_ok=True)
-        today = datetime.now(KST).strftime("%Y%m%d")
-        self._log_path = os.path.join(self._log_dir, f"grid_ladder_{self.ticker}_{today}.jsonl")
-        self._log_file = None
+        self._log_files: Dict[str, any] = {}  # {ticker: file}
 
     # ── Logging ──────────────────────────────────────────────
 
-    def _open_log(self):
-        if self._log_file is None:
-            self._log_file = open(self._log_path, "a", encoding="utf-8")
-
-    def _write_log(self, event_type: str, data: dict):
-        self._open_log()
-        entry = {
-            "ts": datetime.now(KST).isoformat(),
-            "event": event_type,
-            "data": data,
-        }
-        self._log_file.write(json.dumps(entry, ensure_ascii=False) + "\n")
-        self._log_file.flush()
+    def _write_log(self, ticker: str, event_type: str, data: dict):
+        if ticker not in self._log_files:
+            today = datetime.now(KST).strftime("%Y%m%d")
+            path = os.path.join(self._log_dir, f"grid_ladder_{ticker}_{today}.jsonl")
+            self._log_files[ticker] = open(path, "a", encoding="utf-8")
+        entry = {"ts": datetime.now(KST).isoformat(), "event": event_type, "data": data}
+        self._log_files[ticker].write(json.dumps(entry, ensure_ascii=False) + "\n")
+        self._log_files[ticker].flush()
 
     # ── Frontend client management ───────────────────────────
 
-    def subscribe_orderbook(self) -> asyncio.Queue:
+    def subscribe_orderbook(self, ticker: str) -> asyncio.Queue:
+        t = ticker.upper()
         q: asyncio.Queue = asyncio.Queue(maxsize=100)
-        self._orderbook_clients.add(q)
+        if t not in self._orderbook_clients:
+            self._orderbook_clients[t] = set()
+        self._orderbook_clients[t].add(q)
         return q
 
-    def unsubscribe_orderbook(self, q: asyncio.Queue):
-        self._orderbook_clients.discard(q)
+    def unsubscribe_orderbook(self, ticker: str, q: asyncio.Queue):
+        t = ticker.upper()
+        if t in self._orderbook_clients:
+            self._orderbook_clients[t].discard(q)
 
-    def subscribe_events(self) -> asyncio.Queue:
+    def subscribe_events(self, ticker: str) -> asyncio.Queue:
+        t = ticker.upper()
         q: asyncio.Queue = asyncio.Queue(maxsize=200)
-        self._event_clients.add(q)
+        if t not in self._event_clients:
+            self._event_clients[t] = set()
+        self._event_clients[t].add(q)
         return q
 
-    def unsubscribe_events(self, q: asyncio.Queue):
-        self._event_clients.discard(q)
+    def unsubscribe_events(self, ticker: str, q: asyncio.Queue):
+        t = ticker.upper()
+        if t in self._event_clients:
+            self._event_clients[t].discard(q)
 
-    async def _broadcast_orderbook(self, data: dict):
+    async def _broadcast_orderbook(self, ticker: str, data: dict):
+        clients = self._orderbook_clients.get(ticker, set())
         dead = []
-        for q in self._orderbook_clients:
+        for q in clients:
             try:
                 q.put_nowait(data)
             except asyncio.QueueFull:
-                # Drop oldest, push new
-                try:
-                    q.get_nowait()
-                except asyncio.QueueEmpty:
-                    pass
-                try:
-                    q.put_nowait(data)
-                except Exception:
-                    dead.append(q)
+                try: q.get_nowait()
+                except: pass
+                try: q.put_nowait(data)
+                except: dead.append(q)
         for q in dead:
-            self._orderbook_clients.discard(q)
+            clients.discard(q)
 
-    async def broadcast_event(self, event: dict):
-        """Public: grid ladder manager can push events (fill, order, cancel, error)"""
+    async def broadcast_event(self, ticker: str, event: dict):
+        clients = self._event_clients.get(ticker, set())
         dead = []
-        for q in self._event_clients:
+        for q in clients:
             try:
                 q.put_nowait(event)
             except asyncio.QueueFull:
-                try:
-                    q.get_nowait()
-                except asyncio.QueueEmpty:
-                    pass
-                try:
-                    q.put_nowait(event)
-                except Exception:
-                    dead.append(q)
+                try: q.get_nowait()
+                except: pass
+                try: q.put_nowait(event)
+                except: dead.append(q)
         for q in dead:
-            self._event_clients.discard(q)
-        # Also log
-        self._write_log(event.get("type", "event"), event)
+            clients.discard(q)
+        self._write_log(ticker, event.get("type", "event"), event)
 
     # ── Parse KIS WS messages ────────────────────────────────
 
-    def _parse_orderbook_raw(self, fields: list):
+    def _parse_orderbook_raw(self, fields: list) -> Optional[str]:
         """
-        Parse H0STASP0 raw fields directly (bypass pd column mapping).
-        KIS real data has 62 fields:
-          [0]=ticker, [1]=time, [2]=hour_cls
-          [3..12] = ASKP1~10 (매도호가, 오름차순)
-          [13..22] = BIDP1~10 (매수호가, 내림차순)
-          [23..32] = ASKP_RSQN1~10 (매도잔량)
-          [33..42] = BIDP_RSQN1~10 (매수잔량)
-          [43] = TOTAL_ASKP_RSQN
-          [44] = TOTAL_BIDP_RSQN
-          ... (나머지 예상체결 등)
+        Parse H0STASP0 raw fields. Returns ticker.
         """
         if len(fields) < 45:
-            return
+            return None
+        
+        ticker = fields[0].strip() if fields[0] else ""
 
         asks = []
         bids = []
@@ -224,33 +216,32 @@ class GridWSEngine:
         raw_time = fields[1] if len(fields) > 1 else ""
         formatted_time = f"{raw_time[:2]}:{raw_time[2:4]}:{raw_time[4:6]}" if len(raw_time) >= 6 else raw_time
 
-        self.orderbook.asks = asks
-        self.orderbook.bids = bids
-        self.orderbook.total_ask_qty = int(fields[43] or 0) if len(fields) > 43 else 0
-        self.orderbook.total_bid_qty = int(fields[44] or 0) if len(fields) > 44 else 0
-        self.orderbook.acml_vol = int(fields[53] or 0) if len(fields) > 53 else 0
-        self.orderbook.time = formatted_time
+        # Get or create orderbook for this ticker
+        if ticker not in self._orderbooks:
+            self._orderbooks[ticker] = OrderbookState(ticker=ticker)
+        ob = self._orderbooks[ticker]
         
-        # 현재가: field[59] (마지막 체결가) or 매수1/매도1 중간값
+        ob.asks = asks
+        ob.bids = bids
+        ob.total_ask_qty = int(fields[43] or 0) if len(fields) > 43 else 0
+        ob.total_bid_qty = int(fields[44] or 0) if len(fields) > 44 else 0
+        ob.acml_vol = int(fields[53] or 0) if len(fields) > 53 else 0
+        ob.time = formatted_time
+        
         if len(fields) > 59 and fields[59]:
-            try:
-                self.orderbook.current_price = int(fields[59])
-            except (ValueError, TypeError):
-                pass
+            try: ob.current_price = int(fields[59])
+            except: pass
         
-        # 전일대비: field[50]의 절대값이 현재가보다 크면 전일종가임
-        # 실제 전일대비 = 현재가 - |field[50]|
         if len(fields) > 50 and fields[50]:
             try:
                 raw_val = int(fields[50])
-                if abs(raw_val) > 1000 and self.orderbook.current_price > 0:
-                    # field[50]은 전일종가(음수 부호 포함)
-                    prev_close = abs(raw_val)
-                    self.orderbook.price_change = self.orderbook.current_price - prev_close
+                if abs(raw_val) > 1000 and ob.current_price > 0:
+                    ob.price_change = ob.current_price - abs(raw_val)
                 else:
-                    self.orderbook.price_change = raw_val
-            except (ValueError, TypeError):
-                pass
+                    ob.price_change = raw_val
+            except: pass
+        
+        return ticker
 
     def _parse_orderbook(self, row: pd.Series):
         """Fallback: parse from DataFrame row (unused if raw parsing works)"""
@@ -291,56 +282,55 @@ class GridWSEngine:
 
     # ── KIS WebSocket connection ─────────────────────────────
 
+    def _build_sub_msg(self, tr_id: str, tr_key: str, tr_type: str = "1") -> dict:
+        """Build KIS WS subscription message"""
+        return {
+            "header": {
+                "approval_key": self._approval_key,
+                "custtype": "P",
+                "tr_type": tr_type,
+                "content-type": "utf-8",
+            },
+            "body": {"input": {"tr_id": tr_id, "tr_key": tr_key}},
+        }
+
+    async def subscribe_ticker(self, ticker: str):
+        """Subscribe to orderbook for a new ticker on existing WS"""
+        t = ticker.upper()
+        if t in self._subscribed_tickers:
+            return
+        self._subscribed_tickers.add(t)
+        if self._kis_ws:
+            msg = self._build_sub_msg("H0STASP0", t)
+            await self._kis_ws.send(json.dumps(msg))
+            logger.info(f"[GridWSEngine] Subscribed H0STASP0 for {t}")
+
+    async def unsubscribe_ticker(self, ticker: str):
+        """Unsubscribe from orderbook for a ticker"""
+        t = ticker.upper()
+        if t not in self._subscribed_tickers:
+            return
+        self._subscribed_tickers.discard(t)
+        if self._kis_ws:
+            msg = self._build_sub_msg("H0STASP0", t, tr_type="2")
+            await self._kis_ws.send(json.dumps(msg))
+            logger.info(f"[GridWSEngine] Unsubscribed H0STASP0 for {t}")
+
     async def _kis_connect(self):
-        """Connect to KIS WebSocket, subscribe to orderbook + execution notices"""
-        # Auth (sync calls — run in executor)
+        """Connect to KIS WebSocket"""
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, lambda: ka.auth(svr="prod"))
         await loop.run_in_executor(None, lambda: ka.auth_ws(svr="prod"))
         
         env = ka.getTREnv()
-        # approval_key is stored in ka._base_headers_ws
-        approval_key = ka._base_headers_ws.get("approval_key", "")
-        if not approval_key:
+        self._approval_key = ka._base_headers_ws.get("approval_key", "")
+        if not self._approval_key:
             logger.error("[GridWSEngine] Failed to get WS approval_key")
             return
 
-        # Build subscription messages
-        ob_tr_id = "H0STASP0"
         cn_tr_id = "H0STCNI0" if self.env_dv == "real" else "H0STCNI9"
-        hts_id = env.my_htsid  # HTS ID for execution notice
+        hts_id = env.my_htsid
 
-        ob_msg = {
-            "header": {
-                "approval_key": approval_key,
-                "custtype": "P",
-                "tr_type": "1",
-                "content-type": "utf-8",
-            },
-            "body": {
-                "input": {
-                    "tr_id": ob_tr_id,
-                    "tr_key": self.ticker,
-                }
-            },
-        }
-
-        cn_msg = {
-            "header": {
-                "approval_key": approval_key,
-                "custtype": "P",
-                "tr_type": "1",
-                "content-type": "utf-8",
-            },
-            "body": {
-                "input": {
-                    "tr_id": cn_tr_id,
-                    "tr_key": hts_id,
-                }
-            },
-        }
-
-        # WS URL: ws://ops.koreainvestment.com:21000/ (path=/)
         ws_url = env.my_url_ws.rstrip("/") + "/"
         logger.info(f"[GridWSEngine] Connecting to {ws_url}")
 
@@ -351,16 +341,20 @@ class GridWSEngine:
             try:
                 async with websockets.connect(ws_url, ping_interval=30) as ws:
                     self._kis_ws = ws
-                    logger.info(f"[GridWSEngine] KIS WS connected for {self.ticker}")
-
-                    # Subscribe orderbook
-                    await ws.send(json.dumps(ob_msg))
-                    logger.info(f"[GridWSEngine] Subscribed H0STASP0 for {self.ticker}")
-                    await asyncio.sleep(0.5)
+                    logger.info(f"[GridWSEngine] KIS WS connected")
 
                     # Subscribe execution notice
+                    cn_msg = self._build_sub_msg(cn_tr_id, hts_id)
                     await ws.send(json.dumps(cn_msg))
                     logger.info(f"[GridWSEngine] Subscribed {cn_tr_id} for {hts_id}")
+                    await asyncio.sleep(0.3)
+
+                    # Subscribe all pending tickers
+                    for t in list(self._subscribed_tickers):
+                        msg = self._build_sub_msg("H0STASP0", t)
+                        await ws.send(json.dumps(msg))
+                        logger.info(f"[GridWSEngine] Subscribed H0STASP0 for {t}")
+                        await asyncio.sleep(0.2)
 
                     retry = 0  # Reset on successful connect
 
@@ -427,16 +421,17 @@ class GridWSEngine:
 
             for _, row in df.iterrows():
                 if tr_id == "H0STASP0":
-                    # Use raw field parsing (bypass column mismatch)
                     raw_fields = data_str.split("^")
-                    self._parse_orderbook_raw(raw_fields)
-                    ob_data = self.orderbook.to_dict()
-                    await self._broadcast_orderbook(ob_data)
-                    self._write_log("orderbook", ob_data)
+                    parsed_ticker = self._parse_orderbook_raw(raw_fields)
+                    if parsed_ticker and parsed_ticker in self._orderbooks:
+                        ob_data = self._orderbooks[parsed_ticker].to_dict()
+                        await self._broadcast_orderbook(parsed_ticker, ob_data)
+                        self._write_log(parsed_ticker, "orderbook", ob_data)
                 elif tr_id in ("H0STCNI0", "H0STCNI9"):
                     event = self._parse_ccnl_notice(row)
                     if event:
-                        await self.broadcast_event(event)
+                        evt_ticker = event.get("ticker", "")
+                        await self.broadcast_event(evt_ticker, event)
 
         else:
             # System response (subscription confirmation, ping/pong)
@@ -472,63 +467,64 @@ class GridWSEngine:
             return
         self._running = True
         self._kis_task = asyncio.create_task(self._kis_connect())
-        logger.info(f"[GridWSEngine] Started for {self.ticker}")
+        logger.info(f"[GridWSEngine] Started")
 
     async def stop(self):
         """Stop KIS WS connection"""
         self._running = False
         if self._kis_ws:
-            try:
-                await self._kis_ws.close()
-            except Exception:
-                pass
+            try: await self._kis_ws.close()
+            except: pass
         if self._kis_task and not self._kis_task.done():
             self._kis_task.cancel()
-            try:
-                await self._kis_task
-            except (asyncio.CancelledError, Exception):
-                pass
-        if self._log_file:
-            self._log_file.close()
-            self._log_file = None
-        logger.info(f"[GridWSEngine] Stopped for {self.ticker}")
+            try: await self._kis_task
+            except: pass
+        for f in self._log_files.values():
+            try: f.close()
+            except: pass
+        self._log_files.clear()
+        logger.info(f"[GridWSEngine] Stopped")
 
-    def get_current_orderbook(self) -> dict:
-        """Return current orderbook snapshot"""
-        return self.orderbook.to_dict()
+    def get_current_orderbook(self, ticker: str) -> dict:
+        """Return current orderbook snapshot for ticker"""
+        t = ticker.upper()
+        if t in self._orderbooks:
+            return self._orderbooks[t].to_dict()
+        return OrderbookState(ticker=t).to_dict()
 
     @property
     def is_running(self) -> bool:
         return self._running
 
 
-# ── Global engine registry ───────────────────────────────────
+# ── Global singleton engine ──────────────────────────────────
 
-_engines: Dict[str, GridWSEngine] = {}
-_engines_lock = asyncio.Lock()
+_engine: Optional[GridWSEngine] = None
+_engine_lock = asyncio.Lock()
 
 
 async def get_or_create_engine(ticker: str, env_dv: str = "real") -> GridWSEngine:
-    """Get existing engine or create a new one for the ticker"""
-    key = f"{ticker.upper()}:{env_dv}"
-    async with _engines_lock:
-        if key not in _engines or not _engines[key].is_running:
-            engine = GridWSEngine(ticker.upper(), env_dv)
-            await engine.start()
-            _engines[key] = engine
-        return _engines[key]
+    """Get singleton engine, subscribe ticker if needed"""
+    global _engine
+    async with _engine_lock:
+        if _engine is None or not _engine.is_running:
+            _engine = GridWSEngine(env_dv)
+            await _engine.start()
+        # Subscribe this ticker
+        await _engine.subscribe_ticker(ticker.upper())
+    return _engine
 
 
 async def stop_engine(ticker: str, env_dv: str = "real"):
-    key = f"{ticker.upper()}:{env_dv}"
-    async with _engines_lock:
-        if key in _engines:
-            await _engines[key].stop()
-            del _engines[key]
+    """Unsubscribe a ticker (don't stop the whole engine)"""
+    global _engine
+    if _engine and _engine.is_running:
+        await _engine.unsubscribe_ticker(ticker.upper())
 
 
 async def stop_all_engines():
-    async with _engines_lock:
-        for engine in _engines.values():
-            await engine.stop()
-        _engines.clear()
+    global _engine
+    async with _engine_lock:
+        if _engine:
+            await _engine.stop()
+            _engine = None

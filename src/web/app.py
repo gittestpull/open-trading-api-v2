@@ -1396,10 +1396,10 @@ def create_app(base_dir: str) -> FastAPI:
         q = None
         try:
             engine = await get_or_create_engine(t)
-            q = engine.subscribe_orderbook()
+            q = engine.subscribe_orderbook(t)
 
             # Send current snapshot immediately
-            snapshot = engine.get_current_orderbook()
+            snapshot = engine.get_current_orderbook(t)
             if snapshot.get("asks") or snapshot.get("bids"):
                 await websocket.send_text(json.dumps(snapshot))
 
@@ -1416,7 +1416,7 @@ def create_app(base_dir: str) -> FastAPI:
             logger.error(f"[WS orderbook] Error: {e}")
         finally:
             if engine and q:
-                engine.unsubscribe_orderbook(q)
+                engine.unsubscribe_orderbook(t, q)
 
     @app.websocket("/ws/grid-ladder/events/{ticker}")
     async def ws_grid_events(websocket: WebSocket, ticker: str):
@@ -1427,7 +1427,7 @@ def create_app(base_dir: str) -> FastAPI:
         q = None
         try:
             engine = await get_or_create_engine(t)
-            q = engine.subscribe_events()
+            q = engine.subscribe_events(t)
 
             while True:
                 try:
@@ -1441,7 +1441,7 @@ def create_app(base_dir: str) -> FastAPI:
             logger.error(f"[WS events] Error: {e}")
         finally:
             if engine and q:
-                engine.unsubscribe_events(q)
+                engine.unsubscribe_events(t, q)
 
     @app.get("/grid-ladder", response_class=HTMLResponse)
     async def grid_ladder_page():
