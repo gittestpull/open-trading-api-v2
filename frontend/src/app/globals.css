@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+@theme {
+  --color-dark-900: #0d1117;
+  --color-dark-800: #161b22;
+  --color-dark-700: #21262d;
+  --color-dark-600: #30363d;
+  --color-accent-blue: #58a6ff;
+  --color-accent-green: #3fb950;
+  --color-accent-red: #f85149;
+  --color-accent-yellow: #d29922;
+  --color-accent-purple: #a371f7;
+}
+
+body {
+  background-color: var(--color-dark-900);
+  color: #d1d5db;
+}
+
+/* Orderbook bar backgrounds */
+.ob-bar-ask {
+  background: linear-gradient(to left, rgba(248, 81, 73, 0.25), transparent);
+}
+.ob-bar-bid {
+  background: linear-gradient(to right, rgba(88, 166, 255, 0.25), transparent);
+}
+.ob-grid-marker {
+  box-shadow: inset 0 0 0 1px rgba(163, 113, 247, 0.6);
+}
+
+/* Flash animations */
+@keyframes flash-green {
+  0% { background: rgba(63, 185, 80, 0.3); }
+  100% { background: transparent; }
+}
+@keyframes flash-red {
+  0% { background: rgba(248, 81, 73, 0.3); }
+  100% { background: transparent; }
+}
+.flash-fill {
+  animation: flash-green 1s ease-out;
+}
+.flash-cancel {
+  animation: flash-red 0.5s ease-out;
+}
+
+/* WS indicator pulse */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.ws-pulse {
+  animation: pulse-dot 1s infinite;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-dark-900);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-dark-600);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-dark-700);
+}

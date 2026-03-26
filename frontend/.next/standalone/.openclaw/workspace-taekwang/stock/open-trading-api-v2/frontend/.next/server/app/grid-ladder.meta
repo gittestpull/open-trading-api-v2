@@ -1,0 +1,15 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/grid-ladder/layout,_N_T_/grid-ladder/page,_N_T_/grid-ladder"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/grid-ladder/__PAGE__",
+    "/grid-ladder",
+    "/_index",
+    "/_head"
+  ]
+}

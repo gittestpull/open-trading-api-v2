@@ -50,6 +50,26 @@ services:
       timeout: 10s
       retries: 3
 
+  trading-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: trading-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "30800:3000"
+    environment:
+      - TZ=Asia/Seoul
+      - NODE_ENV=production
+      - API_URL=http://trading-web:8080
+    depends_on:
+      - trading-web
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   trading-staging:
     build:
       context: .

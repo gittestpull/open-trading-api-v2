@@ -1,0 +1,3 @@
+module.exports=[80718,a=>{"use strict";var b=a.i(69466);a.s(["default",0,function({children:a}){return(0,b.jsx)("html",{lang:"ko",className:"dark",children:(0,b.jsx)("body",{className:"bg-dark-900 text-gray-300 min-h-screen antialiased",children:a})})},"metadata",0,{title:"Deep Dive - Investment Platform",description:"AI-Powered Korean Stock Trading Platform"}])},27773,a=>{a.n(a.i(80718))}];
+
+//# sourceMappingURL=0-4j_stock_open-trading-api-v2_frontend_src_app_layout_tsx_0ts1_..._.js.map

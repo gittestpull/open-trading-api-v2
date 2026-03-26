@@ -1,0 +1,3 @@
+module.exports=[4479,(a,b,c)=>{let{createClientModuleProxy:d}=a.r(72830);a.n(d("[project]/.openclaw/workspace-taekwang/stock/open-trading-api-v2/frontend/node_modules/next/dist/client/components/builtin/global-error.js <module evaluation>"))},64820,(a,b,c)=>{let{createClientModuleProxy:d}=a.r(72830);a.n(d("[project]/.openclaw/workspace-taekwang/stock/open-trading-api-v2/frontend/node_modules/next/dist/client/components/builtin/global-error.js"))},19938,a=>{"use strict";a.i(4479);var b=a.i(64820);a.n(b)},25572,a=>{a.n(a.i(19938))}];
+
+//# sourceMappingURL=0412_next_dist_client_components_builtin_global-error_0t5k0yd.js.map
