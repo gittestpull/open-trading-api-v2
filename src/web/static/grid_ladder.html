@@ -476,6 +476,16 @@
         const asks = data.asks || [];
         const bids = data.bids || [];
 
+        // Refresh gridOrderMap from allInstances for this ticker
+        gridOrderPrices.clear();
+        gridOrderMap = {};
+        allInstances.filter(inst => inst.ticker === activeObTicker).forEach(inst => {
+            (inst.pending_order_details || []).forEach(o => {
+                gridOrderPrices.add(o.price);
+                gridOrderMap[o.price] = { qty: o.quantity, level: o.tick_level, order_no: o.order_no };
+            });
+        });
+
         // Update time
         document.getElementById('obTime').textContent = data.time || '--:--:--';
 
